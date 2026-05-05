@@ -1,37 +1,20 @@
-// pages/CategoryPage.jsx - VERSIÓN COMPLETAMENTE ACTUALIZADA CON NAVEGACIÓN REEL
+// pages/CategoryPage.jsx - SOLO PARA VIDEOS
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useParams, useHistory, useLocation } from "react-router-dom";
-import { Container, Spinner, Row, Col, Button, Nav } from "react-bootstrap";
+import { Container, Spinner, Row, Col, Button } from "react-bootstrap";
 import InfiniteScroll from "react-infinite-scroll-component";
-import { Funnel, CameraVideo, Shop, Grid, ArrowUp, Grid3x3, Film } from 'react-bootstrap-icons';
-import PostCard from "../../components/post-card/PostCard";
+import { Funnel, CameraVideo, ArrowUp, Grid3x3, Film } from 'react-bootstrap-icons';
 import VideoCard from "../../components/VideoCard";
 const VideoReelItem = require('../video/Feed').default;
-//import VideoReelItem from "../video/Feed.js";
-import { getCategoryPosts } from "../../redux/actions/categoryAction";
-import { getBoutiquesByCategory } from "../../redux/actions/boutiqueAction";
 import { getVideos } from "../../redux/actions/videoAction";
 import BreadcrumbNav from "../../components/BreadcrumbNav";
 import SliderUnificado from "../../components/SlidersCategories/SliderUnificado";
-import BoutiqueCard from "../../components/boutique/BoutiquePostCard";
 import PaginationComponent from "../../components/PaginationComponent";
 import CategoryCarousel from "../../components/SlidersCategories/CategoryCarousel";
 import FilterDrawer from "./FilterDrawer";
 import HeaderVideo from '../HeaderVideo';
 
-
-
- 
-const POSTS_SCROLL_LIMIT = 50;
-
-const CONTENT_TYPES = {
-  POSTS: 'posts',
-  BOUTIQUES: 'boutiques',
-  VIDEOS: 'videos'
-};
-
-// Modo de visualización para videos
 const VIDEO_VIEW_MODE = {
   REEL: 'reel',
   GRID: 'grid'
@@ -41,72 +24,34 @@ const CategoryPage = () => {
   const dispatch = useDispatch();
   const history = useHistory();
   const location = useLocation();
-  const { slug, subSlug, articleSlug, page } = useParams();
+  const { slug, subSlug, page } = useParams();
 
-  // ✅ Obtener auth y socket del store global
   const { auth, socket } = useSelector(state => state);
 
-  const [activeContentType, setActiveContentType] = useState(CONTENT_TYPES.POSTS);
   const [videoViewMode, setVideoViewMode] = useState(() => {
     return slug === 'videos' && !subSlug ? VIDEO_VIEW_MODE.REEL : VIDEO_VIEW_MODE.GRID;
   });
   const [activeVideoIndex, setActiveVideoIndex] = useState(0);
-  const [currentReelIndex, setCurrentReelIndex] = useState(0); // ✅ Para navegación entre reels
+  const [currentReelIndex, setCurrentReelIndex] = useState(0);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const videoReelsRef = useRef(null);
   const isScrollingRef = useRef(false);
 
   // Redirigir si no hay página en la URL
   useEffect(() => {
-    if (!page && !subSlug && !articleSlug) {
+    if (!page && !subSlug) {
       history.replace(`/${slug}/1${location.search}`);
       return;
     }
     if (subSlug && !page) {
-      const newPath = articleSlug 
-        ? `/${slug}/${subSlug}/${articleSlug}/1`
-        : `/${slug}/${subSlug}/1`;
-      history.replace(`${newPath}${location.search}`);
+      history.replace(`/${slug}/${subSlug}/1${location.search}`);
       return;
     }
-  }, [slug, subSlug, articleSlug, page, history, location.search]);
+  }, [slug, subSlug, page, history, location.search]);
 
-  const isBoutique = slug === 'boutiques';
-  const isVideo = slug === 'videos';
   const categoryData = useSelector(state => state.category.currentCategory);
   
-  // Estados REDUX
-  const {
-    categoryInfo = {},
-    posts = [],
-    postsLoading = false,
-    hasMorePosts = true,
-    pagination: rawPagination = {},
-  } = useSelector((state) => state.category || {});
-
-  const categoryChildren = categoryInfo?.children || [];
-
-  const categoryPath = isBoutique && subSlug 
-    ? `boutiques/${subSlug}` 
-    : isBoutique ? 'boutiques' : null;
-
-  const boutiqueCategoryData = useSelector((state) => 
-    categoryPath ? state.boutique?.boutiquesByCategory[categoryPath] : null
-  );
-
-  const boutiques = boutiqueCategoryData?.boutiques || [];
-  const boutiquesLoading = useSelector((state) => 
-    categoryPath ? state.boutique?.loadingByCategory[categoryPath] : false
-  );
-  const hasMoreBoutiques = boutiqueCategoryData?.hasMore || false;
-  const boutiquePagination = {
-    currentPage: boutiqueCategoryData?.page || 1,
-    totalPages: boutiqueCategoryData?.totalPages || 1,
-    totalPosts: boutiqueCategoryData?.total || 0,
-    limit: 12,
-    hasMore: boutiqueCategoryData?.hasMore || false
-  };
-
+  // Estados REDUX para videos
   const videosState = useSelector((state) => state.video);
   const videos = videosState.videos || [];
   const videosLoading = videosState.loading || false;
@@ -122,13 +67,11 @@ const CategoryPage = () => {
   // Estados locales
   const [allChildren, setAllChildren] = useState([]);
   const [currentSub, setCurrentSub] = useState(null);
-  const [currentArticle, setCurrentArticle] = useState(null);
   const [error, setError] = useState(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   
   const [filters, setFilters] = useState({
     sub: subSlug || null,
-    article: articleSlug || null,
     page: page ? parseInt(page) : 1
   });
 
@@ -144,7 +87,7 @@ const CategoryPage = () => {
   // MODO REEL - DETECCIÓN DE SCROLL MANUAL
   // ============================================
   useEffect(() => {
-    if (!isVideo || videoViewMode !== VIDEO_VIEW_MODE.REEL) return;
+    if (videoViewMode !== VIDEO_VIEW_MODE.REEL) return;
     
     const handleScroll = () => {
       if (isScrollingRef.current) return;
@@ -158,7 +101,7 @@ const CategoryPage = () => {
       
       if (newIndex !== activeVideoIndex && newIndex >= 0 && newIndex < videos.length) {
         setActiveVideoIndex(newIndex);
-        setCurrentReelIndex(newIndex); // ✅ Sincronizar currentReelIndex
+        setCurrentReelIndex(newIndex);
       }
       
       setShowScrollTop(scrollTop > window.innerHeight * 2);
@@ -169,20 +112,19 @@ const CategoryPage = () => {
       container.addEventListener('scroll', handleScroll);
       return () => container.removeEventListener('scroll', handleScroll);
     }
-  }, [videos.length, activeVideoIndex, isVideo, videoViewMode]);
+  }, [videos.length, activeVideoIndex, videoViewMode]);
 
-  // ✅ Sincronizar currentReelIndex con activeVideoIndex
+  // Sincronizar currentReelIndex con activeVideoIndex
   useEffect(() => {
     setCurrentReelIndex(activeVideoIndex);
   }, [activeVideoIndex]);
 
-  // ✅ Función para ir al siguiente video
+  // Función para ir al siguiente video
   const handleNextVideo = useCallback(() => {
     if (currentReelIndex < videos.length - 1) {
       const newIndex = currentReelIndex + 1;
       setCurrentReelIndex(newIndex);
       setActiveVideoIndex(newIndex);
-      // Scroll al siguiente video
       if (videoReelsRef.current) {
         const nextVideoTop = newIndex * window.innerHeight;
         videoReelsRef.current.scrollTo({ top: nextVideoTop, behavior: 'smooth' });
@@ -190,13 +132,12 @@ const CategoryPage = () => {
     }
   }, [currentReelIndex, videos.length]);
 
-  // ✅ Función para ir al video anterior
+  // Función para ir al video anterior
   const handlePreviousVideo = useCallback(() => {
     if (currentReelIndex > 0) {
       const newIndex = currentReelIndex - 1;
       setCurrentReelIndex(newIndex);
       setActiveVideoIndex(newIndex);
-      // Scroll al video anterior
       if (videoReelsRef.current) {
         const prevVideoTop = newIndex * window.innerHeight;
         videoReelsRef.current.scrollTo({ top: prevVideoTop, behavior: 'smooth' });
@@ -217,10 +158,6 @@ const CategoryPage = () => {
     let count = 0;
     if (activeFilters.wilaya && activeFilters.wilaya !== '') count++;
     if (activeFilters.commune && activeFilters.commune !== '') count++;
-    if (!isBoutique && !isVideo) {
-      if (activeFilters.minPrice && activeFilters.minPrice !== null) count++;
-      if (activeFilters.maxPrice && activeFilters.maxPrice !== null) count++;
-    }
     if (activeFilters.sortBy && activeFilters.sortBy !== 'recent') count++;
     if (activeFilters.searchTerm && activeFilters.searchTerm !== '') count++;
     return count;
@@ -233,8 +170,6 @@ const CategoryPage = () => {
     const searchParams = new URLSearchParams(location.search);
     const wilaya = searchParams.get('wilaya') || '';
     const commune = searchParams.get('commune') || '';
-    const minPrice = searchParams.get('minPrice') || null;
-    const maxPrice = searchParams.get('maxPrice') || null;
     const sortBy = searchParams.get('sortBy') || 'recent';
     const searchTerm = searchParams.get('searchTerm') || '';
     
@@ -242,28 +177,22 @@ const CategoryPage = () => {
     
     setFilters({
       sub: subSlug || null,
-      article: articleSlug || null,
       page: newPage
     });
     
     setActiveFilters({
       wilaya,
       commune,
-      minPrice: minPrice ? parseFloat(minPrice) : null,
-      maxPrice: maxPrice ? parseFloat(maxPrice) : null,
       sortBy,
       searchTerm
     });
-  }, [subSlug, articleSlug, page, location.search]);
+  }, [subSlug, page, location.search]);
 
   const updateUrl = useCallback((newFilters, customActiveFilters = null) => {
     let basePath = `/${slug}`;
     
     if (newFilters.sub) {
       basePath += `/${newFilters.sub}`;
-      if (!isBoutique && !isVideo && newFilters.article) {
-        basePath += `/${newFilters.article}`;
-      }
     }
     
     basePath += `/${newFilters.page || 1}`;
@@ -280,73 +209,36 @@ const CategoryPage = () => {
     if (filtersToUse?.commune && filtersToUse.commune !== '') {
       searchParams.set('commune', filtersToUse.commune);
     }
-    if (!isBoutique && !isVideo && filtersToUse?.minPrice && filtersToUse.minPrice !== null) {
-      searchParams.set('minPrice', filtersToUse.minPrice);
-    }
-    if (!isBoutique && !isVideo && filtersToUse?.maxPrice && filtersToUse.maxPrice !== null) {
-      searchParams.set('maxPrice', filtersToUse.maxPrice);
-    }
     if (filtersToUse?.sortBy && filtersToUse.sortBy !== 'recent') {
       searchParams.set('sortBy', filtersToUse.sortBy);
     }
     
     const finalPath = searchParams.toString() ? `${basePath}?${searchParams.toString()}` : basePath;
     history.push(finalPath);
-  }, [slug, history, isBoutique, isVideo, activeFilters]);
+  }, [slug, history, activeFilters]);
 
   const loadData = useCallback(async () => {
     if (!slug) return;
     
     try {
-      if (isBoutique) {
-        const res = await dispatch(getBoutiquesByCategory(
-          slug, filters.sub, filters.page, 12,
-          activeFilters?.wilaya || '', activeFilters?.commune || '',
-          null, null, activeFilters?.sortBy || 'recent'
-        ));
-        if (res?.children) setAllChildren(res.children);
-        if (res?.filterMetadata) setFilterMetadata(res.filterMetadata);
-      } else if (isVideo) {
-        const res = await dispatch(getVideos(
-          slug, filters.sub, filters.page, 12,
-          activeFilters?.sortBy || 'recent',
-          activeFilters?.searchTerm || null
-        ));
-        if (res?.children && res.children.length > 0) {
-          setAllChildren(res.children);
-        }
-      } else {
-        const res = await dispatch(getCategoryPosts(
-          slug, filters.sub, filters.article, filters.page, 12,
-          activeFilters?.wilaya || '', activeFilters?.commune || '',
-          activeFilters?.minPrice || null, activeFilters?.maxPrice || null,
-          activeFilters?.sortBy || 'recent'
-        ));
-        if (res?.children) {
-          setAllChildren(res.children);
-          if (filters.sub) {
-            const foundSub = res.children.find((c) => c.slug === filters.sub);
-            setCurrentSub(foundSub || null);
-            if (filters.article && foundSub?.articles) {
-              const foundArticle = foundSub.articles.find((a) => a.slug === filters.article);
-              setCurrentArticle(foundArticle || null);
-            } else {
-              setCurrentArticle(null);
-            }
-          } else {
-            setCurrentSub(null);
-            setCurrentArticle(null);
-          }
-        }
-        if (res?.filterMetadata) setFilterMetadata(res.filterMetadata);
+      const res = await dispatch(getVideos(
+        slug, filters.sub, filters.page, 12,
+        activeFilters?.sortBy || 'recent',
+        activeFilters?.searchTerm || null,
+        activeFilters?.wilaya || '',
+        activeFilters?.commune || ''
+      ));
+      if (res?.children && res.children.length > 0) {
+        setAllChildren(res.children);
       }
+      if (res?.filterMetadata) setFilterMetadata(res.filterMetadata);
     } catch (err) {
-      console.error('❌ Error cargando datos:', err);
+      console.error('❌ Error cargando videos:', err);
       setError(err.message);
     } finally {
       setIsInitialLoad(false);
     }
-  }, [slug, filters.sub, filters.article, filters.page, dispatch, isBoutique, isVideo, activeFilters]);
+  }, [slug, filters.sub, filters.page, dispatch, activeFilters]);
 
   useEffect(() => {
     loadData();
@@ -356,123 +248,64 @@ const CategoryPage = () => {
     const items = [{ label: "Inicio", path: "/" }];
     if (slug) {
       let nombreCategoria = slug;
-      if (isBoutique) nombreCategoria = "Boutiques";
-      else if (isVideo) nombreCategoria = "Vidéos";
-      else if (categoryInfo?.name) nombreCategoria = categoryInfo.name;
+      if (categoryData?.name) nombreCategoria = categoryData.name;
       items.push({ label: nombreCategoria, path: `/${slug}/1` });
     }
     if (currentSub) {
       items.push({ label: currentSub.name, path: `/${slug}/${currentSub.slug}/1` });
     }
-    if (!isBoutique && !isVideo && currentArticle) {
-      items.push({
-        label: currentArticle.name,
-        path: `/${slug}/${currentSub?.slug}/${currentArticle.slug}/1`,
-      });
-    }
     return items;
   };
 
   const loadMore = useCallback(() => {
-    if (isBoutique) {
-      if (!hasMoreBoutiques || boutiquesLoading) return;
-      const nextPage = filters.page + 1;
-      const newFilters = { ...filters, page: nextPage };
-      setFilters(newFilters);
-      updateUrl(newFilters);
-      dispatch(getBoutiquesByCategory(slug, filters.sub, nextPage, 12,
-        activeFilters?.wilaya || '', activeFilters?.commune || '',
-        null, null, activeFilters?.sortBy || 'recent'));
-    } else if (isVideo) {
-      if (!hasMoreVideos || videosLoading) return;
-      const nextPage = filters.page + 1;
-      const newFilters = { ...filters, page: nextPage };
-      setFilters(newFilters);
-      updateUrl(newFilters);
-      dispatch(getVideos(slug, filters.sub, nextPage, 12,
-        activeFilters?.sortBy || 'recent', activeFilters?.searchTerm || null));
-    } else {
-      if (!hasMorePosts || postsLoading || posts.length >= POSTS_SCROLL_LIMIT) return;
-      const nextPage = filters.page + 1;
-      const newFilters = { ...filters, page: nextPage };
-      setFilters(newFilters);
-      updateUrl(newFilters);
-      dispatch(getCategoryPosts(slug, filters.sub, filters.article, nextPage, 12,
-        activeFilters?.wilaya || '', activeFilters?.commune || '',
-        activeFilters?.minPrice || null, activeFilters?.maxPrice || null,
-        activeFilters?.sortBy || 'recent'));
-    }
-  }, [isBoutique, isVideo, hasMoreBoutiques, boutiquesLoading, hasMoreVideos, videosLoading,
-      hasMorePosts, postsLoading, posts.length, filters, dispatch, slug, updateUrl, activeFilters]);
-
-  const handleSliderClick = useCallback((item) => {
-    let newFilters = { sub: item.slug, article: null, page: 1 };
-    if (!isBoutique && !isVideo) {
-      const isSubCategory = item.level === 2;
-      if (isSubCategory) setCurrentSub(item);
-      else setCurrentArticle(item);
-    } else {
-      setCurrentSub(item);
-    }
+    if (!hasMoreVideos || videosLoading) return;
+    const nextPage = filters.page + 1;
+    const newFilters = { ...filters, page: nextPage };
     setFilters(newFilters);
     updateUrl(newFilters);
-    if (isBoutique) {
-      dispatch(getBoutiquesByCategory(slug, newFilters.sub, 1, 12,
-        activeFilters?.wilaya || '', activeFilters?.commune || '',
-        null, null, activeFilters?.sortBy || 'recent'));
-    } else if (isVideo) {
-      if (newFilters.sub) {
-        setVideoViewMode(VIDEO_VIEW_MODE.GRID);
-      }
-      dispatch(getVideos(slug, newFilters.sub, 1, 12,
-        activeFilters?.sortBy || 'recent', activeFilters?.searchTerm || null));
-    } else {
-      dispatch(getCategoryPosts(slug, newFilters.sub, null, 1, 12,
-        activeFilters?.wilaya || '', activeFilters?.commune || '',
-        activeFilters?.minPrice || null, activeFilters?.maxPrice || null,
-        activeFilters?.sortBy || 'recent'));
-    }
-  }, [slug, dispatch, isBoutique, isVideo, updateUrl, activeFilters]);
+    dispatch(getVideos(slug, filters.sub, nextPage, 12,
+      activeFilters?.sortBy || 'recent',
+      activeFilters?.searchTerm || null,
+      activeFilters?.wilaya || '',
+      activeFilters?.commune || ''));
+  }, [hasMoreVideos, videosLoading, filters, dispatch, slug, updateUrl, activeFilters]);
+
+  const handleSliderClick = useCallback((item) => {
+    let newFilters = { sub: item.slug, page: 1 };
+    setCurrentSub(item);
+    setFilters(newFilters);
+    updateUrl(newFilters);
+    setVideoViewMode(VIDEO_VIEW_MODE.GRID);
+    dispatch(getVideos(slug, newFilters.sub, 1, 12,
+      activeFilters?.sortBy || 'recent',
+      activeFilters?.searchTerm || null,
+      activeFilters?.wilaya || '',
+      activeFilters?.commune || ''));
+  }, [slug, dispatch, updateUrl, activeFilters]);
 
   const getSliderItems = () => {
-    if (currentSub && currentSub.articles?.length > 0 && !isBoutique && !isVideo) {
-      return currentSub.articles;
-    }
     if (allChildren.length > 0) return allChildren;
-    if (categoryChildren.length > 0) return categoryChildren;
     return [];
   };
 
   const getActiveItem = () => {
-    if (isBoutique || isVideo) return currentSub;
-    if (currentArticle) return currentArticle;
-    if (currentSub) return currentSub;
-    return null;
+    return currentSub;
   };
 
   const handlePageChange = (newPage) => {
     const newFilters = { ...filters, page: newPage };
     setFilters(newFilters);
     updateUrl(newFilters);
-    if (isBoutique) {
-      dispatch(getBoutiquesByCategory(slug, filters.sub, newPage, 12,
-        activeFilters?.wilaya || '', activeFilters?.commune || '',
-        null, null, activeFilters?.sortBy || 'recent'));
-    } else if (isVideo) {
-      dispatch(getVideos(slug, filters.sub, newPage, 12,
-        activeFilters?.sortBy || 'recent', activeFilters?.searchTerm || null));
-    } else {
-      dispatch(getCategoryPosts(slug, filters.sub, filters.article, newPage, 12,
-        activeFilters?.wilaya || '', activeFilters?.commune || '',
-        activeFilters?.minPrice || null, activeFilters?.maxPrice || null,
-        activeFilters?.sortBy || 'recent'));
-    }
+    dispatch(getVideos(slug, filters.sub, newPage, 12,
+      activeFilters?.sortBy || 'recent',
+      activeFilters?.searchTerm || null,
+      activeFilters?.wilaya || '',
+      activeFilters?.commune || ''));
   };
 
   const handleApplyFilters = useCallback((filtersFromDrawer) => {
     const newFilters = {
       sub: filtersFromDrawer.subCategory || null,
-      article: filtersFromDrawer.article || null,
       page: 1
     };
     const newActiveFilters = {
@@ -481,43 +314,30 @@ const CategoryPage = () => {
       sortBy: filtersFromDrawer.sortBy || 'recent',
       searchTerm: filtersFromDrawer.searchTerm || ''
     };
-    if (!isBoutique && !isVideo) {
-      newActiveFilters.minPrice = filtersFromDrawer.priceMin || null;
-      newActiveFilters.maxPrice = filtersFromDrawer.priceMax || null;
-    }
+    
     setActiveFilters(newActiveFilters);
     setFilters(newFilters);
     updateUrl(newFilters, newActiveFilters);
-    if (isBoutique) {
-      dispatch(getBoutiquesByCategory(slug, newFilters.sub, 1, 12,
-        newActiveFilters.wilaya, newActiveFilters.commune,
-        null, null, newActiveFilters.sortBy));
-    } else if (isVideo) {
-      dispatch(getVideos(slug, newFilters.sub, 1, 12,
-        newActiveFilters.sortBy, newActiveFilters.searchTerm));
-    } else {
-      dispatch(getCategoryPosts(slug, newFilters.sub, newFilters.article, 1, 12,
-        newActiveFilters.wilaya, newActiveFilters.commune,
-        newActiveFilters.minPrice, newActiveFilters.maxPrice,
-        newActiveFilters.sortBy));
-    }
+    dispatch(getVideos(slug, newFilters.sub, 1, 12,
+      newActiveFilters.sortBy,
+      newActiveFilters.searchTerm,
+      newActiveFilters.wilaya,
+      newActiveFilters.commune));
+    
     setShowFilterDrawer(false);
-  }, [slug, isBoutique, isVideo, dispatch, updateUrl]);
+  }, [slug, dispatch, updateUrl]);
 
-  // ✅ Función para manejar eliminación de video y recargar lista
+  // Función para manejar eliminación de video
   const handleVideoDeleted = useCallback((deletedVideoId) => {
     console.log('🗑️ Video eliminado:', deletedVideoId);
-    // Recargar videos después de eliminar
     dispatch(getVideos(slug, filters.sub, 1, 12,
-      activeFilters?.sortBy || 'recent', activeFilters?.searchTerm || null));
+      activeFilters?.sortBy || 'recent',
+      activeFilters?.searchTerm || null,
+      activeFilters?.wilaya || '',
+      activeFilters?.commune || ''));
   }, [dispatch, slug, filters.sub, activeFilters]);
 
-  const isLoading = isBoutique ? boutiquesLoading : (isVideo ? videosLoading : postsLoading);
-  const items = isBoutique ? boutiques : (isVideo ? videos : posts);
-  const hasMore = isBoutique ? hasMoreBoutiques : (isVideo ? hasMoreVideos : hasMorePosts);
-  const paginationData = isBoutique ? boutiquePagination : (isVideo ? videoPagination : rawPagination);
-
-  // Función para renderizar videos en modo grid
+  // Renderizar videos en modo grid
   const renderVideoGrid = () => {
     if (error) {
       return (
@@ -528,7 +348,7 @@ const CategoryPage = () => {
       );
     }
 
-    if (isLoading && items.length === 0 && isInitialLoad) {
+    if (videosLoading && videos.length === 0 && isInitialLoad) {
       return (
         <div className="text-center py-5">
           <Spinner animation="border" variant="primary" />
@@ -537,12 +357,12 @@ const CategoryPage = () => {
       );
     }
 
-    if (items.length > 0) {
+    if (videos.length > 0) {
       return (
         <>
           <InfiniteScroll
-            dataLength={items.length}
-            hasMore={hasMore}
+            dataLength={videos.length}
+            hasMore={hasMoreVideos}
             loader={
               <div className="text-center py-4">
                 <Spinner animation="border" size="sm" variant="primary" />
@@ -553,7 +373,7 @@ const CategoryPage = () => {
             scrollThreshold={0.9}
           >
             <Row xs={1} sm={2} md={3} lg={4} className="g-4">
-              {items.map((video) => (
+              {videos.map((video) => (
                 <Col key={video._id}>
                   <VideoCard video={video} showActions={true} />
                 </Col>
@@ -561,11 +381,11 @@ const CategoryPage = () => {
             </Row>
           </InfiniteScroll>
 
-          {paginationData.totalPages > 1 && (
+          {videoPagination.totalPages > 1 && (
             <div className="mt-4">
               <PaginationComponent
-                currentPage={paginationData.currentPage}
-                totalPages={paginationData.totalPages}
+                currentPage={videoPagination.currentPage}
+                totalPages={videoPagination.totalPages}
                 onPageChange={handlePageChange}
               />
             </div>
@@ -587,12 +407,11 @@ const CategoryPage = () => {
   };
 
   // ============================================
-  // RENDER MODO REEL PARA VIDEOS (TIKTOK STYLE) - CORREGIDO
+  // RENDER MODO REEL PARA VIDEOS (TIKTOK STYLE)
   // ============================================
-  if (isVideo && videoViewMode === VIDEO_VIEW_MODE.REEL) {
+  if (videoViewMode === VIDEO_VIEW_MODE.REEL) {
     return (
       <>
-        {/* Botón para cambiar a modo grid */}
         <button
           onClick={() => setVideoViewMode(VIDEO_VIEW_MODE.GRID)}
           style={{
@@ -634,17 +453,16 @@ const CategoryPage = () => {
               video={video}
               isActive={index === currentReelIndex}
               onVideoDeleted={handleVideoDeleted}
-              // ✅ PASAR LAS PROPS DE NAVEGACIÓN
               onNextVideo={handleNextVideo}
               onPreviousVideo={handlePreviousVideo}
               hasNext={index < videos.length - 1}
               hasPrev={index > 0}
             />
           ))}
-        
         </div>
-  <HeaderVideo/>
-        {/* Botón scroll to top */}
+        
+        <HeaderVideo />
+
         {showScrollTop && videos.length > 3 && (
           <button
             onClick={scrollToTop}
@@ -703,139 +521,37 @@ const CategoryPage = () => {
   }
 
   // ============================================
-  // RENDER NORMAL PARA POSTS, BOUTIQUES Y VIDEOS EN MODO GRID
+  // RENDER NORMAL PARA VIDEOS EN MODO GRID
   // ============================================
-  const renderContent = () => {
-    if (isVideo && videoViewMode === VIDEO_VIEW_MODE.GRID) {
-      return renderVideoGrid();
-    }
-
-    if (error) {
-      return (
-        <div className="text-center py-5">
-          <h5 className="text-danger">Error</h5>
-          <p className="text-muted">{error}</p>
-        </div>
-      );
-    }
-
-    if (isLoading && items.length === 0 && isInitialLoad) {
-      return (
-        <div className="text-center py-5">
-          <Spinner animation="border" variant="primary" />
-          <p className="mt-3 text-muted">
-            {isBoutique ? 'Chargement des boutiques...' : 'Chargement des annonces...'}
-          </p>
-        </div>
-      );
-    }
-
-    if (items.length > 0) {
-      return (
-        <>
-          <InfiniteScroll
-            dataLength={items.length}
-            hasMore={hasMore}
-            loader={
-              <div className="text-center py-4">
-                <Spinner animation="border" size="sm" variant="primary" />
-                <p className="text-muted small mt-2">Chargement supplémentaire...</p>
-              </div>
-            }
-            next={loadMore}
-            scrollThreshold={0.9}
-          >
-            <Row xs={1} sm={2} md={3} lg={4} className="g-4">
-              {items.map((item) => (
-                <Col key={item._id}>
-                  {isBoutique ? (
-                    <BoutiqueCard boutique={item} />
-                  ) : (
-                    <PostCard post={item} />
-                  )}
-                </Col>
-              ))}
-            </Row>
-          </InfiniteScroll>
-
-          {paginationData.totalPages > 1 && (
-            <div className="mt-4">
-              <PaginationComponent
-                currentPage={paginationData.currentPage}
-                totalPages={paginationData.totalPages}
-                onPageChange={handlePageChange}
-              />
-            </div>
-          )}
-        </>
-      );
-    }
-
-    return (
-      <div className="text-center py-5">
-        <h4 className="text-secondary mb-3">
-          {isBoutique ? 'Aucune boutique trouvée' : 'Aucune annonce trouvée'}
-        </h4>
-        <p className="text-muted">
-          {currentSub
-            ? `Aucun résultat dans "${currentSub.name}"`
-            : isBoutique ? "Essayez d'autres critères" : "Essayez une autre catégorie"}
-        </p>
-      </div>
-    );
-  };
-
   return (
     <div className="category-page">
       <CategoryCarousel categorySlug={slug} categoryName={categoryData?.name} />
 
       <main className="category-content">
         <Container>
-          {!isBoutique && (
-            <div className="mb-4 d-flex justify-content-between align-items-center">
-              <Nav variant="tabs" activeKey={activeContentType} onSelect={(k) => setActiveContentType(k)}>
-                <Nav.Item>
-                  <Nav.Link eventKey={CONTENT_TYPES.POSTS}>
-                    <Grid className="me-1" size={16} /> Annonces
-                  </Nav.Link>
-                </Nav.Item>
-                <Nav.Item>
-                  <Nav.Link eventKey={CONTENT_TYPES.BOUTIQUES}>
-                    <Shop className="me-1" size={16} /> Boutiques
-                  </Nav.Link>
-                </Nav.Item>
-                <Nav.Item>
-                  <Nav.Link eventKey={CONTENT_TYPES.VIDEOS}>
-                    <CameraVideo className="me-1" size={16} /> Vidéos
-                  </Nav.Link>
-                </Nav.Item>
-              </Nav>
-
-              {/* Botón para cambiar modo de vista en videos */}
-              {activeContentType === CONTENT_TYPES.VIDEOS && isVideo && (
-                <div className="d-flex gap-2">
-                  <Button
-                    variant={videoViewMode === VIDEO_VIEW_MODE.REEL ? "primary" : "outline-secondary"}
-                    size="sm"
-                    onClick={() => setVideoViewMode(VIDEO_VIEW_MODE.REEL)}
-                    className="d-flex align-items-center gap-1"
-                  >
-                    <Film size={14} />
-                    Reels
-                  </Button>
-                  <Button
-                    variant={videoViewMode === VIDEO_VIEW_MODE.GRID ? "primary" : "outline-secondary"}
-                    size="sm"
-                    onClick={() => setVideoViewMode(VIDEO_VIEW_MODE.GRID)}
-                    className="d-flex align-items-center gap-1"
-                  >
-                    <Grid3x3 size={14} />
-                    Grille
-                  </Button>
-                </div>
-              )}
+          {/* Botones para cambiar modo de vista */}
+          <div className="mb-4 d-flex justify-content-end">
+            <div className="d-flex gap-2">
+              <Button
+                variant={videoViewMode === VIDEO_VIEW_MODE.REEL ? "primary" : "outline-secondary"}
+                size="sm"
+                onClick={() => setVideoViewMode(VIDEO_VIEW_MODE.REEL)}
+                className="d-flex align-items-center gap-1"
+              >
+                <Film size={14} />
+                Reels
+              </Button>
+              <Button
+                variant={videoViewMode === VIDEO_VIEW_MODE.GRID ? "primary" : "outline-secondary"}
+                size="sm"
+                onClick={() => setVideoViewMode(VIDEO_VIEW_MODE.GRID)}
+                className="d-flex align-items-center gap-1"
+              >
+                <Grid3x3 size={14} />
+                Grille
+              </Button>
             </div>
-          )}
+          </div>
 
           {getSliderItems().length > 0 && (
             <div className="mb-4">
@@ -857,7 +573,7 @@ const CategoryPage = () => {
           <div className="d-flex justify-content-between align-items-center mb-3">
             <div>
               <h4 className="mb-0">
-                {isBoutique ? 'Boutiques' : (isVideo ? 'Vidéos' : 'Annonces')}
+                Vidéos
                 {currentSub && <span className="text-muted ms-2">- {currentSub.name}</span>}
               </h4>
               {activeFilterCount > 0 && (
@@ -868,7 +584,7 @@ const CategoryPage = () => {
             </div>
             
             <div className="d-flex align-items-center gap-3">
-              <span className="text-muted">{items.length} résultat{items.length > 1 ? 's' : ''}</span>
+              <span className="text-muted">{videos.length} résultat{videos.length > 1 ? 's' : ''}</span>
               <Button
                 variant={activeFilterCount > 0 ? "primary" : "outline-primary"}
                 size="sm"
@@ -885,11 +601,7 @@ const CategoryPage = () => {
           </div>
 
           <section className="content-section">
-            {activeContentType === CONTENT_TYPES.POSTS && renderContent()}
-            {activeContentType === CONTENT_TYPES.BOUTIQUES && (
-              <CategoryPage slug="boutiques" {...({})} />
-            )}
-            {activeContentType === CONTENT_TYPES.VIDEOS && renderContent()}
+            {renderVideoGrid()}
           </section>
         </Container>
       </main>
@@ -902,8 +614,7 @@ const CategoryPage = () => {
         initialCommune={activeFilters?.commune || ''}
         initialSearchTerm={activeFilters?.searchTerm || ''}
         initialSortBy={activeFilters?.sortBy || 'recent'}
-        isBoutique={isBoutique}
-        isVideo={isVideo}
+        isVideo={true}
       />
 
       <style>{`
@@ -920,23 +631,7 @@ const CategoryPage = () => {
           justify-content: center;
           margin-left: 4px;
         }
-        .nav-tabs .nav-link {
-          color: #666;
-          border: none;
-          padding: 10px 20px;
-          font-weight: 500;
-        }
-        .nav-tabs .nav-link:hover {
-          color: #667eea;
-          border: none;
-        }
-        .nav-tabs .nav-link.active {
-          color: #667eea;
-          border-bottom: 2px solid #667eea;
-          background: transparent;
-        }
       `}</style>
-   
     </div>
   );
 };

@@ -29,9 +29,7 @@ import FilterDrawer from '../../components/adminitration/common/FilterDrawer';
 // Lazy load de componentes de tabs - SOLO se cargan cuando se necesitan
 const UsersTab = lazy(() => import('../../components/adminitration/users/UsersTab'));
 const UsersActionTab = lazy(() => import('../../components/adminitration/usersaction/UsersActionTab'));
-const PostsTab = lazy(() => import('../../components/adminitration/posts/PostsTab'));
-const BoutiquesTab = lazy(() => import('../../components/adminitration/boutiques/BoutiquesTab'));
-const ReportsTab = lazy(() => import('../../components/adminitration/reports/ReportsTab'));
+  const ReportsTab = lazy(() => import('../../components/adminitration/reports/ReportsTab'));
 const BlocksTab = lazy(() => import('../../components/adminitration/blocks/BlocksTab'));
 const RolesTab = lazy(() => import('../../components/adminitration/roles/RolesTab'));
 
@@ -53,8 +51,7 @@ const AdminDashboard = () => {
   const [stats, setStats] = useState({
     users: 0,
     usersAction: 0,
-    posts: 0,
-    boutiques: 0,
+    
     reports: 0,
     blocked: 0
   });
@@ -75,9 +72,7 @@ const AdminDashboard = () => {
   const tabsConfig = [
     { key: 'users', label: 'Usuarios', icon: <People size={18} />, count: stats.users },
     { key: 'usersAction', label: 'Estadísticas', icon: <BarChart size={18} />, count: stats.usersAction },
-    { key: 'posts', label: 'Publicaciones', icon: <FileText size={18} />, count: stats.posts },
-    { key: 'boutiques', label: 'Tiendas', icon: <Shop size={18} />, count: stats.boutiques },
-    { key: 'reports', label: 'Reportes', icon: <Flag size={18} />, count: stats.reports },
+       { key: 'reports', label: 'Reportes', icon: <Flag size={18} />, count: stats.reports },
     { key: 'blocks', label: 'Bloqueos', icon: <Lock size={18} />, count: stats.blocked },
     { key: 'roles', label: 'Roles', icon: <Shield size={18} />, count: null }
   ];
@@ -130,10 +125,7 @@ const AdminDashboard = () => {
         return <UsersTab {...props} />;
       case 'usersAction':
         return <UsersActionTab {...props} />;
-      case 'posts':
-        return <PostsTab {...props} />;
-      case 'boutiques':
-        return <BoutiquesTab {...props} />;
+     
       case 'reports':
         return <ReportsTab {...props} />;
       case 'blocks':

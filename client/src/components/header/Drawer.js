@@ -5,7 +5,7 @@ import { useLocation, useHistory } from 'react-router-dom';
 import Offcanvas from 'react-bootstrap/Offcanvas';
 import { logout } from '../../redux/actions/authAction';
 import { getCategoriesForAccordion } from '../../redux/actions/categoryAction';
-import { getUserBoutiques } from '../../redux/actions/boutiqueAction';
+ 
 import { Link } from 'react-router-dom';
 import { FaChevronDown } from 'react-icons/fa';
 
@@ -100,11 +100,8 @@ const Drawer = ({
   const [currentLang, setCurrentLang] = useState(DEFAULT_LANG);
   const [translateReady, setTranslateReady] = useState(false);
 
-  // Obtener boutiques del usuario desde Redux
-  const { userBoutiques = [], loading: boutiqueLoading } = useSelector(state => state.boutique || { userBoutiques: [], loading: false });
-  
-  const hasBoutiques = userBoutiques && Array.isArray(userBoutiques) && userBoutiques.length > 0;
-
+ 
+ 
   // ✅ Verificar si el usuario es Pro activo
   const isProActive = useMemo(() => {
     const user = auth?.user;
@@ -118,7 +115,7 @@ const Drawer = ({
     monCompte: false,
     mesAnnonces: false,
     mesCommandes: false,
-    mesBoutiques: false,
+    
     mesTransactions: false,
     videos: false
   });
@@ -134,11 +131,7 @@ const Drawer = ({
     }
   }, [dispatch, accordionCategories.length]);
 
-  useEffect(() => {
-    if (auth?.token) {
-      dispatch(getUserBoutiques(auth));
-    }
-  }, [dispatch, auth]);
+  
 
   // ✅ INICIALIZAR GOOGLE TRANSLATE
   useEffect(() => {
@@ -295,8 +288,8 @@ const Drawer = ({
     'vetements': '👕', 'electromenager': '🔌', 'informatique': '💻',
     'loisirs': '🎮', 'meubles': '🛋️', 'sport': '⚽',
     'alimentaires': '🍎', 'santebeaute': '💄', 'services': '🛠️',
-    'materiaux': '🧱', 'emploi': '💼', 'voyages': '✈️',
-    'pieces-detachees': '⚙️', 'boutiques': '🏪', 'default': '📁'
+    'materiaux': '🧱', 'emploi': '💼', 'voyages': '✈️'
+    
   }), []);
 
   // Paleta de colores
@@ -349,13 +342,7 @@ const Drawer = ({
     return { type: 'emoji', value: defaultCategoryIcons[categorySlug] || defaultCategoryIcons.default };
   }, [imageErrors, getFullImageUrl, defaultCategoryIcons]);
 
-  const categoryItems = useMemo(() => {
-    return accordionCategories.map(cat => ({
-      ...cat,
-      color: generateColorFromName(cat.name),
-      isStore: cat.slug === 'boutiques'
-    }));
-  }, [accordionCategories, generateColorFromName]);
+ 
 
   const isDashboardPage = location.pathname.includes('/users/dashboard') || 
                          location.pathname.includes('/profile') ||
@@ -384,10 +371,7 @@ const Drawer = ({
     setImageErrors(prev => ({ ...prev, [categorySlug]: true }));
   }, []);
 
-  const getCategoryPath = (categorySlug) => {
-    if (categorySlug === 'boutiques') return '/boutiques';
-    return `/${categorySlug}`;
-  };
+ 
 
   const handleCategoryClick = (category) => {
     onHide();
@@ -406,16 +390,10 @@ const Drawer = ({
     document.body.classList.toggle('dark-mode', newDarkMode);
   };
 
-  const handleNoBoutique = () => {
-    alert('⚠️ Vous devez d\'abord créer une boutique avant de gérer des produits');
-    onHide();
-    history.push('/create-boutique');
-  };
-
+ 
   const sectionColors = {
     monCompte: { primary: '#6366F1', light: '#EEF2FF' },
-    mesAnnonces: { primary: '#3B82F6', light: '#EFF6FF' },
-    mesBoutiques: { primary: '#EC4899', light: '#FDF2F8' },
+    mesAnnonces: { primary: '#3B82F6', light: '#EFF6FF' }, 
     mesCommandes: { primary: '#F59E0B', light: '#FFFBEB' },
     mesTransactions: { primary: '#10B981', light: '#ECFDF5' },
     videos: { primary: '#DC2626', light: '#FEF2F2' }
@@ -461,15 +439,7 @@ const Drawer = ({
     const isActive = location.pathname === path;
     const finalColor = color;
     
-    const handleClick = (e) => {
-      if (disabled) {
-        e.preventDefault();
-        handleNoBoutique();
-        return;
-      }
-      if (onClick) onClick(e);
-      if (path && !onClick) onHide();
-    };
+   
     
     const content = (
       <div
@@ -666,15 +636,7 @@ const Drawer = ({
             </div>
           )}
           
-          {hasBoutiques && (
-            <div style={{ 
-              fontSize: '0.65rem', marginTop: '8px', opacity: 0.8,
-              display: 'inline-block', background: 'rgba(255,255,255,0.2)',
-              padding: '2px 8px', borderRadius: '20px', marginLeft: isProActive ? '8px' : '0'
-            }}>
-              🏪 {userBoutiques.length} boutique(s)
-            </div>
-          )}
+       
         </div>
         <div style={{
           position: 'absolute', top: -20, right: -20,
@@ -698,16 +660,8 @@ const Drawer = ({
         <DropdownItem icon="📝" name="Ajouter une annonce" path="/creer-annonce" color="#10b981" />
       </DropdownHeader>
 
-      <DropdownHeader title="Boutiques" icon="🏪" dropdownName="mesBoutiques" color="#EC4899">
-        <DropdownItem icon="🏪" name="Mes boutiques" path="/mes-boutiques" color="#EC4899" />
-        <DropdownItem icon="✨" name="Créer une boutique" path="/create-boutique" color="#8b5cf6" />
-        <DropdownItem icon="✨" name="Mes products boutiques" path="/mes-products-boutiques" color="#8b5cf6" />
-        {boutiqueLoading && (
-          <div style={{ padding: '8px 16px 8px 48px', color: '#9ca3af', fontSize: '0.75rem' }}>
-            ⏳ Chargement de vos boutiques...
-          </div>
-        )}
-      </DropdownHeader>
+   
+ 
 
       <DropdownHeader title="Mes Commandes" emoji={emojis.commande} dropdownName="mesCommandes" color="#F59E0B">
         <DropdownItem icon="📦" name="Toutes mes commandes" path="/mes-commandes" color="#F59E0B" />
@@ -742,56 +696,16 @@ const Drawer = ({
     </>
   );
 
-  const renderCategories = () => (
-    <>
-      <div style={{ margin: '20px 0 5px 16px', fontSize: '0.9rem', fontWeight: '600', color: '#555' }}>
-        {emojis.categories} Catégories
-      </div>
-      
-      {categoryItems.map((category, index) => (
-        <div
-          key={index}
-          onClick={() => handleCategoryClick(category)}
-          style={{
-            padding: '10px 16px',
-            margin: '2px 0',
-            borderRadius: '10px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease'
-          }}
-        >
-          <CategoryIcon category={category} />
-          <span style={{ fontSize: '0.9rem', fontWeight: '500', color: '#374151' }}>
-            {category.name}
-          </span>
-        </div>
-      ))}
-    </>
-  );
+ 
 
   const renderMainContent = () => {
     if (isDashboardPage && auth.user) {
       return renderDashboardContent();
     }
     
-    if (!auth.user) {
-      return (
-        <>
-          {renderGuestContent()}
-          {renderCategories()}
-        </>
-      );
-    }
+  
     
-    return (
-      <>
-        {renderLoggedInContent()}
-        {renderCategories()}
-      </>
-    );
+  
   };
 
   return (

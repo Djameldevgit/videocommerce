@@ -1,21 +1,22 @@
-// src/pages/Home.jsx - VERSIÓN GRID RESPONSIVE PARA PC
+// src/pages/Home.jsx - VERSIÓN FINAL OPTIMIZADA
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useHistory } from 'react-router-dom';
-import { getSliderCategories } from '../redux/actions/categoryAction';
-import { getTrendingVideos, getFeaturedVideos } from '../redux/actions/videoAction';
-import { Container, Spinner, Row, Col } from 'react-bootstrap';
+import { useHistory, useLocation } from 'react-router-dom';
+import { Container, Spinner } from 'react-bootstrap';
 import InfiniteScroll from 'react-infinite-scroll-component';
-import MainCategorySlider from '../components/SlidersCategories/CategorySlider';
-import VideoCard from '../components/VideoCard'; // ← Usa VideoCard, no Feed
+import CategorySlider from '../components/CategorySlider';
+import CategorySection from '../components/CategorySection';
+import { getSliderCategories, getCategoriesWithVideos } from '../redux/actions/categoryAction';
 
 const Home = () => {
   const dispatch = useDispatch();
   const history = useHistory();
   
-  const [initialLoadDone, setInitialLoadDone] = useState(false);
   const hasLoadedRef = useRef(false);
+  const isReturningFromVideo = useRef(false);
+  const initialLoadDone = useRef(false);
+  const isFirstRender = useRef(true);
   
   const { theme = 'light' } = useSelector(state => state.theme || {});
   
@@ -25,115 +26,151 @@ const Home = () => {
   } = useSelector((state) => state.category || {});
   
   const {
-    trendingVideos = [],
-    trendingLoading = false,
-    trendingHasMore = true,
-    trendingPage = 1
-  } = useSelector((state) => state.video || {});
+    categoriesWithVideos = [],
+    loadingCategoriesWithVideos = false,
+    hasMoreCategoriesWithVideos = true,
+    currentCategoriesPage = 1
+  } = useSelector((state) => state.category || {});
 
-  const feedVideos = trendingVideos;
-  const feedLoading = trendingLoading;
-  const feedHasMore = trendingHasMore;
-  const feedPage = trendingPage;
-
+  // ✅ Detectar si venimos de un video
   useEffect(() => {
+    const returnToFeed = sessionStorage.getItem('returnToFeed');
+    if (returnToFeed === 'true') {
+      isReturningFromVideo.current = true;
+      sessionStorage.removeItem('returnToFeed');
+      console.log('🔄 Volviendo al Home desde un video');
+    }
+  }, []);
+
+  // ✅ Carga inicial SOLO si es primera vez y no venimos de un video
+  useEffect(() => {
+    // Si venimos de un video y ya hay datos, no recargar
+    if (isReturningFromVideo.current && categoriesWithVideos.length > 0) {
+      console.log('⏭️ Evitando recarga al volver de video, datos existentes:', categoriesWithVideos.length);
+      isReturningFromVideo.current = false;
+      return;
+    }
+    
+    // Si ya cargamos, no recargar
     if (hasLoadedRef.current) return;
+    
     hasLoadedRef.current = true;
     
-    dispatch(getSliderCategories());
-    dispatch(getTrendingVideos('week', 1, 12)); // ← 12 por página
-  }, [dispatch]);
+    console.log('🚀 Carga inicial del Home');
+    
+    if (sliderCategories.length === 0) {
+      dispatch(getSliderCategories());
+    }
+    
+    if (categoriesWithVideos.length === 0) {
+      dispatch(getCategoriesWithVideos(1, 2));
+    }
+  }, [dispatch, sliderCategories.length, categoriesWithVideos.length]);
 
+  // Marcar carga inicial completada
   useEffect(() => {
-    if (feedVideos.length > 0 && !initialLoadDone) {
-      setInitialLoadDone(true);
+    if (categoriesWithVideos.length > 0 && !initialLoadDone.current) {
+      initialLoadDone.current = true;
+      console.log(`✅ Carga inicial completada: ${categoriesWithVideos.length} categorías`);
     }
-  }, [feedVideos, initialLoadDone]);
+  }, [categoriesWithVideos]);
 
-  const fetchMoreVideos = useCallback(() => {
-    if (feedHasMore && !feedLoading && initialLoadDone) {
-      const nextPage = feedPage + 1;
-      dispatch(getTrendingVideos('week', nextPage, 12));
+  // ✅ Solo cargar más si realmente hay más
+  const fetchMoreCategories = useCallback(() => {
+    if (!hasMoreCategoriesWithVideos) {
+      return;
     }
-  }, [dispatch, feedHasMore, feedLoading, feedPage, initialLoadDone]);
+    
+    if (loadingCategoriesWithVideos) {
+      return;
+    }
+    
+    const nextPage = currentCategoriesPage + 1;
+    console.log(`📡 Cargando página ${nextPage}...`);
+    dispatch(getCategoriesWithVideos(nextPage, 2));
+  }, [dispatch, loadingCategoriesWithVideos, hasMoreCategoriesWithVideos, currentCategoriesPage]);
 
-  const handleCategoryClick = (category) => {
-    const slug = typeof category === 'object' ? category.slug : category;
-    if (slug) history.push(`/categoria/${slug}`);
-  };
+ // src/pages/Home.jsx
 
-  const handleVideoClick = (videoId) => {
-    history.push(`/video/${videoId}`);
-  };
+const handleCategoryClick = (category) => {
+  const slug = typeof category === 'object' ? category.slug : category;
+  if (slug) {
+    sessionStorage.setItem('returnToFeed', 'true');
+    sessionStorage.setItem('scrollPosition', window.scrollY);
+    // ✅ CORREGIDO: quitar "/categoria/" y añadir "/1" para la página
+    history.push(`/${slug}/1`);
+  }
+};
 
-  if ((sliderLoading || feedLoading) && feedVideos.length === 0 && !initialLoadDone) {
+const handleViewMore = (slug, categoryName) => {
+  sessionStorage.setItem('returnToFeed', 'true');
+  sessionStorage.setItem('scrollPosition', window.scrollY);
+  // ✅ CORREGIDO: quitar "/categoria/" y añadir "/1"
+  history.push(`/${slug}/1`, { fromHome: true, categoryName });
+};
+
+ 
+  // Restaurar posición del scroll
+  useEffect(() => {
+    const savedScrollPosition = sessionStorage.getItem('scrollPosition');
+    if (savedScrollPosition) {
+      setTimeout(() => {
+        window.scrollTo(0, parseInt(savedScrollPosition));
+        sessionStorage.removeItem('scrollPosition');
+        console.log(`📍 Scroll restaurado a: ${savedScrollPosition}`);
+      }, 100);
+    }
+  }, []);
+
+  // Loading inicial
+  if ((sliderLoading || loadingCategoriesWithVideos) && 
+      categoriesWithVideos.length === 0 && 
+      sliderCategories.length === 0) {
     return (
       <div className={`min-vh-100 d-flex align-items-center justify-content-center ${theme === 'dark' ? 'bg-dark' : 'bg-light'}`}>
-        <div className="text-center">
-          <Spinner animation="border" variant="primary" size="lg" />
-          <p className="mt-3 text-muted">Chargement des vidéos...</p>
-        </div>
+        <Spinner animation="border" variant="primary" size="lg" />
+        <p className="mt-3 text-muted ms-2">Chargement des vidéos...</p>
       </div>
     );
   }
 
   return (
     <div className={`videocommerce-home ${theme === 'dark' ? 'bg-dark' : 'bg-light'}`}>
-      {/* Header con slider */}
       <div className="home-header">
-        <Container fluid className="px-3 px-md-4">
-          <MainCategorySlider 
-            categories={sliderCategories}
-            onCategoryClick={handleCategoryClick}
+        <Container fluid className="px-md-4">
+          <CategorySlider 
+            categories={sliderCategories} 
+            onCategoryClick={handleCategoryClick} 
           />
         </Container>
       </div>
 
-      {/* Grid de videos */}
-      <Container className="py-4">
-        <div className="d-flex justify-content-between align-items-center mb-4">
-          <h4 className={`mb-0 ${theme === 'dark' ? 'text-white' : 'text-dark'}`}>
-            🎬 Vidéos tendance
-          </h4>
-          <span className="text-muted small">
-            {feedVideos.length} vidéos
-          </span>
-        </div>
-
-        <InfiniteScroll
-          dataLength={feedVideos.length}
-          next={fetchMoreVideos}
-          hasMore={feedHasMore}
-          loader={
-            <div className="text-center py-4">
-              <Spinner animation="border" variant="primary" size="sm" />
-              <span className="ms-2 text-muted">Chargement...</span>
-            </div>
-          }
-          endMessage={
-            <div className="text-center py-5">
-              <i className="fas fa-check-circle fa-2x text-success mb-3"></i>
-              <h5 className="mb-2">Vous avez tout vu !</h5>
-              <p className="text-muted">Revenez plus tard pour découvrir de nouvelles vidéos</p>
-            </div>
-          }
-        >
-          <Row className="g-3 g-md-4">
-            {feedVideos.map((video) => (
-              <Col 
-                key={video._id} 
-                xs={12} sm={6} md={4} lg={3} xl={3} xxl={2}
-                className="video-grid-item"
-              >
-                <VideoCard 
-                  video={video} 
-                  onClick={() => handleVideoClick(video._id)}
-                />
-              </Col>
-            ))}
-          </Row>
-        </InfiniteScroll>
-      </Container>
+      <InfiniteScroll
+        dataLength={categoriesWithVideos.length}
+        next={fetchMoreCategories}
+        hasMore={hasMoreCategoriesWithVideos && !loadingCategoriesWithVideos}
+        loader={
+          <div className="text-center py-4">
+            <Spinner animation="border" variant="primary" size="sm" />
+            <span className="ms-2 text-muted">Chargement...</span>
+          </div>
+        }
+        endMessage={
+          <div className="text-center py-5">
+            <i className="fas fa-check-circle fa-2x text-success mb-3"></i>
+            <h5>Vous avez tout vu !</h5>
+          </div>
+        }
+      >
+        {categoriesWithVideos.map((category) => (
+          <CategorySection
+            key={category._id}
+            category={category}
+            videos={category.videos || []}
+            onViewMore={handleViewMore}
+          />
+        ))}
+      </InfiniteScroll>
 
       <style jsx="true">{`
         .videocommerce-home {
@@ -148,21 +185,6 @@ const Home = () => {
           backdrop-filter: blur(10px);
           border-bottom: 1px solid ${theme === 'dark' ? '#333' : '#eee'};
           padding: 12px 0;
-        }
-        
-        .video-grid-item {
-          transition: transform 0.2s;
-          cursor: pointer;
-        }
-        
-        .video-grid-item:hover {
-          transform: translateY(-4px);
-        }
-        
-        @media (max-width: 576px) {
-          .video-grid-item {
-            padding: 4px;
-          }
         }
       `}</style>
     </div>

@@ -4,9 +4,9 @@ import alert from './alertReducer'
 import theme from './themeReducer'
 import profile from './profileReducer'
 import status from './statusReducer'
-import postAprove from './postAprovetReducer'
+ 
 import modal from './modalReducer'
-import detailPost from './detailPostReducer'
+ 
 import discover from './discoverReducer'
 import suggestions from './suggestionsReducer'
 import socket from './socketReducer'
@@ -26,13 +26,10 @@ import form from './formReducer'
 import { roleReducer } from './roleReducer'
 import settings from './settingsReducer'
 import privacy from './privacyReducer'
-import posts from './postReducer'
+ 
 import category from './categoryReducer'
 import { accordionReducer } from './accordionReducer'
-import boutique from './boutiqueReducer'
-import boutiqueProduct from './boutiqueProductReducer'  // 🔥 SOLO UNA VEZ
-import boutiqueAprove from './boutiqueAproveReducer'
-import productAprove from './productAproveReducer'
+ 
 import filter from './filterReducer.'
 import carousel from './carouselReducer'
 import video  from './videoReducer'
@@ -46,11 +43,9 @@ export default combineReducers({
     theme,
     profile,
     status,
-    postAprove,
-    boutiqueAprove,   
-    productAprove,
+   
     modal,
-    detailPost,
+ 
     discover,
     suggestions,
     socket,
@@ -70,9 +65,7 @@ export default combineReducers({
     form,
     settings,
     privacy,
-    boutique,
-    boutiqueProduct,   
-    posts,
+
     category,
     accordionReducer,
     filter,

@@ -12,24 +12,18 @@ import Bloqueos404 from './components/adminitration/Bloqueos404';
 import NotFound from './pages/NotFound';
 import CategoryPage from './pages/category/CategoryPage';
 import Navbar2 from './components/header/Navbar2';
-import CreateAnnoncePage from './pages/CreateAnnoncePage';
-import PostId from './pages/PostID/PostId';
+ 
+ 
 import DashboardPage from './pages/users/dashboardpage';
 import profile from './pages/users/profile';
-import CreateBoutiquePage from './pages/boutique/createBoutiquePage';
+ 
 import roles from './pages/users/roles';
-import BoutiqueDetailPage from './pages/boutique/BoutiqueDetailPage';
-import MesAnnoces from './pages/users/MesAnnoces';
+ 
 import ProfileSettings from './pages/users/ProfileSettings';
-import ProfileSaved from './pages/users/ProfileSaved';
-import CreateBoutiqueProductPage from './pages/boutiqueProduct/CreateBoutiqueProductPage';
-import Posts from './pages/aprobation/Posts';
-import MesBoutiques from './pages/boutique/MesBoutiques';
-import ProductsBoutiquePage from './pages/boutiqueProduct/ProductsBoutiquePage';
-import MesProductsBoutiques from './pages/boutiqueProduct/MesProductsBoutiques';
-import DetailProduct from './pages/boutiqueProduct/DetailProduct';
+ 
+ 
 import AdminDashboard from './pages/administration/AdminDashborad';
-import PaymentBoutique from './pages/boutique/PayementBoutique';
+ 
 import CreateVideoWizard from './pages/video/CreateVideoWizard';
 import DetailVideoPage from './pages/video/DetailVideoPage';
 import NotifyPage from './pages/notiy/NotifyPage';
@@ -271,27 +265,11 @@ function App() {
           <Route path="/create-image-page" component={CreateImageWizard} />
           <Route path="/edit-image/:id" component={EditImageWizard} />
           <Route exact path="/admindashboard" component={AdminDashboard} />
-          <Route path="/admin/posts" component={Posts} />
-          <Route exact path="/boutique/:boutiqueId/products/new" component={CreateBoutiqueProductPage} />
-          <Route exact path="/boutique/:boutiqueId/products/edit/:productId" component={CreateBoutiqueProductPage} />
-          <Route exact path="/message" component={Message} />
+              <Route exact path="/message" component={Message} />
           <Route exact path="/message/:id" component={Conversation} />
-          <Route exact path="/product/:productId" component={DetailProduct} />
-          <Route exact path="/create-boutique" component={CreateBoutiquePage} />
-          <Route exact path="/edit-boutique/:id" component={CreateBoutiquePage} />
-          <Route exact path="/mes-boutiques" component={MesBoutiques} />
-          <Route exact path="/mes-products-boutiques" component={MesProductsBoutiques} />
-          <Route exact path="/products-boutique-page/:boutiqueId" component={ProductsBoutiquePage} />
-          <Route exact path="/boutique/:id" component={BoutiqueDetailPage} />
-          <Route path="/payment-boutique/:boutiqueId" component={PaymentBoutique} />
-   
-          <Route exact path="/creer-annonce" component={CreateAnnoncePage} />
-          <Route exact path="/edit-post/:id" component={CreateAnnoncePage} />
-          <Route exact path="/post/:id" component={PostId} />
-          <Route exact path="/mes-annonces" component={MesAnnoces} />
-          <Route exact path="/profile/settings" component={ProfileSettings} />
-          <Route exact path="/profile/:id/saved" component={ProfileSaved} />
-          <Route exact path="/users/dashboard" component={DashboardPage} />
+         
+              <Route exact path="/profile/settings" component={ProfileSettings} />
+             <Route exact path="/users/dashboard" component={DashboardPage} />
           <Route exact path="/profile/:id" component={profile} />
           <Route exact path="/users/roles" component={roles} />
           <Route exact path="/:slug/:page?" component={CategoryPage} />

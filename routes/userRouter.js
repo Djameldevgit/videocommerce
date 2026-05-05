@@ -9,10 +9,9 @@ const userCtrl = require('../controllers/userCtrl')
 router.get('/users', auth, userCtrl.getUsersAction)
 router.get('/users/admins', auth, userCtrl.getAdmins)
 router.get('/users/search', auth, userCtrl.searchUser)
-router.get('/user/products', auth, userCtrl.getUserProducts)
+ 
 router.get('/inactive-users', auth, userCtrl.getInactiveUsers)
-router.delete('/posts', auth, userCtrl.eliminaRrestosDePosts)
-
+ 
 // ============================================
 // 2️⃣ RUTAS DE CONTACTO Y SOPORTE
 // ============================================

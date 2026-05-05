@@ -1,12 +1,11 @@
 import React, { useEffect, useRef } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
-import { POST_TYPES } from './redux/actions/postAction'
+import { VIDEO_TYPES } from './redux/actions/videoAction'
 import { GLOBALTYPES } from './redux/actions/globalTypes'
 import { NOTIFY_TYPES } from './redux/actions/notifyAction'
 import { MESS_TYPES } from './redux/actions/messageAction'
 
 import audiobell from './audio/got-it-done-613.mp3'
-
 
 const spawnNotification = (body, icon, url, title) => {
     let options = {
@@ -31,43 +30,69 @@ const SocketClient = () => {
         socket.emit('joinUser', auth.user)
     },[socket, auth.user])
 
-    // Likes
+    // ============================================
+    // LIKES EN VIDEOS (cambiado de likes en posts)
+    // ============================================
     useEffect(() => {
-        socket.on('likeToClient', newPost =>{
-            dispatch({type: POST_TYPES.UPDATE_POST, payload: newPost})
+        socket.on('likeVideoToClient', newVideo =>{
+            dispatch({type: VIDEO_TYPES.UPDATE_VIDEO, payload: newVideo})
         })
 
-        return () => socket.off('likeToClient')
+        return () => socket.off('likeVideoToClient')
     },[socket, dispatch])
 
     useEffect(() => {
-        socket.on('unLikeToClient', newPost =>{
-            dispatch({type: POST_TYPES.UPDATE_POST, payload: newPost})
+        socket.on('unLikeVideoToClient', newVideo =>{
+            dispatch({type: VIDEO_TYPES.UPDATE_VIDEO, payload: newVideo})
         })
 
-        return () => socket.off('unLikeToClient')
+        return () => socket.off('unLikeVideoToClient')
     },[socket, dispatch])
 
-
-    // Comments
+    // ============================================
+    // COMENTARIOS EN VIDEOS (cambiado de comentarios en posts)
+    // ============================================
     useEffect(() => {
-        socket.on('createCommentToClient', newPost =>{
-            dispatch({type: POST_TYPES.UPDATE_POST, payload: newPost})
+        socket.on('createCommentVideoToClient', newVideo =>{
+            dispatch({type: VIDEO_TYPES.UPDATE_VIDEO, payload: newVideo})
         })
 
-        return () => socket.off('createCommentToClient')
+        return () => socket.off('createCommentVideoToClient')
     },[socket, dispatch])
 
     useEffect(() => {
-        socket.on('deleteCommentToClient', newPost =>{
-            dispatch({type: POST_TYPES.UPDATE_POST, payload: newPost})
+        socket.on('deleteCommentVideoToClient', newVideo =>{
+            dispatch({type: VIDEO_TYPES.UPDATE_VIDEO, payload: newVideo})
         })
 
-        return () => socket.off('deleteCommentToClient')
+        return () => socket.off('deleteCommentVideoToClient')
     },[socket, dispatch])
 
+    // ============================================
+    // VISTAS DE VIDEOS (nuevo)
+    // ============================================
+    useEffect(() => {
+        socket.on('viewVideoToClient', newVideo =>{
+            dispatch({type: VIDEO_TYPES.UPDATE_VIDEO, payload: newVideo})
+        })
 
-    // Follow
+        return () => socket.off('viewVideoToClient')
+    },[socket, dispatch])
+
+    // ============================================
+    // COMPARTIR VIDEOS (nuevo)
+    // ============================================
+    useEffect(() => {
+        socket.on('shareVideoToClient', newVideo =>{
+            dispatch({type: VIDEO_TYPES.UPDATE_VIDEO, payload: newVideo})
+        })
+
+        return () => socket.off('shareVideoToClient')
+    },[socket, dispatch])
+
+    // ============================================
+    // FOLLOW / UNFOLLOW (sin cambios)
+    // ============================================
     useEffect(() => {
         socket.on('followToClient', newUser =>{
             dispatch({type: GLOBALTYPES.AUTH, payload: {...auth, user: newUser}})
@@ -84,8 +109,9 @@ const SocketClient = () => {
         return () => socket.off('unFollowToClient')
     },[socket, dispatch, auth])
 
-
-    // Notification
+    // ============================================
+    // NOTIFICACIONES (actualizado para videos)
+    // ============================================
     useEffect(() => {
         socket.on('createNotifyToClient', msg =>{
             dispatch({type: NOTIFY_TYPES.CREATE_NOTIFY, payload: msg})
@@ -110,8 +136,9 @@ const SocketClient = () => {
         return () => socket.off('removeNotifyToClient')
     },[socket, dispatch])
 
-
-    // Message
+    // ============================================
+    // MENSAJES (sin cambios)
+    // ============================================
     useEffect(() => {
         socket.on('addMessageToClient', msg =>{
             dispatch({type: MESS_TYPES.ADD_MESSAGE, payload: msg})
@@ -129,7 +156,9 @@ const SocketClient = () => {
         return () => socket.off('addMessageToClient')
     },[socket, dispatch])
 
-    // Check User Online / Offline
+    // ============================================
+    // CHECK USER ONLINE / OFFLINE (sin cambios)
+    // ============================================
     useEffect(() => {
         socket.emit('checkUserOnline', auth.user)
     },[socket, auth.user])
@@ -156,7 +185,9 @@ const SocketClient = () => {
         return () => socket.off('checkUserOnlineToClient')
     },[socket, dispatch, online])
 
-    // Check User Offline
+    // ============================================
+    // CHECK USER OFFLINE (sin cambios)
+    // ============================================
     useEffect(() => {
         socket.on('CheckUserOffline', id =>{
             dispatch({type: GLOBALTYPES.OFFLINE, payload: id})
@@ -165,8 +196,9 @@ const SocketClient = () => {
         return () => socket.off('CheckUserOffline')
     },[socket, dispatch])
 
-
-    // Call User
+    // ============================================
+    // CALL USER (sin cambios)
+    // ============================================
     useEffect(() => {
         socket.on('callUserToClient', data =>{
             dispatch({type: GLOBALTYPES.CALL, payload: data})
@@ -182,8 +214,6 @@ const SocketClient = () => {
 
         return () => socket.off('userBusy')
     },[socket, dispatch, call])
-
-
 
     return (
         <>

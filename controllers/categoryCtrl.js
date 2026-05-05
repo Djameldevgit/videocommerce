@@ -100,7 +100,58 @@ const getMainCategories = asyncHandler(async (req, res) => {
 
   res.json(response);
 });
+// controllers/categoryController.js - AÑADIR ESTA FUNCIÓN
 
+// controllers/categoryController.js - CORREGIR getCategoriesWithVideos
+
+// AÑADIR AL FINAL DEL ARCHIVO, antes de module.exports
+const getCategoriesWithVideos = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 2;
+    const videosPerCategory = parseInt(req.query.videosPerCategory) || 6;
+    const skip = (page - 1) * limit;
+    
+    const total = await Category.countDocuments({ isActive: true });
+    const hasMore = skip + limit < total;
+    
+    const categories = await Category.find({ isActive: true })
+      .sort({ order: 1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+    
+    const categoriesWithVideos = await Promise.all(
+      categories.map(async (category) => {
+        const videos = await Video.find({
+          category: category._id,
+          pendiente: false,
+          isActive: true
+        })
+          .sort({ createdAt: -1 })
+          .limit(videosPerCategory)
+          .populate('user', 'username avatar isPro')
+          .lean();
+        
+        return { ...category, videos };
+      })
+    );
+    
+    res.json({
+      success: true,
+      categories: categoriesWithVideos,
+      currentPage: page,
+      hasMore,
+      total
+    });
+  } catch (error) {
+    console.error('❌ Error getCategoriesWithVideos:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Asegurar que module.exports incluya esta función
+ 
 // ==================== 3. OBTENER CATEGORÍA POR ID O SLUG ====================
 const getCategoryById = asyncHandler(async (req, res) => {
   const { identifier } = req.params;
@@ -456,7 +507,10 @@ const updateVideoCounts = asyncHandler(async (req, res) => {
     updated: categories.length
   });
 });
+// AÑADIR AL FINAL DEL ARCHIVO, antes de module.exports
+ 
 
+// Asegurar que module.exports incluya esta función
 module.exports = {
   getCategoriesForSlider,
   getMainCategories,
@@ -466,5 +520,7 @@ module.exports = {
   getCategoryStats,
   searchCategories,
   getCategoryFilters,
-  updateVideoCounts
+  updateVideoCounts,
+  getCategoriesWithVideos, // ✅ IMPORTANTE: Exportar esta función
 };
+ 

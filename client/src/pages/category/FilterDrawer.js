@@ -17,7 +17,7 @@ import Slider from 'rc-slider';
 import 'rc-slider/assets/index.css';
 import axios from 'axios';
 import { BASE_URL } from '../../utils/config';
-import WilayaCommuneField from '../../components/CATEGORIES/camposComun/WilayaCommuneField';
+//import WilayaCommuneField from '../../components/CATEGORIES/camposComun/WilayaCommuneField';
 
 const FilterDrawer = ({ 
   show, 
@@ -498,15 +498,7 @@ const FilterDrawer = ({
                 </div>
               </Accordion.Header>
               <Accordion.Body style={styles.accordionBody}>
-                <WilayaCommuneField
-                  mainCategory={slug}
-                  subCategory={subSlug}
-                  postData={{ wilaya: tempFilters.wilaya, commune: tempFilters.commune }}
-                  handleChangeInput={handleLocationChange}
-                  isRTL={false}
-                  t={(key) => key}
-                  fieldName="location"
-                />
+              
                 <Form.Text className="text-muted" style={{ fontSize: '11px', display: 'block', marginTop: '6px' }}>
                   Sélectionnez une wilaya pour voir les communes disponibles
                 </Form.Text>

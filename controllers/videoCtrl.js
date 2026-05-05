@@ -79,12 +79,7 @@ const getMusicLibrary = async (req, res) => {
 // Proxy para audio de Jamendo (evitar CORS)
  
 
-// ============================================
-// 🎬 CREAR VIDEO (TAL CUAL FUNCIONABA)
-// ============================================
-// ============================================
-// 🎬 CREAR VIDEO CON CAMPOS COMERCIALES
-// ============================================
+ 
 const createVideo = async (req, res) => {
   try {
     console.log("🔴 BODY RECIBIDO:", JSON.stringify(req.body, null, 2));
@@ -294,6 +289,87 @@ const createVideo = async (req, res) => {
     });
   }
 };
+const getCategoriesForSlider = async (req, res) => {
+  try {
+    console.log('🎠 Obteniendo categorías para slider...');
+    
+    const categories = await Category.find({ isActive: true })
+      .select('_id name slug icon iconType iconColor bgColor order videoCount')
+      .sort({ order: 1 })
+      .lean();
+    
+    console.log(`🎠 Slider: ${categories.length} categorías encontradas`);
+    
+    res.json({
+      success: true,
+      categories,
+      total: categories.length
+    });
+    
+  } catch (error) {
+    console.error('❌ Error en getCategoriesForSlider:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al cargar categorías para slider',
+      error: error.message
+    });
+  }
+};
+
+ 
+// controllers/categoryController.js - AÑADIR
+
+const getCategoriesWithVideos = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 2;
+    const videosPerCategory = parseInt(req.query.videosPerCategory) || 6;
+    const skip = (page - 1) * limit;
+    
+    // Obtener categorías activas
+    const categories = await Category.find({ isActive: true })
+      .sort({ order: 1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+    
+    // Para cada categoría, obtener sus videos recientes
+    const categoriesWithVideos = await Promise.all(
+      categories.map(async (category) => {
+        const videos = await Video.find({
+          category: category._id,
+          pendiente: false,
+          isActive: true
+        })
+          .sort({ createdAt: -1 })
+          .limit(videosPerCategory)
+          .populate('user', 'username avatar')
+          .lean();
+        
+        return {
+          ...category,
+          videos
+        };
+      })
+    );
+    
+    const total = await Category.countDocuments({ isActive: true });
+    
+    res.json({
+      success: true,
+      categories: categoriesWithVideos,
+      currentPage: page,
+      hasMore: skip + categories.length < total,
+      total
+    });
+  } catch (error) {
+    console.error('Error getCategoriesWithVideos:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+
+
 const filterCommercialVideos = async (req, res) => {
   try {
     const {
@@ -1467,14 +1543,39 @@ const getVideo = async (req, res) => {
   }
 };
 // ✅ Filtrar videos - SIN categorías obligatorias
+// controllers/videoCtrl.js
+
 const filterVideos = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 12;
     const skip = (page - 1) * limit;
-    const { searchTerm, sortBy = 'recent' } = req.query;
+    const { 
+      searchTerm, 
+      sortBy = 'recent',
+      category,        // ✅ Recibir categoría
+      subCategory,     // ✅ Recibir subcategoría
+      wilaya,
+      commune
+    } = req.query;
 
     let match = { pendiente: false, isActive: true };
+    
+    // ✅ Filtrar por categoría si se proporciona
+    if (category && category !== 'videos' && category !== 'null') {
+      // Buscar la categoría por slug
+      const categoryDoc = await Category.findOne({ slug: category, isActive: true });
+      if (categoryDoc) {
+        match.category = categoryDoc._id;
+        console.log(`🔍 Filtrando por categoría: ${categoryDoc.name} (${categoryDoc._id})`);
+      }
+    }
+    
+    // ✅ Filtrar por subcategoría
+    if (subCategory && subCategory !== 'videos' && subCategory !== 'null') {
+      // Si tienes un sistema de subcategorías
+      match.subCategory = subCategory;
+    }
     
     if (searchTerm && searchTerm.trim() !== '') {
       match.$or = [
@@ -1482,6 +1583,9 @@ const filterVideos = async (req, res) => {
         { description: { $regex: searchTerm, $options: 'i' } }
       ];
     }
+    
+    if (wilaya && wilaya !== '') match.wilaya = wilaya;
+    if (commune && commune !== '') match.commune = commune;
     
     let sort = {};
     switch(sortBy) {
@@ -1506,6 +1610,15 @@ const filterVideos = async (req, res) => {
       Video.countDocuments(match)
     ]);
 
+    // ✅ Obtener hijos (subcategorías) si es necesario
+    let children = [];
+    if (category && category !== 'videos') {
+      const categoryDoc = await Category.findOne({ slug: category }).lean();
+      if (categoryDoc && categoryDoc.children) {
+        children = categoryDoc.children;
+      }
+    }
+
     res.json({
       success: true,
       videos,
@@ -1514,7 +1627,8 @@ const filterVideos = async (req, res) => {
       totalPages: Math.ceil(total / limit),
       limit,
       hasMore: skip + videos.length < total,
-      children: [] // ✅ Vacío porque no hay categorías
+      children,
+      filters: { category, subCategory, wilaya, commune, sortBy, searchTerm }
     });
   } catch (error) {
     console.error('Error filterVideos:', error);
@@ -2012,12 +2126,11 @@ const getAdminVideoStats = async (req, res) => {
   }
 };
 
-// ============================================
-// 🆕 PROXY PARA MÚSICA (si no existe)
-// ============================================
+// controllers/categoryController.js
+
  
 module.exports = {
-  // Públicas
+  getCategoriesForSlider,
   getVideoById,
   getVideoByIdPublic,
   getVideoByIdPrivate,

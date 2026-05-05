@@ -41,11 +41,66 @@ export const VIDEO_TYPES = {
   FEATURE_VIDEO: 'FEATURE_VIDEO'
 };
 
-// ============================================
-// 🏪 ACCIONES COMERCIALES
-// ============================================
+// redux/actions/categoryAction.js - AÑADIR ESTAS ACCIONES
 
-// Filtrar videos comerciales
+export const getCategoriesWithVideos = (page = 1, limit = 2) => async (dispatch) => {
+  try {
+    dispatch({ type: types.GET_CATEGORIES_WITH_VIDEOS });
+    
+    const { data } = await axios.get(`${BASE_URL}/api/categories/with-videos`, {
+      params: { page, limit, videosPerCategory: 6 }
+    });
+    
+    dispatch({
+      type: types.GET_CATEGORIES_WITH_VIDEOS_SUCCESS,
+      payload: {
+        categories: data.categories || [],
+        currentPage: data.currentPage || page,
+        hasMore: data.hasMore || false,
+        total: data.total || 0
+      }
+    });
+    
+    return data;
+  } catch (error) {
+    dispatch({
+      type: types.GET_CATEGORIES_WITH_VIDEOS_FAIL,
+      payload: error.response?.data?.message || error.message
+    });
+    return { success: false };
+  }
+};
+
+export const loadMoreCategories = (page = 1, limit = 2) => async (dispatch, getState) => {
+  try {
+    dispatch({ type: types.LOAD_MORE_CATEGORIES });
+    
+    const { data } = await axios.get(`${BASE_URL}/api/categories/with-videos`, {
+      params: { page, limit, videosPerCategory: 6 }
+    });
+    
+    const state = getState();
+    const currentCategories = state.category.categoriesWithVideos || [];
+    
+    dispatch({
+      type: types.GET_CATEGORIES_WITH_VIDEOS_SUCCESS,
+      payload: {
+        categories: [...currentCategories, ...(data.categories || [])],
+        currentPage: data.currentPage || page,
+        hasMore: data.hasMore || false,
+        total: data.total || 0
+      }
+    });
+    
+    return data;
+  } catch (error) {
+    dispatch({
+      type: types.GET_CATEGORIES_WITH_VIDEOS_FAIL,
+      payload: error.response?.data?.message || error.message
+    });
+    return { success: false };
+  }
+};
 export const filterCommercialVideos = (filters, page = 1, limit = 12) => async (dispatch) => {
   try {
     dispatch({ type: VIDEO_TYPES.LOADING, payload: true });
@@ -307,7 +362,11 @@ export const createVideo = (videoData, token) => async (dispatch) => {
   } finally {
     dispatch({ type: GLOBALTYPES.ALERT, payload: { loading: false } });
   }
-};
+};// redux/constants/categoryConstants.js - AÑADIR
+
+export const ADD_VIDEO_TO_CATEGORY = 'ADD_VIDEO_TO_CATEGORY';
+
+
 // ✅ Actualizar video CON NOTIFICACIÓN
 export const updateVideo = (id, videoData, token, auth, socket, oldVideoData) => async (dispatch) => {
   try {
@@ -523,9 +582,18 @@ export const shareVideo = (id, token, auth, socket, videoData) => async (dispatc
  
  
  
- 
+ // redux/actions/videoAction.js
 
-export const getVideos = (categorySlug = null, subCategory = null, page = 1, limit = 12, sortBy = 'recent', searchTerm = null) => async (dispatch) => {
+export const getVideos = (
+  categorySlug = null,  // Este es el slug que viene de la URL
+  subCategory = null, 
+  page = 1, 
+  limit = 12, 
+  sortBy = 'recent', 
+  searchTerm = null,
+  wilaya = null,
+  commune = null
+) => async (dispatch) => {
   try {
     dispatch({ type: VIDEO_TYPES.LOADING, payload: true });
     
@@ -534,47 +602,79 @@ export const getVideos = (categorySlug = null, subCategory = null, page = 1, lim
     params.append('limit', limit);
     if (sortBy) params.append('sortBy', sortBy);
     if (searchTerm && searchTerm.trim() !== '') params.append('searchTerm', searchTerm);
+    if (wilaya) params.append('wilaya', wilaya);
+    if (commune) params.append('commune', commune);
+    
+    // ✅ IMPORTANTE: El parámetro debe llamarse 'category' para la API
+    if (categorySlug && categorySlug !== 'videos') {
+      params.append('category', categorySlug);
+    }
     
     if (subCategory && subCategory !== 'videos') {
       params.append('subCategory', subCategory);
-    }
-    else if (categorySlug && categorySlug !== 'videos') {
-      params.append('category', categorySlug);
     }
     
     console.log('🎬 getVideos llamado:', {
       categorySlug,
       subCategory,
       page,
-      sortBy,
-      searchTerm,
       url: `videos/filter?${params.toString()}`
     });
     
     const res = await getDataAPI(`videos/filter?${params.toString()}`);
     
+    // ✅ Extraer correctamente los datos de la respuesta
+    const videos = res.data.videos || [];
+    const children = res.data.children || [];
+    
+    // ✅ Extraer metadatos de filtros si la API los devuelve
+    let filterMetadata = {};
+    if (res.data.filters) {
+      filterMetadata = {
+        wilayas: res.data.filters.wilayas || [],
+        priceRange: res.data.filters.priceRange || { min: 0, max: 1000000 }
+      };
+    }
+    
     dispatch({
       type: VIDEO_TYPES.GET_VIDEOS,
       payload: {
-        videos: res.data.videos || [],
+        videos: videos,
         total: res.data.total || 0,
         page: res.data.page || page,
         totalPages: res.data.totalPages || 1,
         hasMore: res.data.hasMore || false,
-        children: res.data.children || []
+        children: children,
+        filterMetadata: filterMetadata
       }
     });
     
-    return res.data;
+    return {
+      success: true,
+      videos,
+      children,
+      filterMetadata,
+      total: res.data.total || 0
+    };
     
   } catch (err) {
     console.error('Error getVideos:', err);
-    return { success: false, videos: [] };
+    dispatch({
+      type: VIDEO_TYPES.GET_VIDEOS,
+      payload: {
+        videos: [],
+        total: 0,
+        page: 1,
+        totalPages: 1,
+        hasMore: false,
+        children: []
+      }
+    });
+    return { success: false, videos: [], children: [] };
   } finally {
     dispatch({ type: VIDEO_TYPES.LOADING, payload: false });
   }
 };
-
  
 export const getFeaturedVideos = (limit = 10) => async (dispatch) => {
   try {

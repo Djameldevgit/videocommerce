@@ -1,4 +1,4 @@
-// 📂 redux/reducers/categoryReducer.js - VERSIÓN ACTUALIZADA PARA VideoCommerce
+// 📂 redux/reducers/categoryReducer.js - VERSIÓN COMPLETA CORREGIDA
 
 import * as types from '../constants/categoryConstants';
 
@@ -16,6 +16,14 @@ const initialState = {
   hasMoreCategories: true,
   totalCategories: 0,
   totalPages: 1,
+
+  // ==================== 🆕 CATEGORÍAS CON VIDEOS (HOME SCROLL) ====================
+  categoriesWithVideos: [],
+  loadingCategoriesWithVideos: false,
+  hasMoreCategoriesWithVideos: true,
+  currentCategoriesPage: 1,
+  totalCategoriesWithVideos: 0,
+  errorCategoriesWithVideos: null,
 
   // ==================== CATÉGORIES POPULAIRES ====================
   popularCategories: [],
@@ -71,6 +79,13 @@ const initialState = {
   searchTerm: null
 };
 
+// Función auxiliar para evitar duplicados
+const mergeCategoriesWithoutDuplicates = (existingCategories, newCategories) => {
+  const existingIds = new Set(existingCategories.map(c => c._id?.toString()));
+  const uniqueNewCategories = newCategories.filter(c => !existingIds.has(c._id?.toString()));
+  return [...existingCategories, ...uniqueNewCategories];
+};
+
 export const categoryReducer = (state = initialState, action) => {
   switch (action.type) {
     // ==================== SLIDER ====================
@@ -99,12 +114,14 @@ export const categoryReducer = (state = initialState, action) => {
       
     case types.GET_MAIN_CATEGORIES_SUCCESS:
       const isFirstPage = (action.payload.currentPage || 1) === 1;
+      const newCategories = isFirstPage 
+        ? (action.payload.categories || []) 
+        : mergeCategoriesWithoutDuplicates(state.categories, action.payload.categories || []);
+      
       return {
         ...state,
         loading: false,
-        categories: isFirstPage 
-          ? (action.payload.categories || []) 
-          : [...state.categories, ...(action.payload.categories || [])],
+        categories: newCategories,
         currentPage: action.payload.currentPage || 1,
         hasMoreCategories: action.payload.hasMoreCategories || false,
         totalCategories: action.payload.totalCategories || 0,
@@ -119,6 +136,54 @@ export const categoryReducer = (state = initialState, action) => {
         error: action.payload,
         categories: []
       };
+
+    // ==================== 🆕 CATEGORÍAS CON VIDEOS (HOME SCROLL) ====================
+    case types.GET_CATEGORIES_WITH_VIDEOS:
+      return { 
+        ...state, 
+        loadingCategoriesWithVideos: true, 
+        errorCategoriesWithVideos: null 
+      };
+      
+    case types.GET_CATEGORIES_WITH_VIDEOS_SUCCESS:
+      const isFirstCategoriesPage = (action.payload.currentPage === 1);
+      
+      // ✅ Evitar duplicados: solo añadir categorías que no existan
+      let updatedCategories;
+      if (isFirstCategoriesPage) {
+        updatedCategories = action.payload.categories || [];
+      } else {
+        updatedCategories = mergeCategoriesWithoutDuplicates(
+          state.categoriesWithVideos, 
+          action.payload.categories || []
+        );
+      }
+      
+      console.log(`📦 Categorías: página ${action.payload.currentPage}, ` +
+        `recibidas: ${action.payload.categories?.length || 0}, ` +
+        `total acumulado: ${updatedCategories.length}, ` +
+        `hasMore: ${action.payload.hasMoreCategories}`);
+      
+      return {
+        ...state,
+        loadingCategoriesWithVideos: false,
+        categoriesWithVideos: updatedCategories,
+        currentCategoriesPage: action.payload.currentPage || 1,
+        hasMoreCategoriesWithVideos: action.payload.hasMoreCategories || false,
+        totalCategoriesWithVideos: action.payload.totalCategories || 0,
+        errorCategoriesWithVideos: null
+      };
+      
+    case types.GET_CATEGORIES_WITH_VIDEOS_FAIL:
+      return {
+        ...state,
+        loadingCategoriesWithVideos: false,
+        errorCategoriesWithVideos: action.payload,
+        categoriesWithVideos: []
+      };
+      
+    case types.LOAD_MORE_CATEGORIES:
+      return { ...state, loadingCategoriesWithVideos: true };
 
     // ==================== CATÉGORIES POPULAIRES ====================
     case types.GET_POPULAR_CATEGORIES:
@@ -145,6 +210,16 @@ export const categoryReducer = (state = initialState, action) => {
       
     case types.GET_CATEGORY_VIDEOS_SUCCESS:
       const isFirstVideoPage = (action.payload.currentPage || 1) === 1;
+      
+      let updatedVideos;
+      if (isFirstVideoPage) {
+        updatedVideos = action.payload.videos || [];
+      } else {
+        const existingVideoIds = new Set(state.videos.map(v => v._id?.toString()));
+        const uniqueNewVideos = (action.payload.videos || []).filter(v => !existingVideoIds.has(v._id?.toString()));
+        updatedVideos = [...state.videos, ...uniqueNewVideos];
+      }
+      
       return {
         ...state,
         videosLoading: false,
@@ -152,9 +227,7 @@ export const categoryReducer = (state = initialState, action) => {
         categoryInfo: isFirstVideoPage 
           ? (action.payload.categoryInfo || {}) 
           : state.categoryInfo,
-        videos: isFirstVideoPage 
-          ? (action.payload.videos || []) 
-          : [...state.videos, ...(action.payload.videos || [])],
+        videos: updatedVideos,
         videosCurrentPage: action.payload.currentPage || 1,
         hasMoreVideos: action.payload.hasMoreVideos || false,
         totalVideos: action.payload.totalVideos || 0,
@@ -298,7 +371,14 @@ export const categoryReducer = (state = initialState, action) => {
         videosCurrentPage: 1,
         hasMoreVideos: false
       };
-
+      case types.GET_SLIDER_CATEGORIES_SUCCESS:
+        console.log('🎠 Reducer - Slider actualizado:', action.payload?.length || 0);
+        return {
+          ...state,
+          sliderCategories: action.payload || [],
+          sliderLoading: false,
+          sliderError: null
+        };
     case types.RESET_ACTIVE_FILTERS:
       return {
         ...state,
@@ -338,7 +418,10 @@ export const categoryReducer = (state = initialState, action) => {
         videosError: null,
         categoryDetails: null,
         searchResults: [],
-        searchTerm: null
+        searchTerm: null,
+        categoriesWithVideos: [],
+        currentCategoriesPage: 1,
+        hasMoreCategoriesWithVideos: true
       };
 
     case types.CLEAR_CATEGORY_ERRORS:
@@ -351,7 +434,8 @@ export const categoryReducer = (state = initialState, action) => {
         statsError: null,
         searchError: null,
         popularError: null,
-        sliderError: null
+        sliderError: null,
+        errorCategoriesWithVideos: null
       };
 
     default:

@@ -124,13 +124,11 @@ app.use('/api', require('./routes/rolesRouter'));
 app.use('/api/categories', require('./routes/categoryRouter'));
 
 // --- Posts y Comentarios ---
-app.use('/api', require('./routes/postRouter'));
+ 
 app.use('/api', require('./routes/commentRouter'));
 
 // --- Boutiques y Productos ---
-app.use('/api', require('./routes/boutiqueRouter'));
-app.use('/api', require('./routes/boutiqueProductRouter'));
-
+ 
 // --- Mensajes y Notificaciones ---
 app.use('/api', require('./routes/messageRouter'));
 app.use('/api', require('./routes/notifyRouter'));
@@ -139,6 +137,8 @@ app.use('/api', require('./routes/notifyRouter'));
 app.use('/api', require('./routes/reportRouter'));
 
 app.use('/api', require('./routes/videoRouter'));
+app.use('/api', require('./routes/categoryRouter'));
+
 app.use('/api', require('./routes/imageRouter'));
 // --- Configuración y Settings ---
 app.use('/api', require('./routes/languageRouter'));

@@ -1,23 +1,27 @@
-// 📂 routes/categoryRoutes.js - VERSIÓN ACTUALIZADA PARA VideoCommerce
+// routes/categoryRoutes.js
 const express = require('express');
 const router = express.Router();
 
 const {
-  getCategoriesForSlider,        // 🔥 Nuevo nombre: obtenerCategoriasParaSlider → getCategoriesForSlider
-  getMainCategories,              // 🔥 Nuevo nombre: obtenerCategoriasPrincipales → getMainCategories
-  getCategoryById,                // 🔥 Nuevo nombre: obtenerCategoriaPorId → getCategoryById
-  getVideosByCategory,            // 🔥 Nuevo: reemplaza getPostsByCategory
-  getPopularCategories,           // 🔥 Nuevo: categorías populares
-  getCategoryStats,               // 🔥 Nuevo nombre: obtenerEstadisticasDeCategorias → getCategoryStats
-  searchCategories,               // 🔥 Nuevo nombre: buscarCategorias → searchCategories
-  getCategoryFilters,             // 🔥 Nuevo: filtros para categoría
-  updateVideoCounts               // 🔥 Nuevo: admin actualizar contadores
-} = require('../controllers/categoryCtrl');  // 🔥 Atención: categoryController.js (no categoryCtrl.js)
+  getCategoriesForSlider,        // Slider
+  getMainCategories,              // Categorías principales
+  getCategoryById,                // Obtener categoría por ID/slug
+  getVideosByCategory,            // Videos por categoría
+  getPopularCategories,           // Categorías populares
+  getCategoryStats,               // Estadísticas
+  searchCategories,               // Buscar categorías
+  getCategoryFilters,             // Filtros
+  updateVideoCounts,              // Actualizar contadores (admin)
+  getCategoriesWithVideos         // Categorías con videos (Home)
+} = require('../controllers/categoryCtrl');
 
 // ============================================
-// 1️⃣ RUTAS ESTÁTICAS (sin parámetros)
+// 1️⃣ RUTAS FIJAS (SIN PARÁMETROS)
 // ============================================
+
+// ✅ CORREGIDO: Quitar '/categories/' extra
 router.get('/slider', getCategoriesForSlider);           // Slider principal
+router.get('/with-videos', getCategoriesWithVideos);     // Categorías con videos (scroll home)
 router.get('/main', getMainCategories);                  // Lista paginada de categorías
 router.get('/popular', getPopularCategories);            // Categorías más populares
 router.get('/stats', getCategoryStats);                  // Estadísticas de categorías
@@ -32,7 +36,7 @@ router.get('/search/:query', searchCategories);          // Buscar categorías
 // 3️⃣ RUTAS CON PARÁMETROS (específicas)
 // ============================================
 router.get('/:slug/filters', getCategoryFilters);        // Obtener filtros de una categoría
-router.get('/:slug/videos', getVideosByCategory);        // Videos por categoría (reemplaza posts)
+router.get('/:slug/videos', getVideosByCategory);        // Videos por categoría
 
 // ============================================
 // 4️⃣ RUTA COMODÍN (debe ir al final)

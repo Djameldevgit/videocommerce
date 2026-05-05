@@ -5,6 +5,7 @@ import axios from 'axios';
 import { BASE_URL } from '../../utils/config';
 
 // ==================== 1. OBTENER CATEGORÍAS PARA SLIDER ====================
+// redux/actions/categoryActions.js
 export const getSliderCategories = () => async (dispatch) => {
   try {
     dispatch({ type: types.GET_SLIDER_CATEGORIES });
@@ -30,6 +31,86 @@ export const getSliderCategories = () => async (dispatch) => {
   }
 };
 
+// ============================================
+// 🆕 OBTENER CATEGORÍAS CON VIDEOS (para Home)
+// ============================================
+export const getCategoriesWithVideos = (page = 1, limit = 2) => async (dispatch) => {
+  try {
+    dispatch({ type: types.GET_CATEGORIES_WITH_VIDEOS });
+    
+    console.log(`📡 getCategoriesWithVideos - page: ${page}, limit: ${limit}`);
+    
+    const { data } = await axios.get(`${BASE_URL}/api/categories/with-videos`, {
+      params: { page, limit, videosPerCategory: 6 }
+    });
+    
+    console.log(`✅ Categorías recibidas: ${data.categories?.length || 0}, hasMore: ${data.hasMore}`);
+    
+    dispatch({
+      type: types.GET_CATEGORIES_WITH_VIDEOS_SUCCESS,
+      payload: {
+        categories: data.categories || [],
+        currentPage: data.currentPage || page,
+        hasMoreCategories: data.hasMore || false,
+        totalCategories: data.total || 0
+      }
+    });
+    
+    return data;
+  } catch (error) {
+    console.error('❌ Error getCategoriesWithVideos:', error);
+    dispatch({
+      type: types.GET_CATEGORIES_WITH_VIDEOS_FAIL,
+      payload: error.response?.data?.message || error.message
+    });
+    return { success: false };
+  }
+};
+// redux/actions/categoryAction.js - CORREGIR loadMoreCategories
+
+export const loadMoreCategories = (page = 1, limit = 2) => async (dispatch, getState) => {
+  try {
+    console.log(`📡 loadMoreCategories - página ${page}`);
+    
+    const { data } = await axios.get(`${BASE_URL}/api/categories/with-videos`, {
+      params: { page, limit, videosPerCategory: 6 }
+    });
+    
+    const state = getState();
+    const currentCategories = state.category.categoriesWithVideos || [];
+    
+    // ✅ EVITAR DUPLICADOS: filtrar por ID único
+    const existingIds = new Set(currentCategories.map(c => c._id));
+    const uniqueNewCategories = (data.categories || []).filter(c => !existingIds.has(c._id));
+    
+    const finalCategories = [...currentCategories, ...uniqueNewCategories];
+    
+    console.log(`✅ Recibidas: ${data.categories?.length || 0}, Nuevas únicas: ${uniqueNewCategories.length}, Total: ${finalCategories.length}`);
+    
+    dispatch({
+      type: types.GET_CATEGORIES_WITH_VIDEOS_SUCCESS,
+      payload: {
+        categories: finalCategories,
+        currentPage: data.currentPage || page,
+        hasMoreCategories: data.hasMore || false,
+        totalCategories: data.total || 0
+      }
+    });
+    
+    return data;
+  } catch (error) {
+    console.error('❌ Error loadMoreCategories:', error);
+    dispatch({
+      type: types.GET_CATEGORIES_WITH_VIDEOS_FAIL,
+      payload: error.response?.data?.message || error.message
+    });
+    return { success: false };
+  }
+};
+// ============================================
+// 🆕 CARGAR MÁS CATEGORÍAS (scroll infinito)
+// ============================================
+ 
 // ==================== 2. OBTENER CATEGORÍAS PRINCIPALES ====================
 export const getMainCategories = (page = 1, limit = 10, includeVideos = false) => async (dispatch) => {
   try {
