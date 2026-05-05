@@ -1,0 +1,118 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2026-05-04T20:59:33.898Z",
+  "categories": [
+    {
+      "slug": "vehicules",
+      "name": "Vehicules",
+      "iconPath": "/categories/vehicules/vehicules.png",
+      "iconType": "png",
+      "isActive": true
+    },
+    {
+      "slug": "immobilier",
+      "name": "Immobilier",
+      "iconPath": "/categories/immobilier/immobilier.png",
+      "iconType": "png",
+      "isActive": true
+    },
+    {
+      "slug": "electromenager",
+      "name": "Electromenager",
+      "iconPath": "/categories/electromenager/electromenager.png",
+      "iconType": "png",
+      "isActive": true
+    },
+    {
+      "slug": "electronique",
+      "name": "Electronique",
+      "iconPath": "/categories/electronique/electronique.png",
+      "iconType": "png",
+      "isActive": true
+    },
+    {
+      "slug": "vetements",
+      "name": "Vetements",
+      "iconPath": "/categories/vetements/vetements.png",
+      "iconType": "png",
+      "isActive": true
+    },
+    {
+      "slug": "meubles",
+      "name": "Meubles",
+      "iconPath": "/categories/meubles/meubles.png",
+      "iconType": "png",
+      "isActive": true
+    },
+    {
+      "slug": "sport",
+      "name": "Sport",
+      "iconPath": "/categories/sport/sport.png",
+      "iconType": "png",
+      "isActive": true
+    },
+    {
+      "slug": "sante-beaute",
+      "name": "Sante beaute",
+      "iconPath": "/categories/sante-beaute/sante-beaute.png",
+      "iconType": "png",
+      "isActive": true
+    },
+    {
+      "slug": "alimentaires",
+      "name": "Alimentaires",
+      "iconPath": "/categories/alimentaires/alimentaires.png",
+      "iconType": "png",
+      "isActive": true
+    },
+    {
+      "slug": "services",
+      "name": "Services",
+      "iconPath": "/categories/services/services.png",
+      "iconType": "png",
+      "isActive": true
+    },
+    {
+      "slug": "loisirs",
+      "name": "Loisirs",
+      "iconPath": "/categories/loisirs/loisirs.png",
+      "iconType": "png",
+      "isActive": true
+    },
+    {
+      "slug": "pieces-detachees",
+      "name": "Pieces detachees",
+      "iconPath": "/categories/pieces-detachees/pieces-detachees.png",
+      "iconType": "png",
+      "isActive": true
+    },
+    {
+      "slug": "informatique",
+      "name": "Informatique",
+      "iconPath": "/categories/informatique/informatique.png",
+      "iconType": "png",
+      "isActive": true
+    },
+    {
+      "slug": "materiaux",
+      "name": "Materiaux",
+      "iconPath": "/categories/materiaux/materiaux.png",
+      "iconType": "png",
+      "isActive": true
+    },
+    {
+      "slug": "voyages",
+      "name": "Voyages",
+      "iconPath": "/categories/voyages/voyages.png",
+      "iconType": "png",
+      "isActive": true
+    },
+    {
+      "slug": "art",
+      "name": "Art",
+      "iconPath": "/categories/art/art.png",
+      "iconType": "png",
+      "isActive": true
+    }
+  ]
+}

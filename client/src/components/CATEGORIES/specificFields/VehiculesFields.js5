@@ -1,0 +1,120 @@
+// 📂 components/CATEGORIES/specificFields/VehiculesField.js
+import React from 'react';
+import BaseCategoryField from './BaseCategoryField';
+
+// Importar campos específicos de vehículos
+import MarcaModeloField from '../camposComun/MarcaModeloField';
+import AnneeField from '../camposComun/AnneeField';
+import KilometrageField from '../camposComun/KilometrageField';
+import CarburantField from '../camposComun/CarburantField';
+import BoiteVitesseField from '../camposComun/BoiteVitesseField';
+import CouleurField from '../camposComun/CouleurField';
+import OptionsField from '../camposComun/OptionsField';
+
+const VehiculesField = (props) => {
+  const { step, mainCategory, subCategory, postData, handleChangeInput, isRTL, t } = props;
+  
+  // 🔥 CAMPOS ADICIONALES ESPECÍFICOS PARA VEHÍCULOS
+  const additionalFields = {
+    components: {
+      'marque': (
+        <MarcaModeloField
+          key="marque"
+          mainCategory={mainCategory}
+          subCategory={subCategory}
+          postData={postData}
+          handleChangeInput={handleChangeInput}
+          isRTL={isRTL}
+          t={t}
+          brandField="marque"
+          modelField="modele"
+        />
+      ),
+      'annee': (
+        <AnneeField
+          key="annee"
+          mainCategory={mainCategory}
+          subCategory={subCategory}
+          postData={postData}
+          handleChangeInput={handleChangeInput}
+          isRTL={isRTL}
+          t={t}
+        />
+      ),
+      'kilometrage': (
+        <KilometrageField
+          key="kilometrage"
+          mainCategory={mainCategory}
+          subCategory={subCategory}
+          postData={postData}
+          handleChangeInput={handleChangeInput}
+          isRTL={isRTL}
+          t={t}
+        />
+      ),
+      'carburant': (
+        <CarburantField
+          key="carburant"
+          mainCategory={mainCategory}
+          subCategory={subCategory}
+          postData={postData}
+          handleChangeInput={handleChangeInput}
+          isRTL={isRTL}
+          t={t}
+        />
+      ),
+      'boiteVitesse': (
+        <BoiteVitesseField
+          key="boiteVitesse"
+          mainCategory={mainCategory}
+          subCategory={subCategory}
+          postData={postData}
+          handleChangeInput={handleChangeInput}
+          isRTL={isRTL}
+          t={t}
+        />
+      ),
+      'couleur': (
+        <CouleurField
+          key="couleur"
+          mainCategory={mainCategory}
+          subCategory={subCategory}
+          postData={postData}
+          handleChangeInput={handleChangeInput}
+          isRTL={isRTL}
+          t={t}
+        />
+      ),
+      'options': (
+        <OptionsField
+          key="options"
+          mainCategory={mainCategory}
+          subCategory={subCategory}
+          postData={postData}
+          handleChangeInput={handleChangeInput}
+          isRTL={isRTL}
+          t={t}
+        />
+      )
+    },
+    
+    // Distribuir campos en los steps
+    step2: ['marque', 'annee', 'kilometrage', 'carburant', 'boiteVitesse'],
+    step3: ['couleur', 'options'],
+    step4: []  // Sin campos adicionales en step4
+  };
+  
+  if (step) {
+    return (
+      <BaseCategoryField
+        {...props}
+        step={step}
+        additionalFields={additionalFields}
+      />
+    );
+  }
+  
+  return null;
+};
+
+export default VehiculesField;

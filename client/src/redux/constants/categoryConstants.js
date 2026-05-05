@@ -1,0 +1,59 @@
+// 📂 redux/constants/categoryConstants.js - VERSIÓN COMPLETA Y CORREGIDA
+
+// ==================== SLIDER ====================
+export const GET_SLIDER_CATEGORIES = 'GET_SLIDER_CATEGORIES';
+export const GET_SLIDER_CATEGORIES_SUCCESS = 'GET_SLIDER_CATEGORIES_SUCCESS';
+export const GET_SLIDER_CATEGORIES_FAIL = 'GET_SLIDER_CATEGORIES_FAIL';
+
+// ==================== CATÉGORIES PRINCIPALES ====================
+export const GET_MAIN_CATEGORIES = 'GET_MAIN_CATEGORIES';
+export const GET_MAIN_CATEGORIES_SUCCESS = 'GET_MAIN_CATEGORIES_SUCCESS';
+export const GET_MAIN_CATEGORIES_FAIL = 'GET_MAIN_CATEGORIES_FAIL';
+
+// ==================== CATÉGORIES POPULAIRES ====================
+export const GET_POPULAR_CATEGORIES = 'GET_POPULAR_CATEGORIES';
+export const GET_POPULAR_CATEGORIES_SUCCESS = 'GET_POPULAR_CATEGORIES_SUCCESS';
+export const GET_POPULAR_CATEGORIES_FAIL = 'GET_POPULAR_CATEGORIES_FAIL';
+
+// ==================== VIDÉOS PAR CATÉGORIE ====================
+export const GET_CATEGORY_VIDEOS = 'GET_CATEGORY_VIDEOS';
+export const GET_CATEGORY_VIDEOS_SUCCESS = 'GET_CATEGORY_VIDEOS_SUCCESS';
+export const GET_CATEGORY_VIDEOS_FAIL = 'GET_CATEGORY_VIDEOS_FAIL';
+export const LOAD_MORE_VIDEOS = 'LOAD_MORE_VIDEOS';
+
+// ==================== FILTRES ====================
+export const GET_CATEGORY_FILTERS = 'GET_CATEGORY_FILTERS';
+export const GET_CATEGORY_FILTERS_SUCCESS = 'GET_CATEGORY_FILTERS_SUCCESS';
+export const GET_CATEGORY_FILTERS_FAIL = 'GET_CATEGORY_FILTERS_FAIL';
+
+// ==================== FILTRES ACTIFS ====================
+export const SET_ACTIVE_FILTERS = 'SET_ACTIVE_FILTERS';
+export const RESET_ACTIVE_FILTERS = 'RESET_ACTIVE_FILTERS';
+
+// ==================== DÉTAILS CATÉGORIE ====================
+export const GET_CATEGORY_DETAILS = 'GET_CATEGORY_DETAILS';
+export const GET_CATEGORY_DETAILS_SUCCESS = 'GET_CATEGORY_DETAILS_SUCCESS';
+export const GET_CATEGORY_DETAILS_FAIL = 'GET_CATEGORY_DETAILS_FAIL';
+
+// ==================== RECHERCHE ====================
+export const SEARCH_CATEGORIES = 'SEARCH_CATEGORIES';
+export const SEARCH_CATEGORIES_SUCCESS = 'SEARCH_CATEGORIES_SUCCESS';
+export const SEARCH_CATEGORIES_FAIL = 'SEARCH_CATEGORIES_FAIL';
+
+// ==================== STATISTIQUES ====================
+export const GET_CATEGORY_STATS = 'GET_CATEGORY_STATS';
+export const GET_CATEGORY_STATS_SUCCESS = 'GET_CATEGORY_STATS_SUCCESS';
+export const GET_CATEGORY_STATS_FAIL = 'GET_CATEGORY_STATS_FAIL';
+
+// ==================== NAVIGATION ====================
+export const SET_ACTIVE_CATEGORY = 'SET_ACTIVE_CATEGORY';
+
+// ==================== NETTOYAGE ====================
+export const RESET_CATEGORY_VIDEOS = 'RESET_CATEGORY_VIDEOS';
+export const CLEAR_CATEGORY_STATE = 'CLEAR_CATEGORY_STATE';
+export const CLEAR_CATEGORY_ERRORS = 'CLEAR_CATEGORY_ERRORS';
+
+// ==================== LOADING STATES ====================
+export const LOADING_HOME = 'LOADING_HOME';
+export const LOADING = 'LOADING';
+export const LOADING_CATEGORIES_ACCORDION = 'LOADING_CATEGORIES_ACCORDION';

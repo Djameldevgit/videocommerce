@@ -1,0 +1,196 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { Form, Alert } from 'react-bootstrap';
+import { useTranslation } from 'react-i18next';
+
+const ModeleField = ({ 
+  selectedCategory,
+  selectedSubCategory,
+  selectedBrand, // Necesitamos la marca seleccionada
+  postData, 
+  handleChangeInput,
+  name = 'modele',
+  label = 'Modèle du produit'
+}) => {
+  const { t } = useTranslation();
+  const [filteredModels, setFilteredModels] = useState([]);
+  
+  // 📦 BASE DE DATOS DE MODELOS (TODO EN UN ARCHIVO)
+  const allModelsByCategoryAndBrand = useMemo(() => ({
+    // 🏠 ÉLECTROMÉNAGER
+    electromenager: {
+      televiseurs: {
+        'Samsung': ['QLED Q60', 'Crystal UHD', 'The Frame', 'Neo QLED', 'TU7000'],
+        'LG': ['OLED C3', 'NanoCell', 'UHD 4K', 'QNED', 'UN7000'],
+        'Sony': ['BRAVIA XR', 'BRAVIA X80', 'BRAVIA X90', 'KD-55X80J'],
+        'TCL': ['C71', 'C81', 'P71', '4K Android TV'],
+        'IRIS': ['Smart TV 4K', 'LED TV', 'Android TV', 'Ultra Slim'],
+      },
+      refrigerateurs_congelateurs: {
+        'Whirlpool': ['W7X', 'MaxiCool', 'FrostFree', 'Inverter'],
+        'Bosch': ['KGN', 'GSV', 'Vario', 'VitaFresh'],
+        'LG': ['InstaView', 'DoorCooling+', 'Smart Inverter'],
+        'Brandt': ['BFD', 'BFC', 'Inverter', 'No Frost'],
+      }
+    },
+    
+    // 💻 INFORMATIQUE
+    informatique: {
+      ordinateurs_portables: {
+        'Lenovo': ['ThinkPad', 'IdeaPad', 'Yoga', 'Legion'],
+        'HP': ['Pavilion', 'Envy', 'Spectre', 'Omen', 'ProBook'],
+        'Dell': ['XPS', 'Inspiron', 'Latitude', 'Alienware'],
+        'Apple': ['MacBook Pro', 'MacBook Air', 'MacBook'],
+        'Asus': ['ZenBook', 'VivoBook', 'ROG', 'TUF Gaming'],
+        'Acer': ['Aspire', 'Swift', 'Nitro', 'Predator'],
+        'Condor': ['W500', 'C120', 'C140', 'C150'],
+      },
+      ecrans: {
+        'Samsung': ['Odyssey', 'CRG9', 'U28E590D', 'S24F350'],
+        'LG': ['UltraGear', 'UltraFine', '27GN800', '24MK600'],
+        'Dell': ['UltraSharp', 'P Series', 'S Series'],
+        'HP': ['Pavilion', 'EliteDisplay', 'V Series'],
+      }
+    },
+    
+    // 📱 TÉLÉPHONES
+    telephones: {
+      smartphones: {
+        'Samsung': ['Galaxy S23', 'Galaxy A54', 'Galaxy Z Flip', 'Galaxy Note'],
+        'Apple': ['iPhone 15', 'iPhone 14', 'iPhone SE', 'iPhone 13'],
+        'Xiaomi': ['Redmi Note 12', 'Mi 13', 'Poco X5', 'Redmi 12C'],
+        'Oppo': ['Reno 8', 'Find X5', 'A96', 'A76'],
+        'Huawei': ['P50 Pro', 'Mate 50', 'Nova 10'],
+        'Condor': ['Plume L5', 'Plume P8', 'Griffe G6'],
+      }
+    },
+    
+    // 🚗 AUTOMOBILES
+    automobiles: {
+      voitures: {
+        'Toyota': ['Corolla', 'Yaris', 'RAV4', 'Hilux', 'Land Cruiser'],
+        'Renault': ['Clio', 'Megane', 'Captur', 'Kadjar', 'Talisman'],
+        'Peugeot': ['208', '308', '3008', '5008', 'Partner'],
+        'Mercedes': ['Classe A', 'Classe C', 'Classe E', 'GLC'],
+        'BMW': ['Serie 3', 'Serie 5', 'X3', 'X5', 'X1'],
+      }
+    },
+    
+    // 👕 VÊTEMENTS
+    vetements: {
+      vetements: {
+        'Zara': ['Basic', 'Premium', 'TRF', 'Join Life'],
+        'H&M': ['Divided', 'Premium Quality', 'Conscious'],
+        'Nike': ['Dri-FIT', 'Jordan', 'Tech Fleece'],
+        'Adidas': ['Adicolor', 'Tiro', 'Primegreen'],
+      },
+      chaussures: {
+        'Nike': ['Air Force', 'Air Max', 'Jordan', 'Dunk'],
+        'Adidas': ['Superstar', 'Stan Smith', 'Ultraboost', 'Gazelle'],
+        'Puma': ['Suede', 'Cali', 'RS-X'],
+      }
+    }
+  }), []);
+
+  // 🔍 OBTENER MODELOS BASADOS EN SELECCIONES
+  useEffect(() => {
+    if (!selectedCategory || !selectedBrand) {
+      setFilteredModels([]);
+      return;
+    }
+
+    const categoryData = allModelsByCategoryAndBrand[selectedCategory];
+    if (!categoryData) {
+      setFilteredModels([]);
+      return;
+    }
+
+    let models = [];
+
+    // 1. Buscar por subcategoría específica
+    if (selectedSubCategory && categoryData[selectedSubCategory]) {
+      models = categoryData[selectedSubCategory][selectedBrand] || [];
+    }
+    
+    // 2. Si no hay en subcategoría, buscar en toda la categoría
+    if (models.length === 0) {
+      Object.values(categoryData).forEach(subCatData => {
+        if (subCatData[selectedBrand]) {
+          models = [...models, ...subCatData[selectedBrand]];
+        }
+      });
+      // Eliminar duplicados
+      models = [...new Set(models)];
+    }
+
+    setFilteredModels(models);
+  }, [selectedCategory, selectedSubCategory, selectedBrand, allModelsByCategoryAndBrand]);
+
+  return (
+    <Form.Group className="mt-3">
+      <Form.Label>🛠️ {t(label)}</Form.Label>
+      
+      {!selectedBrand ? (
+        <Alert variant="warning" className="py-2 mb-0">
+          <small>
+            <i className="bi bi-info-circle me-2"></i>
+            {t('select_brand_first', 'Veuillez d\'abord sélectionner une marque')}
+          </small>
+        </Alert>
+      ) : null}
+      
+      {selectedBrand && filteredModels.length > 0 ? (
+        <Form.Select
+          name={name}
+          value={postData[name] || ''}
+          onChange={handleChangeInput}
+          disabled={!selectedBrand}
+        >
+          <option value="">{t('select_model', 'Sélectionnez un modèle')}</option>
+          {filteredModels.map((model) => (
+            <option key={model} value={model}>{model}</option>
+          ))}
+          <option value="autre">{t('other_model', 'Autre modèle')}</option>
+        </Form.Select>
+      ) : selectedBrand ? (
+        <Form.Control
+          type="text"
+          name={name}
+          value={postData[name] || ''}
+          onChange={handleChangeInput}
+          placeholder={t('enter_model_manually', 'Entrez le modèle manuellement')}
+          disabled={!selectedBrand}
+        />
+      ) : (
+        <Form.Control
+          type="text"
+          name={name}
+          value={postData[name] || ''}
+          onChange={handleChangeInput}
+          placeholder={t('select_brand_first', 'Sélectionnez d\'abord une marque')}
+          disabled
+        />
+      )}
+      
+      {postData[name] === 'autre' && (
+        <Form.Control
+          type="text"
+          name={`${name}_custom`}
+          value={postData[`${name}_custom`] || ''}
+          onChange={handleChangeInput}
+          placeholder={t('specify_model', 'Précisez le modèle')}
+          className="mt-2"
+        />
+      )}
+      
+      {process.env.NODE_ENV === 'development' && (
+        <Form.Text className="text-muted">
+          <small>
+            🔍 {selectedBrand ? `${filteredModels.length} modèles pour ${selectedBrand}` : 'Pas de marque'}
+          </small>
+        </Form.Text>
+      )}
+    </Form.Group>
+  );
+};
+
+export default ModeleField;

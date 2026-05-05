@@ -1,0 +1,4881 @@
+ Hola maestro, estoy desarollando una app marketPlace con MERN 
+🧩 ESTRUCTURA FINAL DEL FRONTEND
+src/
+├── pages/
+│   ├── Home.jsx                ← muestra categorías + 6 posts por categoría
+│   ├── CategoryPage.jsx        ← muestra subniveles + posts filtrados
+│   └── PostDetail.jsx          ← muestra detalles de un post
+│
+├── components/
+│   ├── Header/
+│   │   └── Header.jsx          ← navegación principal, logo, búsqueda
+│   │
+│   ├── Breadcrumb/
+│   │   └── Breadcrumb.jsx      ← muestra ruta jerárquica (Immobilier → Vente → Villa)
+│   │
+│   ├── Sliders/
+│   │   ├── MainCategorySlider.jsx ← muestra íconos de las 15 categorías (Home)
+│   │   ├── SubCategorySlider.jsx  ← muestra subniveles (nivel 2)
+│   │   └── ArticleSlider.jsx      ← muestra artículos (nivel 3)
+│   │
+│   ├── CategorySection/
+│   │   └── CategorySection.jsx ← bloque de una categoría con 6 posts + botón "Ver más"
+│   │
+│   ├── PostCard/
+│   │   └── PostCard.jsx        ← muestra título, imagen y descripción corta de cada post
+│   │
+│   ├── Footer/
+│   │   └── Footer.jsx          ← pie de página general
+│   │
+│   └── Shared/
+│       └── Loading.jsx / EmptyState.jsx / ErrorMessage.jsx
+│           ← componentes genéricos reutilizables
+│
+└── redux/
+    ├── actions/
+    │   ├── categoryActions.js   ← getAllCategoriesWithPosts()
+    │   └── postActions.js       ← getCategoryPosts()
+    │
+    ├── reducers/
+    │   ├── categoryReducer.js
+    │   └── postReducer.js
+    │
+    └── store.js
+
+
+⚙️ CONEXIÓN ENTRE COMPONENTES Y BACKEND
+PáginaAcción principalEndpoint backendDatos devueltosComponentes involucradosHome.jsxgetAllCategoriesWithPosts(page)/api/categories?page=1&limit=8Categorías + 6 postsMainCategorySlider, CategorySection, PostCardCategoryPage.jsx (nivel 1)getCategoryPosts(slug)/api/posts/filter?category=immobilier&page=1Subcategorías + postsBreadcrumb, SubCategorySlider, PostCardCategoryPage.jsx (nivel 2)getCategoryPosts(slug, subSlug)/api/posts/filter?category=immobilier&sub=vente&page=1Artículos + postsBreadcrumb, ArticleSlider, PostCardCategoryPage.jsx (nivel 3)getCategoryPosts(slug, subSlug, articleSlug)/api/posts/filter?category=immobilier&sub=vente&article=villa&page=1Solo posts finalesBreadcrumb, PostCardPostDetail.jsxgetPostById(id)/api/posts/:idDetalle del postBreadcrumb, Header, Footer
+
+🔄 SCROLL INFINITO
+PáginaAcciónQué cargaHome.jsxgetAllCategoriesWithPosts(page + 1)Más categorías con sus primeros 6 postsCategoryPage.jsxgetCategoryPosts(slug, ..., page + 1)Más posts del mismo filtro actual
+
+🌐 FLUJO GENERAL DE DATOS
+🧍 Usuario
+   ↓
+🏠 Home.jsx
+   ↓ (GET /api/categories)
+📦 Categorías + 6 posts cada una
+   ↓ clic
+📄 CategoryPage.jsx
+   ↓ (GET /api/posts/filter?...params)
+📦 Subniveles + posts
+   ↓ clic
+📄 CategoryPage.jsx (nivel 2 o 3)
+   ↓ (GET /api/posts/filter?...params)
+📦 Posts finales
+   ↓ clic
+📰 PostDetail.jsx
+   ↓ (GET /api/posts/:id)
+📦 Post completo
+
+
+🎯 En resumen maestro
+✅ Solo dos acciones principales:
+getAllCategoriesWithPosts() y getCategoryPosts()
+✅ Solo una página inteligente (CategoryPage) para manejar todos los niveles de navegación.
+✅ Componentes bien modularizados y reutilizables (sliders, post cards, breadcrumb, etc.).
+✅ Scroll infinito implementado tanto en Home como en CategoryPage.
+
+¿Deseas que ahora te cree la imagen final del flujo de componentes + backend, con líneas que conecten Home, CategoryPage, Redux y API (como un diagrama técnico de arquitectura MERN)?
+Así la tendrías como referencia visual para documentar tu proyecto completo.
+
+
+
+DIAGRAMA DE FLUJO COMPLETO
+text
+USUARIO
+   │
+   ▼ (1) Accede a CreateAnnoncePage
+CREATEANNOUNCEPAGE
+   │
+   ▼ (2) Renderiza CategoryAccordion
+CATEGORYACCORDION
+   │
+   ▼ (3) Usuario selecciona categoría
+   │    • mainCategory
+   │    • subCategory  
+   │    • articleType
+   │
+   ▼ (4) Actualiza formData
+CREATEANNOUNCEPAGE
+   │
+   ▼ (5) Avanza a Step 2
+   │
+   ▼ (6) Renderiza DynamicFieldManager
+DYNAMICFIELDMANAGER
+   │
+   ▼ (7) Consulta FieldConfig.js
+FIELDCONFIG.JS
+   │
+   ▼ (8) Retorna campos para categoría/step
+   │    • ['title', 'description', 'marque', 'modele']
+   │
+   ▼ (9) Renderiza cada campo con FieldRendererUniversal
+FIELDRENDERERUNIVERSAL
+   │
+   ▼ (10) Selecciona componente específico
+   │    • VehiculesFields.js (para 'vehicules')
+   │
+   ▼ (11) Renderiza inputs específicos
+   │    • Select para 'marque'
+   │    • Input para 'modele'
+   │
+   ▼ (12) Usuario completa campos → specificData
+CREATEANNOUNCEPAGE
+   │
+   ▼ (13) Repite Steps 2-4 para cada paso
+   │
+   ▼ (14) Step 5: ImagesStep.js
+IMAGESSTEP.JS
+   │
+   ▼ (15) Usuario sube imágenes
+   │
+   ▼ (16) Click en "Publier"
+CREATEANNOUNCEPAGE
+   │
+   ▼ (17) Valida y prepara datos
+   │    • Combina formData + specificData
+   │    • Prepara imágenes
+   │
+   ▼ (18) Dispatch createPost action
+POSTACTION.JS
+   │
+   ▼ (19) Sube imágenes a Cloudinary
+   │
+   ▼ (20) POST /api/posts con datos
+BACKEND (Express)
+   │
+   ▼ (21) postController.createPost()
+POSTCONTROLLER.JS
+   │
+   ▼ (22) Valida datos
+   │
+   ▼ (23) Crea nuevo documento Post
+MONGODB
+   │
+   ▼ (24) Guarda post con referencia a Category
+   │
+   ▼ (25) Retorna respuesta
+POSTCONTROLLER.JS → POSTACTION.JS
+   │
+   ▼ (26) Dispatch CREATE_POST_SUCCESS
+POSTREDUCER.JS
+   │
+   ▼ (27) Actualiza estado Redux
+   │
+   ▼ (28) Emite socket.io 'newPost'
+SOCKET.IO
+   │
+   ▼ (29) Redirige a página del post
+CREATEANNOUNCEPAGE → Detalle del Post
+🎯 PUNTOS CLAVE DEL FLUJO
+Jerarquía de Componentes:
+text
+CreateAnnoncePage.js (Padre)
+├── CategoryAccordion.js (Step 1)
+├── DynamicFieldManager.js (Steps 2-4)
+│   ├── FieldConfig.js (Configuración)
+│   └── FieldRendererUniversal.js (Router)
+│       └── VehiculesFields.js (Componente específico)
+└── ImagesStep.js (Step 5)
+Flujo de Props:
+javascript
+// De padre a hijos:
+CreateAnnoncePage → DynamicFieldManager:
+  • mainCategory, subCategory, articleType
+  • postData (formData + specificData)
+  • handleChangeInput (callback)
+
+DynamicFieldManager → FieldRendererUniversal:
+  • fieldName (campo específico a renderizar)
+  • mainCategory (para seleccionar componente)
+
+FieldRendererUniversal → VehiculesFields:
+  • fieldName (ej: 'marque')
+  • postData[fieldName] (valor actual)
+  • handleChangeInput (para actualizar)
+Manejo de Estado:
+Local (Componente): formData, specificData, images
+
+Global (Redux): categories, posts, userPosts
+
+Persistente (MongoDB): Post, Category, User
+
+Validaciones en Cada Etapa:
+Step 1: Categoría y subcategoría seleccionadas
+
+Step 2: Título y descripción no vacíos
+
+Step 3: Precio válido (> 0)
+
+Step 4: Teléfono y wilaya completos
+
+Step 5: Al menos 1 imagen
+
+🔧 ARCHIVOS CRÍTICOS Y SUS ROLES
+Archivo	Rol Principal	Dependencias
+CreateAnnoncePage.js	Coordinador principal del flujo	Todos los componentes
+CategoryAccordion.js	Selector de categorías jerárquico	Redux (categories)
+DynamicFieldManager.js	Gestor de campos por categoría/step	FieldConfig.js
+FieldConfig.js	Configuración estática de campos	Ninguna
+FieldRendererUniversal.js	Router a componentes específicos	Todos los specificFields
+VehiculesFields.js	Campos específicos de vehículos	Solo inputs básicos
+postAction.js	Acciones Redux para posts	API_URL, socket
+postController.js	Lógica del servidor para posts	Models: Post, Category
+Este flujo asegura una separación clara de responsabilidades, reutilización de componentes y escalabilidad para añadir nuevas categorías fácilmente.
+
+
+
+
+🔁 EN RESUMEN — ORDEN DE EJECUCIÓN
+Paso	Archivo que se ejecuta	Rol principal	Qué produce
+1️⃣	CreateAnnoncePage.jsx	Punto de entrada, maneja los steps	Muestra el Step 1 (Accordion)
+2️⃣	CategoryAccordion.jsx	Selección jerárquica de categoría	Actualiza formData
+3️⃣	DynamicFieldManager.jsx	Muestra campos dinámicos según categoría	Llama a FieldRendererUniversal
+4️⃣	FieldRendererUniversal.jsx	Router hacia los campos específicos	Renderiza VehiculesFields, etc.
+5️⃣	VehiculesFields.jsx (o equivalente)	Inputs reales	Actualiza postData en el padre
+6️⃣	ImagesStep.jsx	Subida de imágenes	Completa el formulario
+7️⃣	postAction.js → postController.js	Comunicación servidor	Crea el post en MongoDB
+🧭 Analógicamente:
+
+Imagina que estás construyendo una casa:
+
+CreateAnnoncePage = el arquitecto (supervisa todo el proceso).
+
+CategoryAccordion = el terreno (define dónde construirás).
+
+DynamicFieldManager = el ingeniero (decide qué planos usar según el terreno).
+
+FieldRendererUniversal = los obreros que reparten tareas.
+
+VehiculesFields = los especialistas (pintor, electricista, fontanero).
+
+postAction = la empresa que registra oficialmente la casa.
+
+MongoDB = el registro de propiedades.
+
+Si quieres, puedo mostrarte ahora un esquema visual del flujo exacto de componentes y archivos, con flechas entre ellos (tipo mapa técnico), para que visualices qué archivo llama a cuál y cómo fluyen los datos (props → estado local → Redux → servidor).
+¿Quieres que te cree ese diagrama maestro, paso a paso?
+
+maestro bravo, me gusta como lo has explicado en esta tabla , puede darle mas info entre fila y otra para que se completa un poco la explicacion ? EN RESUMEN — ORDEN DE EJECUCIÓN
+Paso	Archivo que se ejecuta	Rol principal	Qué produce
+1️⃣	CreateAnnoncePage.jsx	Punto de entrada, maneja los steps	Muestra el Step 1 (Accordion)
+2️⃣	CategoryAccordion.jsx	Selección jerárquica de categoría	Actualiza formData
+3️⃣	DynamicFieldManager.jsx	Muestra campos dinámicos según categoría	Llama a FieldRendererUniversal
+4️⃣	FieldRendererUniversal.jsx	Router hacia los campos específicos	Renderiza VehiculesFields, etc.
+5️⃣	VehiculesFields.jsx (o equivalente)	Inputs reales	Actualiza postData en el padre
+6️⃣	ImagesStep.jsx	Subida de imágenes	Completa el formulario
+7️⃣	postAction.js → postController.js	Comunicación servidor	Crea el post en MongoDB
+
+Excelente, maestro 🙌
+Me alegra mucho que te haya gustado la tabla — esa es la columna vertebral del flujo de creación de un post.
+Vamos a ampliarla con más detalle entre fila y fila, explicando qué ocurre internamente, cómo se comunican los componentes y qué datos viajan.
+Así verás el ciclo completo de vida del post, desde que el usuario elige la categoría hasta que se guarda en MongoDB.
+
+🧩 EN RESUMEN — ORDEN DE EJECUCIÓN (VERSIÓN DETALLADA)
+Paso	Archivo que se ejecuta	Rol principal	Qué produce / Qué ocurre internamente
+1️⃣	CreateAnnoncePage.jsx	🧭 Punto de entrada. Controlador del flujo.	Es el padre maestro que contiene todo el estado del proceso (formData, specificData, images, currentStep). Aquí se inicializa el flujo y se decide qué componente hijo mostrar según el paso actual. Cuando el usuario llega a esta página, se renderiza el paso 1 (CategoryAccordion).
+2️⃣	CategoryAccordion.jsx	🗂️ Selector jerárquico de categorías.	Muestra la jerarquía completa (categoría → subcategoría → artículo) obtenida desde MongoDB por Redux (categories del store). Cuando el usuario selecciona los tres niveles, este componente actualiza el estado del padre (formData) mediante una función handleChangeInput. Luego, CreateAnnoncePage detecta que las tres selecciones existen y avanza automáticamente al Step 2.
+3️⃣	DynamicFieldManager.jsx	🧠 Gestor de campos dinámicos por categoría.	Este componente se monta cuando currentStep >= 2. Lee las categorías seleccionadas (vía props: mainCategory, subCategory, articleType) y consulta el archivo FieldConfig.js para obtener la lista de campos a mostrar según la categoría y el paso actual. Por ejemplo, para “vehicules” en Step 2 devuelve [title, description, marque, modele]. Luego almacena estos nombres en su estado interno (visibleFields) y los pasa al siguiente componente.
+4️⃣	FieldRendererUniversal.jsx	🔀 Router interno de campos.	Este componente recibe cada campo de DynamicFieldManager y decide qué componente específico debe renderizarlo. Su lógica es condicional: si el campo pertenece a “vehicules”, carga VehiculesFields.jsx; si pertenece a “immobilier”, carga ImmobilierFields.jsx, etc. Así mantiene el sistema modular y escalable: puedes añadir nuevas categorías sin tocar el núcleo.
+5️⃣	VehiculesFields.jsx (o el componente específico que corresponda)	✍️ Renderizador real de inputs.	Aquí se crean los inputs reales del formulario: títulos, descripciones, selects de marca, precio, modelo, etc. Cada campo se asocia con el valor actual de postData[fieldName] y se actualiza usando handleChangeInput, que sube el nuevo valor al padre (CreateAnnoncePage). En este punto el usuario está escribiendo información que ya se guarda en el estado principal del padre.
+6️⃣	ImagesStep.jsx	🖼️ Gestión de imágenes.	Aparece en el Step 5. Aquí el usuario puede subir entre 1 y 10 imágenes. Internamente, este componente usa funciones auxiliares o una acción Redux para subir las imágenes a Cloudinary (o guardarlas temporalmente en el estado). Una vez cargadas, sus URLs se agregan al objeto images dentro de CreateAnnoncePage.
+7️⃣	postAction.js → postController.js	🚀 Comunicación cliente-servidor y persistencia.	Cuando el usuario pulsa “Publier”, CreateAnnoncePage combina todos los datos (formData + specificData + images) y ejecuta dispatch(createPost(finalData)). Esa acción usa Axios para enviar un POST /api/posts al backend Express. En el servidor, postController.createPost() valida los datos, crea un nuevo documento Post con la referencia a la categoría y el usuario, y lo guarda en MongoDB. Finalmente, responde con el nuevo post, que Redux captura en postReducer → actualiza el estado global → redirige al detalle del post.
+🧭 AHORA VISUALÍZALO COMO UN CAMINO LINEAL
+Usuario
+
+
+// 📂 pages/CreateAnnoncePage.js - VERSIÓN FINAL CORREGIDA
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { useHistory, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import { Container, Button, Alert, Spinner, Card, Row, Col, Badge } from 'react-bootstrap';
+import { motion, AnimatePresence } from 'framer-motion';
+import { createPost, updatePost } from '../redux/actions/postAction';
+import CategoryAccordion from '../components/CATEGORIES/CategoryAccordion';
+import DynamicFieldManager from '../components/CATEGORIES/DynamicFieldManager';
+import ImagesStep from '../components/CATEGORIES/camposComun/ImagesStep';
+
+const CreateAnnoncePage = () => {
+  const { auth } = useSelector((state) => state);
+  const dispatch = useDispatch();
+  const history = useHistory();
+  const location = useLocation();
+  const { i18n } = useTranslation();
+  
+  const isRTL = i18n.language === 'ar';
+  const isEdit = location.state?.isEdit || false;
+  const postToEdit = location.state?.postData || null;
+
+  const autoAdvanceTimeout = useRef(null);
+  const [currentStep, setCurrentStep] = useState(1);
+  
+  // 🎯 ESTADOS SEPARADOS
+  const [categoryData, setCategoryData] = useState({
+    categorie: '',
+    articleType: '',
+    subCategory: ''
+  });
+
+  // 🎯 Campos específicos de cada categoría
+  const [specificData, setSpecificData] = useState({});
+
+  // 🎯 Campos comunes que siempre están presentes
+  const [commonData, setCommonData] = useState({
+    wilaya: '',
+    commune: '',
+    price: '',
+    description: ''
+  });
+
+  const [images, setImages] = useState([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [alert, setAlert] = useState({ show: false, message: '', variant: 'info' });
+  const [isLoadingEditData, setIsLoadingEditData] = useState(true);
+  const [hasManuallyGoneBack, setHasManuallyGoneBack] = useState(false);
+
+  // 🔍 COMBINAR TODOS LOS DATOS PARA DynamicFieldManager
+  const getAllPostData = useCallback(() => ({
+    ...categoryData,
+    ...commonData,
+    ...specificData
+  }), [categoryData, commonData, specificData]);
+
+  // 📥 CARGAR DATOS DE EDICIÓN - SEPARADOS
+  useEffect(() => {
+    if (isEdit && postToEdit) {
+      console.log('📥 Cargando datos de edición:', postToEdit);
+      
+      // 1. Cargar datos de categoría
+      const loadedCategoryData = {
+        categorie: postToEdit.categorie || '',
+        subCategory: postToEdit.subCategory || '',
+        articleType: postToEdit.articleType || ''
+      };
+      
+      // 2. Cargar datos comunes
+      const loadedCommonData = {
+        wilaya: postToEdit.wilaya || '',
+        commune: postToEdit.commune || '',
+        price: postToEdit.price || '',
+        description: postToEdit.description || ''
+      };
+      
+      // 3. Cargar datos específicos (excluyendo campos comunes y de categoría)
+      const loadedSpecificData = {};
+      
+      // Extraer de categorySpecificData
+      if (postToEdit.categorySpecificData) {
+        if (typeof postToEdit.categorySpecificData === 'object') {
+          Object.entries(postToEdit.categorySpecificData).forEach(([key, value]) => {
+            // Solo cargar si no es campo común ni de categoría
+            if (value !== undefined && value !== null && value !== '' && 
+                !['wilaya', 'commune', 'price', 'description', 'categorie', 'subCategory', 'articleType'].includes(key)) {
+              loadedSpecificData[key] = value;
+            }
+          });
+        }
+      }
+      
+      // También revisar campos directos que no sean comunes
+      const excludeFields = [
+        'categorie', 'subCategory', 'articleType', 
+        'wilaya', 'commune', 'price', 'description',
+        'images', '_id', 'createdAt', 'updatedAt', 'user',
+        'categorySpecificData', 'location'
+      ];
+      
+      Object.entries(postToEdit).forEach(([key, value]) => {
+        if (!excludeFields.includes(key) && value !== undefined && value !== null && value !== '') {
+          loadedSpecificData[key] = value;
+        }
+      });
+      
+      // 4. Cargar imágenes
+      if (postToEdit.images?.length > 0) {
+        const loadedImages = postToEdit.images.map(img => ({
+          url: img.url || img,
+          public_id: img.public_id || '',
+          isExisting: true
+        }));
+        setImages(loadedImages);
+      }
+
+      // Actualizar estados
+      setCategoryData(loadedCategoryData);
+      setCommonData(loadedCommonData);
+      setSpecificData(loadedSpecificData);
+
+      // Si tiene categoría completa, ir al paso 2
+      if (loadedCategoryData.categorie && loadedCategoryData.subCategory) {
+        setCurrentStep(2);
+        setHasManuallyGoneBack(true);
+      }
+      
+      setIsLoadingEditData(false);
+      console.log('✅ Datos cargados separados:', {
+        category: loadedCategoryData,
+        common: loadedCommonData,
+        specific: loadedSpecificData
+      });
+    } else {
+      setIsLoadingEditData(false);
+    }
+  }, [isEdit, postToEdit]);
+
+  // ⚡ AVANCE AUTOMÁTICO AL STEP 2
+  useEffect(() => {
+    if (hasManuallyGoneBack || isEdit || currentStep !== 1) {
+      if (autoAdvanceTimeout.current) {
+        clearTimeout(autoAdvanceTimeout.current);
+      }
+      return;
+    }
+    
+    const hasCategory = categoryData.categorie && categoryData.subCategory;
+    
+    if (hasCategory) {
+      if (autoAdvanceTimeout.current) {
+        clearTimeout(autoAdvanceTimeout.current);
+      }
+      
+      autoAdvanceTimeout.current = setTimeout(() => {
+        const stillHasCategory = categoryData.categorie && categoryData.subCategory;
+        
+        if (stillHasCategory && currentStep === 1 && !hasManuallyGoneBack) {
+          setCurrentStep(2);
+          setAlert({
+            show: true,
+            message: "✅ Catégorie sélectionnée. Complétez les détails.",
+            variant: "success"
+          });
+        }
+      }, 500);
+    }
+    
+    return () => {
+      if (autoAdvanceTimeout.current) {
+        clearTimeout(autoAdvanceTimeout.current);
+      }
+    };
+  }, [categoryData.categorie, categoryData.subCategory, currentStep, hasManuallyGoneBack, isEdit]);
+
+  // 🎯 HANDLER ÚNICO PARA CAMBIOS DE INPUT
+  const handleInputChange = useCallback((e) => {
+    const { name, value, type, checked } = e.target;
+    const val = type === 'checkbox' ? checked : value;
+
+    console.log('📝 Cambio en campo:', name, '=', val);
+
+    // 1. Campos de categoría
+    const CATEGORY_FIELDS = ['categorie', 'articleType', 'subCategory'];
+    if (CATEGORY_FIELDS.includes(name)) {
+      setCategoryData(prev => {
+        const newData = { ...prev, [name]: val };
+        
+        // Resetear si cambia la categoría principal
+        if (name === 'categorie') {
+          newData.articleType = '';
+          newData.subCategory = '';
+          setSpecificData({}); // Resetear datos específicos
+          if (currentStep === 1) {
+            setHasManuallyGoneBack(false);
+          }
+        } else if (name === 'articleType' && prev.articleType !== val) {
+          setSpecificData({}); // Resetear datos específicos
+        } else if (name === 'subCategory' && prev.subCategory !== val) {
+          setSpecificData({}); // Resetear datos específicos
+        }
+        
+        return newData;
+      });
+    }
+    // 2. Campos comunes
+    else if (['wilaya', 'commune', 'price', 'description'].includes(name)) {
+      setCommonData(prev => ({
+        ...prev,
+        [name]: val
+      }));
+    }
+    // 3. Campos específicos
+    else {
+      setSpecificData(prev => {
+        if (val === '' || val === undefined || val === null) {
+          const { [name]: removed, ...rest } = prev;
+          return rest;
+        }
+        return { ...prev, [name]: val };
+      });
+    }
+  }, [currentStep]);
+
+  // 🔄 FUNCIÓN PARA CAMBIAR DE PASO
+  const handleStepChange = useCallback((newStep) => {
+    if (autoAdvanceTimeout.current) {
+      clearTimeout(autoAdvanceTimeout.current);
+    }
+    
+    if (newStep === 1) {
+      setHasManuallyGoneBack(true);
+    } else if (newStep > currentStep) {
+      setHasManuallyGoneBack(false);
+    }
+    
+    setCurrentStep(newStep);
+  }, [currentStep]);
+
+  // 📢 FUNCIÓN PARA MOSTRAR ALERTAS
+  const showAlertMessage = useCallback((message, variant = 'info', duration = 4000) => {
+    setAlert({ show: true, message, variant });
+    setTimeout(() => {
+      setAlert({ show: false, message: '', variant: 'info' });
+    }, duration);
+  }, []);
+
+  // ✅ VALIDACIÓN DE PASOS - CORREGIDA
+  const canProceedToNextStep = () => {
+    const allData = getAllPostData();
+    
+    console.log(`🔍 Validación paso ${currentStep}:`, {
+      wilaya: allData.wilaya,
+      commune: allData.commune,
+      title: allData.title,
+      description: allData.description,
+      price: allData.price
+    });
+    
+    switch(currentStep) {
+      case 1:
+        return categoryData.categorie && categoryData.subCategory;
+      case 2:
+        // Validar título y descripción
+        return allData.title && allData.title.trim() !== '' && 
+               allData.description && allData.description.trim() !== '';
+      case 3:
+        // Validar precio
+        return allData.price && allData.price.toString().trim() !== '';
+      case 4:
+        // ✅ SOLO wilaya y commune son obligatorios
+        const hasWilaya = allData.wilaya && allData.wilaya.toString().trim() !== '';
+        const hasCommune = allData.commune && allData.commune.toString().trim() !== '';
+        console.log(`✅ Validación paso 4: wilaya=${hasWilaya}, commune=${hasCommune}`);
+        return hasWilaya && hasCommune;
+      case 5:
+        return images.length > 0;
+      default:
+        return true;
+    }
+  };
+
+  // 🚀 FUNCIÓN PARA ENVIAR EL FORMULARIO
+// 📂 pages/CreateAnnoncePage.js - VERSIÓN FINAL COINCIDENTE
+// En handleSubmit, ajustar la estructura de datos:
+
+const handleSubmit = async () => {
+  if (isSubmitting) return;
+  
+  setIsSubmitting(true);
+  
+  try {
+    // Validaciones básicas (según el modelo)
+    if (!categoryData.categorie || !categoryData.subCategory) {
+      showAlertMessage("❌ Sélectionnez une catégorie et sous-catégorie", "danger");
+      setIsSubmitting(false);
+      return;
+    }
+    
+    const allData = getAllPostData();
+    
+    if (!allData.title) {
+      showAlertMessage("❌ Le titre est requis", "danger");
+      setIsSubmitting(false);
+      return;
+    }
+    
+    if (!allData.description) {
+      showAlertMessage("❌ La description est requise", "danger");
+      setIsSubmitting(false);
+      return;
+    }
+    
+    if (!allData.price || parseFloat(allData.price) <= 0) {
+      showAlertMessage("❌ Un prix valide est requis", "danger");
+      setIsSubmitting(false);
+      return;
+    }
+    
+    if (!allData.wilaya || !allData.commune) {
+      showAlertMessage("❌ La wilaya et la commune sont requises", "danger");
+      setIsSubmitting(false);
+      return;
+    }
+    
+    if (images.length === 0) {
+      showAlertMessage("❌ Ajoutez au moins une image", "danger");
+      setIsSubmitting(false);
+      return;
+    }
+    
+    // 🔥 ESTRUCTURA QUE ESPERA EL BACKEND
+    const postDataForBackend = {
+      // 1. Campos de categoría
+      categorie: categoryData.categorie,
+      subCategory: categoryData.subCategory,
+      articleType: categoryData.articleType || '',
+      
+      // 2. Campos comunes obligatorios
+      title: allData.title || '',
+      description: allData.description || '',
+      price: parseFloat(allData.price) || 0,
+      etat: allData.etat || 'occasion',
+      
+      // 3. Campos de contacto (opcionales)
+      phone: allData.telephone || allData.phone || '',
+      email: allData.email || '',
+      
+      // 4. Campos de ubicación obligatorios
+      wilaya: allData.wilaya || '',
+      commune: allData.commune || '',
+      address: allData.address || '',
+      
+      // 5. Campos específicos de categoría
+      categorySpecificData: {}
+    };
+    
+    console.log('📤 Datos preparados para backend:', postDataForBackend);
+    
+    // 🔥 Separar campos que van en categorySpecificData
+    // Campos que NO van en categorySpecificData (van en el nivel principal)
+    const mainFields = [
+      'categorie', 'subCategory', 'articleType',
+      'title', 'description', 'price', 'etat',
+      'phone', 'email', 'wilaya', 'commune', 'address',
+      'telephone' // también en nivel principal como 'phone'
+    ];
+    
+    // Agregar campos específicos a categorySpecificData
+    Object.keys(specificData).forEach(key => {
+      if (!mainFields.includes(key) && 
+          specificData[key] !== undefined && 
+          specificData[key] !== null && 
+          specificData[key] !== '') {
+        postDataForBackend.categorySpecificData[key] = specificData[key];
+      }
+    });
+    
+    // 🔥 También agregar algunos campos de commonData a categorySpecificData si son específicos
+    // Por ejemplo, si hay campos en commonData que son específicos de categoría
+    const specificCommonFields = ['marque', 'modele', 'annee', 'kilometrage', 'couleur'];
+    specificCommonFields.forEach(field => {
+      if (commonData[field] && commonData[field] !== '') {
+        postDataForBackend.categorySpecificData[field] = commonData[field];
+      }
+    });
+    
+    console.log('📦 categorySpecificData:', postDataForBackend.categorySpecificData);
+    
+    // Preparar imágenes
+    const imagesForBackend = images.map((img, index) => ({
+      url: img.url || img,
+      public_id: img.public_id || '',
+      isMain: index === 0,
+      isExisting: img.isExisting || false
+    }));
+    
+    // Ejecutar acción
+    let result;
+    
+    if (isEdit && postToEdit) {
+      result = await dispatch(updatePost(
+        postToEdit._id,
+        postDataForBackend,
+        auth
+      ));
+    } else {
+      result = await dispatch(createPost({
+        postData: postDataForBackend,
+        images: imagesForBackend,
+        auth
+      }));
+    }
+    
+    if (result && result.success === false) {
+      throw new Error(result.error);
+    }
+    
+    showAlertMessage(
+      isEdit 
+        ? '✅ Annonce mise à jour avec succès!' 
+        : '✅ Annonce créée avec succès!',
+      "success"
+    );
+    
+    setTimeout(() => {
+      history.push('/');
+    }, 1500);
+    
+  } catch (error) {
+    console.error('❌ Error:', error);
+    
+    // Manejar errores específicos del backend
+    let errorMessage = 'Erreur lors de la publication';
+    
+    if (error.response && error.response.data) {
+      const backendError = error.response.data;
+      if (backendError.error) {
+        errorMessage = backendError.error;
+      } else if (backendError.message) {
+        errorMessage = backendError.message;
+      }
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    showAlertMessage(`❌ ${errorMessage}`, "danger", 6000);
+  } finally {
+    setIsSubmitting(false);
+  }
+};
+
+  // 🎨 RENDERIZAR CONTENIDO DEL PASO ACTUAL
+  const renderCurrentStep = () => {
+    if (isLoadingEditData) {
+      return (
+        <div className="text-center py-4">
+          <Spinner animation="border" variant="primary" />
+          <p className="mt-2">Chargement des données...</p>
+        </div>
+      );
+    }
+
+    const allPostData = getAllPostData();
+
+    switch(currentStep) {
+      case 1:
+        return (
+          <motion.div
+            key="step1"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="step-content"
+          >
+            <Card className="border-0">
+              <Card.Body>
+                <h5 className="text-center mb-3">
+                  {isEdit ? '✏️ Modifier la catégorie' : '🏷️ Sélectionnez une catégorie'}
+                </h5>
+                
+                {/* Mostrar categoría actual si existe */}
+                {(categoryData.categorie && categoryData.subCategory) && (
+                  <div className={`alert ${hasManuallyGoneBack ? 'alert-info' : 'alert-success'} py-2 mb-3`}>
+                    <div className="d-flex align-items-center justify-content-between">
+                      <div>
+                        <i className={`fas fa-${hasManuallyGoneBack ? 'info-circle' : 'check-circle'} me-2`}></i>
+                        <small>
+                          <strong>{categoryData.categorie}</strong>
+                          {categoryData.subCategory && <span> → {categoryData.subCategory}</span>}
+                          {categoryData.articleType && <span> ({categoryData.articleType})</span>}
+                        </small>
+                      </div>
+                      <Button 
+                        variant="outline-primary" 
+                        size="sm"
+                        onClick={() => {
+                          setCategoryData({
+                            categorie: '',
+                            articleType: '',
+                            subCategory: ''
+                          });
+                          setSpecificData({});
+                          setCommonData({
+                            wilaya: '',
+                            commune: '',
+                            price: '',
+                            description: ''
+                          });
+                          setHasManuallyGoneBack(false);
+                        }}
+                      >
+                        <i className="fas fa-sync-alt me-1"></i>
+                        Changer
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                
+                <CategoryAccordion
+                  postData={categoryData}
+                  handleChangeInput={handleInputChange}
+                />
+                
+                {/* Botón manual para avanzar */}
+                {categoryData.categorie && categoryData.subCategory && hasManuallyGoneBack && (
+                  <div className="text-center mt-3">
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => handleStepChange(2)}
+                    >
+                      <i className="fas fa-arrow-right me-1"></i>
+                      Continuer avec cette catégorie
+                    </Button>
+                  </div>
+                )}
+              </Card.Body>
+            </Card>
+          </motion.div>
+        );
+        
+      case 2:
+      case 3:
+      case 4:
+        return (
+          <motion.div
+            key={`step${currentStep}`}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="step-content"
+          >
+            {/* Botón para volver a categoría en modo edición */}
+            {isEdit && currentStep > 1 && (
+              <div className="text-center mb-3">
+                <Button
+                  variant="outline-warning"
+                  size="sm"
+                  onClick={() => handleStepChange(1)}
+                  className="px-3"
+                >
+                  <i className="fas fa-edit me-1"></i>
+                  Modifier la catégorie
+                </Button>
+              </div>
+            )}
+            
+            <DynamicFieldManager
+              mainCategory={categoryData.categorie}
+              subCategory={categoryData.subCategory}
+              articleType={categoryData.articleType}
+              currentStep={currentStep}
+              onStepChange={handleStepChange}
+              showNavigation={false}
+              isEdit={isEdit}
+              postData={allPostData}
+              handleChangeInput={handleInputChange}
+              isRTL={isRTL}
+            />
+          </motion.div>
+        );
+        
+      case 5:
+        return (
+          <motion.div
+            key="step5"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="step-content"
+          >
+            <ImagesStep
+              images={images}
+              setImages={setImages}
+              isRTL={isRTL}
+              onComplete={handleSubmit}
+              onBack={() => handleStepChange(4)}
+              isEdit={isEdit}
+            />
+          </motion.div>
+        );
+        
+      default:
+        return null;
+    }
+  };
+
+  // 📊 TITULOS DE PASOS
+  const stepTitles = [
+    { title: 'Catégorie', icon: '🏷️', step: 1 },
+    { title: 'Détails', icon: '📝', step: 2 },
+    { title: 'Spécifications', icon: '🔍', step: 3 },
+    { title: 'Contact', icon: '📍', step: 4 },
+    { title: 'Photos', icon: '🖼️', step: 5 }
+  ];
+
+  return (
+    <Container className="py-4" dir={isRTL ? 'rtl' : 'ltr'}>
+      {/* ALERTA */}
+      <AnimatePresence>
+        {alert.show && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+          >
+            <Alert 
+              variant={alert.variant} 
+              dismissible 
+              onClose={() => setAlert({ ...alert, show: false })}
+              className="mb-3 py-2"
+            >
+              <div className="d-flex align-items-center">
+                <i className={`fas fa-${alert.variant === 'success' ? 'check' : 'exclamation-triangle'} me-2`}></i>
+                <span>{alert.message}</span>
+              </div>
+            </Alert>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ENCABEZADO */}
+      <div className="text-center mb-4">
+        <h1 className="fw-bold mb-2">
+          {isEdit ? '✏️ Modifier une annonce' : '➕ Publier une annonce'}
+        </h1>
+        
+        {isEdit && currentStep > 1 && (
+          <Badge bg="warning" className="px-3 py-2">
+            <i className="fas fa-edit me-1"></i>
+            Mode édition
+          </Badge>
+        )}
+      </div>
+
+      {/* INDICADOR DE PASOS */}
+      <div className="mb-4">
+        <div className="d-flex justify-content-between align-items-center">
+          {stepTitles.map((step, index) => (
+            <React.Fragment key={step.step}>
+              <div className="text-center flex-grow-1">
+                <button
+                  className={`step-indicator ${currentStep === step.step ? 'active' : ''}`}
+                  onClick={() => handleStepChange(step.step)}
+                  disabled={isSubmitting}
+                >
+                  <div className="step-icon-wrapper">
+                    <span className="step-icon">{step.icon}</span>
+                    {currentStep >= step.step && (
+                      <span className="step-dot"></span>
+                    )}
+                  </div>
+                  <div className="step-label mt-1">
+                    <small className={`fw-medium ${currentStep === step.step ? 'text-primary' : 'text-muted'}`}>
+                      {step.title}
+                    </small>
+                  </div>
+                </button>
+              </div>
+              
+              {index < stepTitles.length - 1 && (
+                <div className="step-connector flex-grow-1">
+                  <div className={`connector-line ${currentStep > step.step ? 'active' : ''}`}></div>
+                </div>
+              )}
+            </React.Fragment>
+          ))}
+        </div>
+      </div>
+
+      {/* CONTENIDO DEL PASO */}
+      <div className="border-0 shadow-sm overflow-hidden rounded">
+        <AnimatePresence mode="wait">
+          {renderCurrentStep()}
+        </AnimatePresence>
+      </div>
+
+      {/* NAVEGACIÓN INFERIOR */}
+      <motion.div 
+        className="mt-4 pt-3 border-top"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+      >
+        <Row className="g-3">
+          <Col xs={6}>
+            <Button
+              variant="outline-secondary"
+              size="lg"
+              onClick={() => handleStepChange(currentStep - 1)}
+              disabled={currentStep === 1 || isSubmitting}
+              className="w-100 py-2"
+            >
+              <i className="fas fa-arrow-left me-2"></i>
+              Retour
+            </Button>
+          </Col>
+          
+          <Col xs={6}>
+            {currentStep < 5 ? (
+              <Button
+                variant="primary"
+                size="lg"
+                onClick={() => {
+                  if (canProceedToNextStep()) {
+                    handleStepChange(currentStep + 1);
+                  } else {
+                    // Mostrar mensaje específico según el paso
+                    let message = '';
+                    switch(currentStep) {
+                      case 1: message = "Sélectionnez une catégorie et sous-catégorie"; break;
+                      case 2: message = "Complétez le titre et la description"; break;
+                      case 3: message = "Indiquez un prix valide"; break;
+                      case 4: message = "Renseignez la wilaya et la commune"; break;
+                    }
+                    showAlertMessage(`❌ ${message}`, "warning", 3000);
+                  }
+                }}
+                disabled={isSubmitting}
+                className="w-100 py-2"
+              >
+                Suivant
+                <i className="fas fa-arrow-right ms-2"></i>
+              </Button>
+            ) : (
+              <Button
+                variant={isEdit ? "warning" : "success"}
+                size="lg"
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+                className="w-100 py-2"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Spinner size="sm" animation="border" className="me-2" />
+                    {isEdit ? 'Mise à jour...' : 'Publication...'}
+                  </>
+                ) : (
+                  <>
+                    <i className={`fas ${isEdit ? 'fa-save' : 'fa-paper-plane'} me-2`}></i>
+                    {isEdit ? 'Mettre à jour' : 'Publier'}
+                  </>
+                )}
+              </Button>
+            )}
+          </Col>
+        </Row>
+        
+        {/* Mensaje de validación específico para paso 4 */}
+        {currentStep === 4 && !canProceedToNextStep() && (
+          <div className="alert alert-warning mt-3 mb-0 py-2">
+            <i className="fas fa-exclamation-circle me-2"></i>
+            <small>Veuillez remplir la wilaya et la commune pour continuer.</small>
+          </div>
+        )}
+      </motion.div>
+
+      {/* ESTILOS CSS */}
+      <style jsx>{`
+        .step-content {
+          min-height: 400px;
+          padding: 20px;
+        }
+        
+        .step-indicator {
+          background: none;
+          border: none;
+          padding: 0;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+        
+        .step-indicator.active .step-icon-wrapper {
+          background: #4f46e5;
+          color: white;
+          transform: scale(1.1);
+          box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+        }
+        
+        .step-icon-wrapper {
+          width: 50px;
+          height: 50px;
+          border-radius: 50%;
+          background: #f8f9fa;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin: 0 auto;
+          position: relative;
+          transition: all 0.3s ease;
+          border: 3px solid white;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .step-icon {
+          font-size: 20px;
+        }
+        
+        .step-dot {
+          position: absolute;
+          bottom: -4px;
+          right: -4px;
+          width: 16px;
+          height: 16px;
+          background: #10b981;
+          border-radius: 50%;
+          border: 3px solid white;
+        }
+        
+        .step-connector {
+          display: flex;
+          align-items: center;
+          padding: 0 10px;
+        }
+        
+        .connector-line {
+          height: 3px;
+          background: #e9ecef;
+          width: 100%;
+          transition: all 0.3s ease;
+        }
+        
+        .connector-line.active {
+          background: #4f46e5;
+        }
+        
+        .step-label {
+          font-size: 0.85rem;
+          margin-top: 8px;
+        }
+      `}</style>
+    </Container>
+  );
+};
+
+export default CreateAnnoncePage;
+
+// 📂 components/CATEGORIES/CategoryAccordion.js
+import React, { useState, useEffect, useMemo } from 'react';
+import { useSelector } from 'react-redux';
+import { Accordion, Form, Badge, Card, Button, Spinner, Alert } from 'react-bootstrap';
+import { useTranslation } from 'react-i18next';
+import { ChevronRight, ChevronDown, ChevronUp, CheckCircle, ArrowRightCircle } from 'react-bootstrap-icons';
+
+const CategoryAccordion = ({ postData, handleChangeInput, onComplete }) => {
+  const { t } = useTranslation(['categories', 'subcategories']);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [activeMainCategory, setActiveMainCategory] = useState(null);
+  const [expandedSubcategories, setExpandedSubcategories] = useState({});
+  const [isMobile, setIsMobile] = useState(false);
+
+  const [selectedItems, setSelectedItems] = useState({
+    category: null,
+    level1: null,
+    level2: null
+  });
+
+  // 🔄 OBTENER CATEGORÍAS DESDE MONGODB
+  const { categories = [], loading, error } = useSelector((state) => ({
+    categories: state.category?.categories || [],
+    loading: state.category?.loading || false,
+    error: state.category?.error || null
+  }));
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // 🎯 TRANSFORMAR DATOS MONGODB A ESTRUCTURA QUE TU ACCORDION ESPERA
+  const { mainCategories, categoryHierarchy } = useMemo(() => {
+    const mainCats = [];
+    const hierarchy = {};
+
+    categories.forEach(cat => {
+      if (cat.level === 1) {
+        mainCats.push({
+          id: cat.name.toLowerCase().replace(/[^a-z0-9]/g, '_'),
+          name: cat.name,
+          emoji: cat.emoji || '🏷️'
+        });
+
+        hierarchy[cat.name.toLowerCase().replace(/[^a-z0-9]/g, '_')] = {
+          levels: 2,
+          level1: 'categorie',
+          requiresLevel2: cat.children?.some(child => child.children?.length > 0) || false,
+          categories: cat.children?.map(child => ({
+            id: child.name.toLowerCase().replace(/[^a-z0-9]/g, '_'),
+            name: child.name,
+            emoji: child.emoji || '📁',
+            hasSublevel: child.children?.length > 0
+          })) || [],
+          subcategories: {}
+        };
+
+        cat.children?.forEach(child => {
+          if (child.children?.length > 0) {
+            const catId = cat.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+            const childId = child.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+            
+            hierarchy[catId].subcategories[childId] = child.children.map(grandChild => ({
+              id: grandChild.name.toLowerCase().replace(/[^a-z0-9]/g, '_'),
+              name: grandChild.name,
+              emoji: grandChild.emoji || '📄'
+            }));
+          }
+        });
+      }
+    });
+
+    return { mainCategories: mainCats, categoryHierarchy: hierarchy };
+  }, [categories]);
+
+  // 🎯 FUNCIÓN PARA OBTENER ITEMS (compatible con tu accordion original)
+  const getCategoryItems = (categoryId) => {
+    const category = categoryHierarchy[categoryId];
+    return category?.categories || [];
+  };
+
+  // 🎯 INICIALIZAR CON POSTDATA
+  useEffect(() => {
+    if (postData && postData.categorie && mainCategories.length > 0) {
+      const categoryId = postData.categorie.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      const subCategoryId = postData.subCategory?.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      const articleTypeId = postData.articleType?.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      
+      setSelectedItems({
+        category: categoryId,
+        level1: subCategoryId || null,
+        level2: articleTypeId || null
+      });
+      
+      setActiveMainCategory(categoryId);
+      
+      if (subCategoryId) {
+        const category = categoryHierarchy[categoryId];
+        const item = category?.categories?.find(cat => cat.id === subCategoryId);
+        
+        if (item?.hasSublevel) {
+          setExpandedSubcategories({
+            [`${categoryId}-${subCategoryId}`]: true
+          });
+        }
+      }
+    }
+  }, [postData, mainCategories, categoryHierarchy]);
+
+  // 🎯 HANDLERS (iguales a tu accordion original)
+  const handleMainCategoryToggle = (categoryId) => {
+    if (activeMainCategory === categoryId) {
+      setActiveMainCategory(null);
+      if (selectedItems.category === categoryId) {
+        handleResetSelection();
+      }
+    } else {
+      setActiveMainCategory(categoryId);
+      if (selectedItems.category && selectedItems.category !== categoryId) {
+        handleResetSelection();
+      }
+    }
+  };
+
+  const handleSubcategoryClick = (categoryId, level1Id, level1Item) => {
+    const category = categoryHierarchy[categoryId];
+    if (!category) return;
+
+    const newSelected = {
+      category: categoryId,
+      level1: level1Id,
+      level2: null
+    };
+    setSelectedItems(newSelected);
+
+    if (!level1Item.hasSublevel) {
+      handleChangeInput({ target: { name: 'categorie', value: categoryId } });
+      handleChangeInput({ target: { name: 'subCategory', value: level1Id } });
+      handleChangeInput({ target: { name: 'articleType', value: level1Id } });
+
+      setTimeout(() => onComplete && onComplete(), 150);
+      return;
+    } else {
+      const key = `${categoryId}-${level1Id}`;
+      if (expandedSubcategories[key]) {
+        setExpandedSubcategories(prev => ({ ...prev, [key]: false }));
+      } else {
+        const newExpanded = Object.keys(expandedSubcategories).reduce((acc, curr) => {
+          acc[curr] = false;
+          return acc;
+        }, {});
+        newExpanded[key] = true;
+        setExpandedSubcategories(newExpanded);
+      }
+
+      handleChangeInput({ target: { name: 'articleType', value: level1Id } });
+    }
+  };
+
+  const handleLevel2Select = (categoryId, level1Id, level2Id) => {
+    const category = categoryHierarchy[categoryId];
+    if (!category || !level1Id || !level2Id) return;
+
+    setSelectedItems({
+      category: categoryId,
+      level1: level1Id,
+      level2: level2Id
+    });
+
+    handleChangeInput({ target: { name: 'categorie', value: categoryId } });
+    handleChangeInput({ target: { name: 'subCategory', value: level2Id } });
+    handleChangeInput({ target: { name: 'articleType', value: level2Id } });
+
+    setTimeout(() => onComplete && onComplete(), 150);
+  };
+
+  const handleResetSelection = () => {
+    setSelectedItems({
+      category: null,
+      level1: null,
+      level2: null
+    });
+    setExpandedSubcategories({});
+
+    handleChangeInput({ target: { name: 'categorie', value: '' } });
+    handleChangeInput({ target: { name: 'subCategory', value: '' } });
+    handleChangeInput({ target: { name: 'articleType', value: '' } });
+  };
+
+  // 🎨 RENDERIZAR CONTENIDO
+  const renderCategoryContent = (categoryId) => {
+    const category = categoryHierarchy[categoryId];
+    if (!category) return null;
+
+    const items = getCategoryItems(categoryId);
+
+    if (items.length === 0) {
+      return (
+        <div className="no-items-message p-3 text-center">
+          <p className="text-muted mb-0">Aucune option disponible</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="category-content p-2">
+        <div className="subcategories-list">
+          {items.map((item) => {
+            const isSelected = selectedItems.category === categoryId &&
+              selectedItems.level1 === item.id;
+            const hasSublevel = item.hasSublevel || category.requiresLevel2;
+            const isExpanded = expandedSubcategories[`${categoryId}-${item.id}`];
+
+            return (
+              <div key={item.id} className="subcategory-wrapper mb-2">
+                {/* NIVEL 1 */}
+                <div
+                  className={`subcategory-item p-3 rounded ${isSelected ? 'selected' : ''} ${hasSublevel ? 'has-sublevel' : ''}`}
+                  style={{
+                    border: isSelected ? '2px solid #10B981' : '1px solid #e2e8f0',
+                    backgroundColor: isSelected ? '#f0fdf4' : 'white',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    position: 'relative'
+                  }}
+                  onClick={() => handleSubcategoryClick(categoryId, item.id, item)}
+                >
+                  <div className="subcategory-content d-flex align-items-center justify-content-between">
+                    <div className="d-flex align-items-center" style={{ flex: 1 }}>
+                      <div className="subcategory-icon me-3 position-relative">
+                        <span className="item-emoji" style={{ fontSize: '24px' }}>{item.emoji}</span>
+                        
+                        {/* PUNTO VERDE ESTILIZADO PARA SUBNIVELES */}
+                        {hasSublevel && (
+                          <div className="sublevel-indicator" style={{
+                            position: 'absolute',
+                            top: '-5px',
+                            right: '-5px',
+                            width: '18px',
+                            height: '18px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}>
+                            <div className="animated-dot" style={{
+                              width: '12px',
+                              height: '12px',
+                              backgroundColor: '#10B981',
+                              borderRadius: '50%',
+                              position: 'relative',
+                              animation: 'pulse 2s infinite'
+                            }}>
+                              <div style={{
+                                position: 'absolute',
+                                top: '50%',
+                                left: '50%',
+                                transform: 'translate(-50%, -50%)',
+                                width: '6px',
+                                height: '6px',
+                                backgroundColor: '#34D399',
+                                borderRadius: '50%'
+                              }}></div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="subcategory-info" style={{ flex: 1 }}>
+                        <div className="subcategory-name fw-medium" style={{
+                          color: isSelected ? '#065f46' : '#1e293b',
+                          fontSize: isMobile ? '14px' : '15px'
+                        }}>
+                          {item.name}
+                        </div>
+                        {isSelected && !hasSublevel && (
+                          <div className="selection-hint mt-1">
+                            <small className="text-success d-flex align-items-center">
+                              <CheckCircle size={12} className="me-1" />
+                              Prêt pour l'étape 2
+                            </small>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="subcategory-actions d-flex align-items-center">
+                      {hasSublevel ? (
+                        <span className={`chevron ${isExpanded ? 'expanded' : ''} ms-2`}>
+                          {isExpanded ? <ChevronUp /> : <ChevronDown />}
+                        </span>
+                      ) : (
+                        <ChevronRight className="text-muted" />
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* NIVEL 2 */}
+                {hasSublevel && isExpanded && (
+                  <div className="level2-container mt-2 ms-4" style={{
+                    borderLeft: '2px solid #e2e8f0',
+                    paddingLeft: '16px'
+                  }}>
+                    <div className="level2-content bg-light rounded p-3">
+                      <div className="level2-header mb-3">
+                        <h6 className="level2-title mb-0" style={{
+                          fontSize: '14px',
+                          color: '#64748b'
+                        }}>
+                          Sélectionnez une option pour <strong style={{ color: '#1e293b' }}>{item.name}</strong>
+                        </h6>
+                      </div>
+
+                      {(() => {
+                        const level2Items = category.subcategories?.[item.id] || [];
+
+                        if (level2Items.length === 0) {
+                          return (
+                            <div className="no-level2-message text-center py-2">
+                              <p className="text-muted small mb-0">Aucune option disponible</p>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="level2-items">
+                            {level2Items.map((level2Item) => (
+                              <div
+                                key={level2Item.id}
+                                className={`level2-item p-3 rounded mb-2 ${selectedItems.level2 === level2Item.id ? 'selected' : ''}`}
+                                style={{
+                                  border: selectedItems.level2 === level2Item.id ? 
+                                    '2px solid #3B82F6' : '1px solid #e2e8f0',
+                                  backgroundColor: selectedItems.level2 === level2Item.id ? 
+                                    '#EFF6FF' : 'white',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s'
+                                }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleLevel2Select(categoryId, item.id, level2Item.id);
+                                }}
+                              >
+                                <div className="level2-item-content d-flex align-items-center">
+                                  <span className="level2-emoji me-3" style={{ fontSize: '20px' }}>
+                                    {level2Item.emoji}
+                                  </span>
+                                  <span className="level2-name" style={{
+                                    color: selectedItems.level2 === level2Item.id ? 
+                                      '#1e40af' : '#1e293b',
+                                    fontSize: isMobile ? '14px' : '15px',
+                                    flex: 1
+                                  }}>
+                                    {level2Item.name}
+                                  </span>
+                                  {selectedItems.level2 === level2Item.id && (
+                                    <CheckCircle className="text-success" size={18} />
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  // ⏳ ESTADOS DE CARGA
+  if (loading) {
+    return (
+      <div className="text-center py-5">
+        <div className="spinner-container" style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '300px'
+        }}>
+          <Spinner animation="border" variant="primary" />
+          <p className="mt-3" style={{ color: '#64748b' }}>Chargement des catégories...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Alert variant="danger" className="m-3">
+        <div className="d-flex align-items-center">
+          <i className="fas fa-exclamation-triangle me-2"></i>
+          <div>
+            <strong>Erreur:</strong> {error}
+          </div>
+        </div>
+      </Alert>
+    );
+  }
+
+  if (mainCategories.length === 0) {
+    return (
+      <Card className="text-center py-5 m-3">
+        <div className="text-muted">
+          <div className="empty-icon mb-3" style={{ fontSize: '48px', opacity: 0.5 }}>
+            📦
+          </div>
+          <h5 className="mb-2">Aucune catégorie disponible</h5>
+          <p className="mb-3">Vérifiez que le seed MongoDB a été exécuté</p>
+          <Button 
+            variant="outline-primary" 
+            size="sm"
+            onClick={() => window.location.reload()}
+            className="d-inline-flex align-items-center"
+          >
+            <i className="fas fa-redo me-2"></i>
+            Recharger la page
+          </Button>
+        </div>
+      </Card>
+    );
+  }
+
+  // 🔍 FILTRAR CATEGORÍAS
+  const filteredCategories = mainCategories.filter(cat =>
+    cat.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    cat.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    cat.emoji.includes(searchTerm)
+  );
+
+  return (
+    <div className="category-accordion" style={{
+      width: '100%',
+      background: 'white',
+      borderRadius: '12px',
+      overflow: 'hidden',
+      boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
+    }}>
+      {/* Barra de búsqueda */}
+      <div className="search-bar" style={{
+        padding: isMobile ? '16px 16px 12px' : '20px 20px 16px',
+        borderBottom: '1px solid #f1f5f9'
+      }}>
+        <div className="search-input-wrapper position-relative">
+          <div className="search-icon" style={{
+            position: 'absolute',
+            left: '16px',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            color: '#94a3b8'
+          }}>
+            🔍
+          </div>
+          <Form.Control
+            type="text"
+            placeholder="Rechercher une catégorie..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={{
+              width: '100%',
+              padding: isMobile ? '12px 12px 12px 44px' : '14px 14px 14px 48px',
+              border: '2px solid #e2e8f0',
+              borderRadius: '10px',
+              fontSize: isMobile ? '14px' : '16px',
+              transition: 'all 0.2s',
+              backgroundColor: '#f8fafc'
+            }}
+            className="search-input"
+          />
+        </div>
+        
+        {searchTerm && (
+          <div className="category-count mt-2 d-flex justify-content-between">
+            <span className="text-muted" style={{ fontSize: '13px' }}>
+              {filteredCategories.length} résultat{filteredCategories.length !== 1 ? 's' : ''}
+            </span>
+            <button
+              onClick={() => setSearchTerm('')}
+              className="btn btn-sm btn-link p-0"
+              style={{ fontSize: '13px', textDecoration: 'none' }}
+            >
+              Effacer
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Contador de categorías */}
+      {!searchTerm && (
+        <div className="category-count px-4 py-2" style={{
+          backgroundColor: '#f8fafc',
+          borderBottom: '1px solid #f1f5f9'
+        }}>
+          <div className="d-flex align-items-center justify-content-between">
+            <span className="text-muted" style={{ fontSize: '14px' }}>
+              <strong>{mainCategories.length}</strong> catégories disponibles
+            </span>
+            {selectedItems.category && (
+              <Badge bg="success" className="d-flex align-items-center" style={{
+                fontSize: '12px',
+                padding: '4px 8px',
+                borderRadius: '20px'
+              }}>
+                <CheckCircle size={10} className="me-1" />
+                Sélectionné
+              </Badge>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Lista de categorías */}
+      <div className="categories-list" style={{
+        padding: isMobile ? '0' : '0',
+        maxHeight: '500px',
+        overflowY: 'auto',
+        scrollbarWidth: 'thin'
+      }}>
+        {filteredCategories.length === 0 ? (
+          <div className="no-results py-5 text-center">
+            <div className="empty-icon mb-3" style={{ fontSize: '48px', opacity: 0.3 }}>
+              🔍
+            </div>
+            <h5 className="mb-2" style={{ color: '#64748b' }}>Aucun résultat</h5>
+            <p className="text-muted" style={{ fontSize: '14px' }}>
+              Aucune catégorie ne correspond à "{searchTerm}"
+            </p>
+          </div>
+        ) : (
+          <Accordion activeKey={activeMainCategory} flush>
+            {filteredCategories.map((category) => {
+              const categoryType = categoryHierarchy[category.id]?.requiresLevel2 ? 
+                { text: 'Multi-niveaux', color: '#f59e0b' } : 
+                { text: 'Simple', color: '#10B981' };
+
+              return (
+                <Accordion.Item
+                  key={category.id}
+                  eventKey={category.id}
+                  style={{
+                    border: 'none',
+                    borderBottom: '1px solid #f1f5f9'
+                  }}
+                >
+                  <Accordion.Header
+                    onClick={() => handleMainCategoryToggle(category.id)}
+                    style={{
+                      padding: isMobile ? '16px' : '20px',
+                      backgroundColor: selectedItems.category === category.id ? '#f0fdf4' : 'white'
+                    }}
+                  >
+                    <div className="d-flex align-items-center justify-content-between w-100">
+                      <div className="d-flex align-items-center">
+                        <div className="category-emoji me-3" style={{ fontSize: '24px' }}>
+                          {category.emoji}
+                        </div>
+                        <div>
+                          <div className="category-name fw-medium" style={{
+                            color: selectedItems.category === category.id ? '#065f46' : '#1e293b',
+                            fontSize: isMobile ? '15px' : '16px'
+                          }}>
+                            {category.name}
+                          </div>
+                          <div className="category-type mt-1">
+                            <span style={{
+                              backgroundColor: categoryType.color + '20',
+                              color: categoryType.color,
+                              fontSize: '11px',
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                              fontWeight: '500'
+                            }}>
+                              {categoryType.text}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="d-flex align-items-center">
+                        {selectedItems.category === category.id && (
+                          <div className="selected-indicator me-3">
+                            <div style={{
+                              width: '8px',
+                              height: '8px',
+                              backgroundColor: '#10B981',
+                              borderRadius: '50%',
+                              animation: 'pulse 2s infinite'
+                            }}></div>
+                          </div>
+                        )}
+                        <div className="expand-arrow" style={{
+                          transform: activeMainCategory === category.id ? 'rotate(180deg)' : 'rotate(0deg)',
+                          transition: 'transform 0.2s',
+                          color: '#94a3b8'
+                        }}>
+                          <ChevronDown size={18} />
+                        </div>
+                      </div>
+                    </div>
+                  </Accordion.Header>
+                  
+                  <Accordion.Body style={{
+                    padding: isMobile ? '16px' : '20px',
+                    paddingTop: '8px',
+                    backgroundColor: '#f8fafc'
+                  }}>
+                    {renderCategoryContent(category.id)}
+                  </Accordion.Body>
+                </Accordion.Item>
+              );
+            })}
+          </Accordion>
+        )}
+      </div>
+
+      {/* Panel de selección */}
+      {selectedItems.category && (
+        <div className="selection-panel" style={{
+          padding: '20px',
+          borderTop: '1px solid #f1f5f9',
+          backgroundColor: '#ffffff'
+        }}>
+          <div className="selection-header mb-4">
+            <div className="d-flex align-items-center justify-content-between mb-3">
+              <h6 className="mb-0 fw-bold" style={{ color: '#1e293b' }}>
+                <CheckCircle className="me-2" size={18} style={{ color: '#10B981' }} />
+                Sélection en cours
+              </h6>
+              <Badge bg={selectedItems.level2 ? 'success' : selectedItems.level1 ? 'warning' : 'secondary'}
+                className="px-3 py-1"
+                style={{ borderRadius: '20px', fontSize: '12px' }}
+              >
+                {selectedItems.level2 ? 'Complet' : selectedItems.level1 ? 'En cours' : 'Début'}
+              </Badge>
+            </div>
+            
+            <div className="selection-path">
+              <div className="d-flex align-items-center flex-wrap">
+                {/* Nivel 1 */}
+                <div className="path-step d-flex align-items-center me-3">
+                  <div className="step-icon me-2" style={{
+                    width: '32px',
+                    height: '32px',
+                    backgroundColor: '#10B981',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'white'
+                  }}>
+                    {mainCategories.find(c => c.id === selectedItems.category)?.emoji || '📁'}
+                  </div>
+                  <div>
+                    <div className="step-label" style={{ fontSize: '11px', color: '#64748b' }}>
+                      Catégorie principale
+                    </div>
+                    <div className="step-value fw-medium" style={{ fontSize: '14px', color: '#1e293b' }}>
+                      {mainCategories.find(c => c.id === selectedItems.category)?.name}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Flecha */}
+                {selectedItems.level1 && (
+                  <>
+                    <div className="path-arrow me-3" style={{ color: '#cbd5e1' }}>
+                      <ChevronRight size={20} />
+                    </div>
+
+                    {/* Nivel 2 */}
+                    <div className="path-step d-flex align-items-center me-3">
+                      <div className="step-icon me-2" style={{
+                        width: '32px',
+                        height: '32px',
+                        backgroundColor: selectedItems.level2 ? '#10B981' : '#3B82F6',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'white'
+                      }}>
+                        {getCategoryItems(selectedItems.category)
+                          .find(item => item.id === selectedItems.level1)?.emoji || '📂'}
+                      </div>
+                      <div>
+                        <div className="step-label" style={{ fontSize: '11px', color: '#64748b' }}>
+                          Sous-catégorie
+                        </div>
+                        <div className="step-value fw-medium" style={{ fontSize: '14px', color: '#1e293b' }}>
+                          {getCategoryItems(selectedItems.category)
+                            .find(item => item.id === selectedItems.level1)?.name}
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Flecha */}
+                {selectedItems.level2 && (
+                  <>
+                    <div className="path-arrow me-3" style={{ color: '#cbd5e1' }}>
+                      <ChevronRight size={20} />
+                    </div>
+
+                    {/* Nivel 3 */}
+                    <div className="path-step d-flex align-items-center">
+                      <div className="step-icon me-2" style={{
+                        width: '32px',
+                        height: '32px',
+                        backgroundColor: '#10B981',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'white'
+                      }}>
+                        ✅
+                      </div>
+                      <div>
+                        <div className="step-label" style={{ fontSize: '11px', color: '#64748b' }}>
+                          Type d'article
+                        </div>
+                        <div className="step-value fw-medium" style={{ fontSize: '14px', color: '#1e293b' }}>
+                          {categoryHierarchy[selectedItems.category]?.subcategories?.[selectedItems.level1]
+                            ?.find(item => item.id === selectedItems.level2)?.name || selectedItems.level2}
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <Button
+            variant="outline-danger"
+            size="sm"
+            onClick={handleResetSelection}
+            className="w-100 d-flex align-items-center justify-content-center"
+            style={{
+              border: '1px solid #fca5a5',
+              color: '#dc2626',
+              padding: '10px',
+              borderRadius: '8px',
+              fontSize: '14px'
+            }}
+          >
+            <i className="fas fa-times me-2"></i>
+            Changer de catégorie
+          </Button>
+        </div>
+      )}
+
+      {/* Instrucciones */}
+      {!selectedItems.category && (
+        <div className="instructions py-3 text-center" style={{
+          backgroundColor: '#f8fafc',
+          borderTop: '1px solid #f1f5f9',
+          fontSize: '13px',
+          color: '#64748b'
+        }}>
+          <div className="d-flex align-items-center justify-content-center">
+            <div className="me-2">👆</div>
+            <div>Sélectionnez une catégorie pour continuer</div>
+          </div>
+        </div>
+      )}
+
+      {/* Estilos CSS inline */}
+      <style jsx>{`
+        @keyframes pulse {
+          0% {
+            transform: scale(1);
+            opacity: 1;
+          }
+          50% {
+            transform: scale(1.1);
+            opacity: 0.8;
+          }
+          100% {
+            transform: scale(1);
+            opacity: 1;
+          }
+        }
+
+        .subcategory-item:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+
+        .level2-item:hover {
+          transform: translateX(4px);
+        }
+
+        .categories-list::-webkit-scrollbar {
+          width: 6px;
+        }
+
+        .categories-list::-webkit-scrollbar-track {
+          background: #f1f5f9;
+          border-radius: 3px;
+        }
+
+        .categories-list::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 3px;
+        }
+
+        .categories-list::-webkit-scrollbar-thumb:hover {
+          background: #94a3b8;
+        }
+
+        .search-input:focus {
+          outline: none;
+          border-color: #10B981 !important;
+          box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1) !important;
+          background-color: white !important;
+        }
+
+        @media (max-width: 768px) {
+          .category-accordion {
+            border-radius: 0;
+          }
+          
+          .selection-path {
+            overflow-x: auto;
+            padding-bottom: 8px;
+          }
+          
+          .selection-path > div {
+            min-width: max-content;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .category-emoji {
+            font-size: 20px !important;
+          }
+          
+          .category-name {
+            font-size: 14px !important;
+          }
+          
+          .subcategory-item {
+            padding: 12px !important;
+          }
+          
+          .item-emoji {
+            font-size: 20px !important;
+          }
+          
+          .animated-dot {
+            width: 10px !important;
+            height: 10px !important;
+          }
+        }
+      `}</style>
+    </div>
+  );
+};
+
+export default CategoryAccordion;
+
+
+// 📂 components/CATEGORIES/DynamicFieldManager.js - VERSIÓN COMPLETA SIN DEPENDENCIAS LOCALES
+import React, { useEffect, useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useSelector } from 'react-redux';
+import { getFieldsForCategory } from './FieldConfig';
+import FieldRendererUniversal from './FiledRendererUniversal';
+
+// Función para formatear un string a ID (igual que en CategoryAccordion)
+const formatToId = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, '_');
+
+// Función para formatear un ID a nombre para mostrar
+const formatDisplayName = (id) => {
+  if (!id) return '';
+  return id
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+
+// Emojis por defecto para categorías principales
+const getDefaultEmoji = (categoryId) => {
+  const emojis = {
+    'immobilier': '🏠',
+    'vehicules': '🚗',
+    'telephones': '📱',
+    'informatique': '💻',
+    'electromenager': '🔌',
+    'piecesDetachees': '⚙️',
+    'vetements': '👕',
+    'alimentaires': '🍎',
+    'santebeaute': '💄',
+    'meubles': '🛋️',
+    'services': '🛠️',
+    'materiaux': '🧱',
+    'loisirs': '🎮',
+    'emploi': '💼',
+    'sport': '⚽',
+    'voyages': '✈️',
+    'boutiques': '🏪'
+  };
+  return emojis[categoryId] || '📁';
+};
+
+const DynamicFieldManager = ({
+  mainCategory,
+  subCategory,
+  articleType,
+  postData,
+  handleChangeInput,
+  isRTL,
+  currentStep = 1,
+  onStepChange,
+  showNavigation = true,
+  isEdit = false
+}) => {
+  const { t } = useTranslation();
+  const [visibleFields, setVisibleFields] = useState([]);
+  const [categoryInfo, setCategoryInfo] = useState({
+    categoryName: '',
+    categoryEmoji: '',
+    articleTypeName: '',
+    articleTypeEmoji: '',
+    subCategoryName: '',
+    subCategoryEmoji: ''
+  });
+  const [loadingFields, setLoadingFields] = useState(false);
+  
+  // Obtener categorías de Redux (MongoDB)
+  const { categories: mongoCategories = [] } = useSelector((state) => ({
+    categories: state.category?.categories || []
+  }));
+
+  // Efecto para actualizar la información de la categoría desde MongoDB
+  useEffect(() => {
+    if (mainCategory) {
+      // Si no hay categorías de MongoDB, usar los valores por defecto
+      if (mongoCategories.length === 0) {
+        setCategoryInfo({
+          categoryName: formatDisplayName(mainCategory),
+          categoryEmoji: getDefaultEmoji(mainCategory),
+          articleTypeName: articleType ? formatDisplayName(articleType) : '',
+          articleTypeEmoji: articleType ? getDefaultEmoji(articleType) : '',
+          subCategoryName: subCategory ? formatDisplayName(subCategory) : '',
+          subCategoryEmoji: subCategory ? getDefaultEmoji(subCategory) : ''
+        });
+        return;
+      }
+
+      // 1. Encontrar la categoría principal (nivel 1)
+      const mainCat = mongoCategories.find(cat => 
+        cat.level === 1 && 
+        formatToId(cat.name) === mainCategory
+      );
+
+      if (mainCat) {
+        let newCategoryInfo = {
+          categoryName: mainCat.name,
+          categoryEmoji: mainCat.emoji || getDefaultEmoji(mainCategory),
+          articleTypeName: '',
+          articleTypeEmoji: '',
+          subCategoryName: '',
+          subCategoryEmoji: ''
+        };
+
+        // Función para buscar un nodo por ID en los hijos de mainCat
+        const findNodeInHierarchy = (targetId) => {
+          // Buscar en nivel 2
+          for (const child of mainCat.children || []) {
+            if (formatToId(child.name) === targetId) {
+              return child;
+            }
+            // Buscar en nivel 3
+            for (const grandChild of child.children || []) {
+              if (formatToId(grandChild.name) === targetId) {
+                return grandChild;
+              }
+            }
+          }
+          return null;
+        };
+
+        // 2. Buscar articleType
+        if (articleType) {
+          const articleTypeNode = findNodeInHierarchy(articleType);
+          if (articleTypeNode) {
+            newCategoryInfo.articleTypeName = articleTypeNode.name;
+            newCategoryInfo.articleTypeEmoji = articleTypeNode.emoji || getDefaultEmoji(articleType);
+          } else {
+            newCategoryInfo.articleTypeName = formatDisplayName(articleType);
+            newCategoryInfo.articleTypeEmoji = getDefaultEmoji(articleType);
+          }
+        }
+
+        // 3. Buscar subCategory
+        if (subCategory) {
+          const subCategoryNode = findNodeInHierarchy(subCategory);
+          if (subCategoryNode) {
+            newCategoryInfo.subCategoryName = subCategoryNode.name;
+            newCategoryInfo.subCategoryEmoji = subCategoryNode.emoji || getDefaultEmoji(subCategory);
+          } else {
+            newCategoryInfo.subCategoryName = formatDisplayName(subCategory);
+            newCategoryInfo.subCategoryEmoji = getDefaultEmoji(subCategory);
+          }
+        }
+
+        console.log('📊 Información de categoría desde MongoDB:', newCategoryInfo);
+        setCategoryInfo(newCategoryInfo);
+      } else {
+        // Si no encontramos la categoría principal, usar los valores por defecto
+        setCategoryInfo({
+          categoryName: formatDisplayName(mainCategory),
+          categoryEmoji: getDefaultEmoji(mainCategory),
+          articleTypeName: articleType ? formatDisplayName(articleType) : '',
+          articleTypeEmoji: articleType ? getDefaultEmoji(articleType) : '',
+          subCategoryName: subCategory ? formatDisplayName(subCategory) : '',
+          subCategoryEmoji: subCategory ? getDefaultEmoji(subCategory) : ''
+        });
+      }
+    } else {
+      // Si no hay mainCategory, resetear la info
+      setCategoryInfo({
+        categoryName: '',
+        categoryEmoji: '',
+        articleTypeName: '',
+        articleTypeEmoji: '',
+        subCategoryName: '',
+        subCategoryEmoji: ''
+      });
+    }
+  }, [mainCategory, subCategory, articleType, mongoCategories]);
+
+  // 🔥 OBTENER CAMPOS SEGÚN CATEGORÍA (FieldConfig local)
+  useEffect(() => {
+    console.log('🔄 DynamicFieldManager - Actualizando campos:', {
+      mainCategory,
+      subCategory,
+      articleType,
+      currentStep,
+      categoryInfo
+    });
+
+    setLoadingFields(true);
+    let fields = [];
+
+    // STEP 1: Información de categoría seleccionada
+    if (currentStep === 1) {
+      fields = [];
+      console.log('✅ Step 1: Mostrando información de categoría');
+      setVisibleFields(fields);
+      setLoadingFields(false);
+      return;
+    }
+
+    // STEP 2, 3, 4: CAMPOS DINÁMICOS
+    else if (currentStep >= 2 && currentStep <= 4) {
+      if (mainCategory) {
+        // Obtener campos específicos para la categoría (desde FieldConfig local)
+        fields = getFieldsForCategory(
+          mainCategory,
+          subCategory,
+          currentStep,
+          articleType
+        );
+
+        console.log(`📋 Campos obtenidos para ${mainCategory}:`, fields);
+
+        // 🔥 FILTRAR CAMPOS VÁLIDOS
+        const validFields = fields.filter(field =>
+          field &&
+          typeof field === 'string' &&
+          field.trim() !== '' &&
+          !field.startsWith('!')
+        );
+
+        console.log(`✅ Step ${currentStep}: ${validFields.length} campos válidos`);
+        setVisibleFields(validFields);
+        setLoadingFields(false);
+        return;
+      } else {
+        console.log('⚠️ No hay categoría seleccionada');
+        setVisibleFields([]);
+        setLoadingFields(false);
+        return;
+      }
+    }
+
+    // STEP 5: IMÁGENES
+    else if (currentStep === 5) {
+      fields = ['images'];
+      console.log('✅ Step 5: Campos de imágenes');
+    }
+
+    setVisibleFields(fields || []);
+    setLoadingFields(false);
+  }, [mainCategory, subCategory, articleType, currentStep, categoryInfo]);
+
+  // 🔥 MEMOIZAR CAMPOS RENDERIZADOS
+  const renderedFields = useMemo(() => {
+    console.log(`🎨 Renderizando ${visibleFields.length} campos para ${mainCategory}`);
+
+    return visibleFields
+      .map((fieldName, index) => {
+        const renderedField = (
+          <FieldRendererUniversal
+            key={`${fieldName}-${index}-${mainCategory}-${subCategory}`}
+            fieldName={fieldName}
+            postData={postData}
+            handleChangeInput={handleChangeInput}
+            mainCategory={mainCategory}
+            subCategory={subCategory}
+            articleType={articleType}
+            categoryInfo={categoryInfo}
+            isRTL={isRTL}
+            t={t}
+          />
+        );
+
+        if (!renderedField) {
+          console.warn(`⚠️ Campo ${fieldName} retornó null`);
+          return null;
+        }
+
+        return (
+          <div
+            key={`${fieldName}-${index}-wrapper`}
+            className={`col-12 ${visibleFields.length <= 2 ? 'col-md-12' : 'col-md-6'}`}
+          >
+            <div className="field-wrapper" style={{ height: '100%' }}>
+              {renderedField}
+            </div>
+          </div>
+        );
+      })
+      .filter(Boolean);
+  }, [visibleFields, mainCategory, subCategory, articleType, categoryInfo, postData, handleChangeInput, isRTL, t]);
+
+  // 🎨 RENDERIZAR CONTENIDO DEL STEP - ACTUALIZADO PARA USAR categoryInfo
+  const renderStepContent = () => {
+    // STEP 1: Información de categoría seleccionada
+    if (currentStep === 1) {
+      return (
+        <div className="step-content">
+          <div className={`alert ${isEdit ? 'alert-warning' : 'alert-success'}`}>
+            <h5>
+              <i className={`fas ${isEdit ? 'fa-edit' : 'fa-check-circle'} me-2`}></i>
+              {isEdit ? 'Modification de catégorie' : 'Catégorie sélectionnée'}
+            </h5>
+
+            <div className="category-details mt-3">
+              <div className="row">
+                <div className="col-12">
+                  <div className="d-flex align-items-center mb-3">
+                    <div className="category-icon me-3" style={{ fontSize: '2.5rem' }}>
+                      {categoryInfo.categoryEmoji}
+                    </div>
+                    <div>
+                      <h6 className="mb-1 fw-bold">{categoryInfo.categoryName || 'Sélectionnez une catégorie'}</h6>
+                      <small className="text-muted">
+                        {mainCategory ? 'Catégorie principale' : 'Sélectionnez une catégorie'}
+                      </small>
+                    </div>
+                  </div>
+                </div>
+
+                {/* INFORMACIÓN DE NIVELES */}
+                {mainCategory && (
+                  <>
+                    {/* articleType */}
+                    {categoryInfo.articleTypeName && (
+                      <div className="col-md-6 mb-2">
+                        <div className="card border-0 bg-light">
+                          <div className="card-body py-2">
+                            <small className="text-muted d-block">
+                              Type d'article
+                            </small>
+                            <div className="fw-medium">
+                              <span className="me-2">{categoryInfo.articleTypeEmoji}</span>
+                              {categoryInfo.articleTypeName}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* subCategory */}
+                    {categoryInfo.subCategoryName && (
+                      <div className="col-md-6 mb-2">
+                        <div className="card border-0 bg-light">
+                          <div className="card-body py-2">
+                            <small className="text-muted d-block">
+                              Sous-catégorie
+                            </small>
+                            <div className="fw-medium">
+                              <span className="me-2">{categoryInfo.subCategoryEmoji}</span>
+                              {categoryInfo.subCategoryName}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              <p className="mt-3 mb-0">
+                {isEdit
+                  ? 'Vous pouvez modifier la catégorie si nécessaire.'
+                  : 'Passez à l\'étape suivante pour ajouter les détails.'
+                }
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // STEP 5: Imágenes
+    if (currentStep === 5) {
+      return (
+        <div className="step-content">
+          <div className="alert alert-info">
+            <h5><i className="fas fa-images me-2"></i> Étape 5: Images</h5>
+            <p>Téléchargez les images de votre annonce (minimum 1, maximum 10)</p>
+          </div>
+        </div>
+      );
+    }
+
+    // STEPS 2, 3, 4: Campos dinámicos
+    return (
+      <div className="step-content">
+        {loadingFields ? (
+          <div className="alert alert-info mb-0">
+            <div className="d-flex align-items-center">
+              <div className="spinner-border spinner-border-sm me-2" role="status">
+                <span className="visually-hidden">Loading...</span>
+              </div>
+              <div>
+                <h6 className="mb-1">Chargement des champs...</h6>
+                <p className="small mb-0">Configuration pour {categoryInfo.categoryName}</p>
+              </div>
+            </div>
+          </div>
+        ) : renderedFields.length === 0 ? (
+          <div className="alert alert-warning mb-0">
+            <h5><i className="fas fa-exclamation-triangle me-2"></i> Configuration en cours</h5>
+            <p className="mb-2">
+              {!mainCategory
+                ? 'Sélectionnez d\'abord une catégorie à l\'étape 1'
+                : `Aucun champ configuré pour ${categoryInfo.categoryName}`
+              }
+            </p>
+          </div>
+        ) : (
+          <div className="row g-3">
+            {/* BARRA DE INFORMACIÓN DE CATEGORÍA */}
+            {mainCategory && (
+              <div className="col-12">
+                <div className="category-path-card mb-3">
+                  <div className="d-flex align-items-center justify-content-between">
+                    <div className="d-flex align-items-center flex-wrap">
+                      <span className="path-step">
+                        <span className="path-emoji">{categoryInfo.categoryEmoji}</span>
+                        <span className="path-name">{categoryInfo.categoryName}</span>
+                      </span>
+
+                      {categoryInfo.articleTypeName && (
+                        <>
+                          <span className="path-arrow mx-2">
+                            <i className="fas fa-arrow-right text-muted"></i>
+                          </span>
+                          <span className="path-step">
+                            <span className="path-emoji">{categoryInfo.articleTypeEmoji}</span>
+                            <span className="path-name">{categoryInfo.articleTypeName}</span>
+                          </span>
+                        </>
+                      )}
+
+                      {categoryInfo.subCategoryName && (
+                        <>
+                          <span className="path-arrow mx-2">
+                            <i className="fas fa-arrow-right text-muted"></i>
+                          </span>
+                          <span className="path-step">
+                            <span className="path-emoji">{categoryInfo.subCategoryEmoji}</span>
+                            <span className="path-name">{categoryInfo.subCategoryName}</span>
+                          </span>
+                        </>
+                      )}
+                    </div>
+
+                    {isEdit && (
+                      <button
+                        className="btn btn-sm btn-outline-warning"
+                        onClick={() => onStepChange && onStepChange(1)}
+                        title="Modifier la catégorie"
+                      >
+                        <i className="fas fa-edit me-1"></i> Changer
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="mt-2">
+                    <small className="text-muted">
+                      <i className="fas fa-cog me-1"></i>
+                      {renderedFields.length} champ(s) configuré(s)
+                    </small>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* CAMPOS RENDERIZADOS */}
+            {renderedFields}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // ✅ VALIDAR SI SE PUEDE CONTINUAR
+  const canContinue = () => {
+    if (currentStep === 1 || currentStep === 5) return true;
+
+    const requiredFieldsByStep = {
+      2: ['title', 'description'],
+      3: ['price'],
+      4: ['telephone', 'wilaya']
+    };
+
+    const currentRequired = requiredFieldsByStep[currentStep] || [];
+    const filteredRequired = currentRequired.filter(field =>
+      visibleFields.includes(field)
+    );
+
+    return filteredRequired.every(field => {
+      const value = postData[field] || '';
+      return value.toString().trim() !== '';
+    });
+  };
+
+  // 🚫 VERIFICAR SI FALTA CATEGORÍA
+  if (currentStep > 1 && !mainCategory) {
+    return (
+      <div className="text-center py-4">
+        <div className="alert alert-warning">
+          <i className="fas fa-hand-point-up fa-2x mb-3"></i>
+          <h5>Sélectionnez d'abord une catégorie</h5>
+          <p className="mb-3">
+            {isEdit
+              ? 'Cette annonce n\'a pas de catégorie définie.'
+              : 'Retournez à l\'étape 1 pour choisir une catégorie'
+            }
+          </p>
+          <button
+            className="btn btn-primary"
+            onClick={() => onStepChange && onStepChange(1)}
+          >
+            <i className="fas fa-arrow-left me-2"></i>
+            {isEdit ? 'Définir une catégorie' : 'Retour à l\'étape 1'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="dynamic-field-manager">
+      {/* CABECERA */}
+      <div className="step-header mb-4">
+        <div className="d-flex align-items-center justify-content-between">
+          <div>
+            <h4 className="mb-1">
+              {currentStep === 1 && (isEdit ? '✏️ Catégorie' : '✅ Catégorie')}
+              {currentStep === 2 && '📝 Détails'}
+              {currentStep === 3 && '💰 Prix'}
+              {currentStep === 4 && '📍 Contact'}
+              {currentStep === 5 && '🖼️ Images'}
+            </h4>
+            <small className="text-muted">
+              {mainCategory && (
+                <div className="d-flex align-items-center flex-wrap">
+                  <span className="category-badge me-2 mb-1">
+                    {categoryInfo.categoryEmoji} {categoryInfo.categoryName}
+                  </span>
+
+                  {categoryInfo.articleTypeName && (
+                    <>
+                      <i className="fas fa-chevron-right text-muted mx-1 mb-1"></i>
+                      <span className="category-badge me-2 mb-1">
+                        {categoryInfo.articleTypeEmoji} {categoryInfo.articleTypeName}
+                      </span>
+                    </>
+                  )}
+
+                  {categoryInfo.subCategoryName && (
+                    <>
+                      <i className="fas fa-chevron-right text-muted mx-1 mb-1"></i>
+                      <span className="category-badge mb-1">
+                        {categoryInfo.subCategoryEmoji} {categoryInfo.subCategoryName}
+                      </span>
+                    </>
+                  )}
+
+                  {isEdit && currentStep > 1 && (
+                    <button
+                      className="btn btn-sm btn-outline-warning ms-2 py-0 mb-1"
+                      onClick={() => onStepChange && onStepChange(1)}
+                      style={{ fontSize: '0.75rem' }}
+                    >
+                      <i className="fas fa-edit me-1"></i> modifier
+                    </button>
+                  )}
+                </div>
+              )}
+            </small>
+          </div>
+          <span className={`badge ${isEdit ? 'bg-warning' : 'bg-primary'}`}>
+            {isEdit ? '✏️' : ''} Étape {currentStep}/5
+          </span>
+        </div>
+
+        {/* BARRA DE PROGRESO */}
+        <div className="progress mt-3" style={{ height: '5px' }}>
+          <div
+            className={`progress-bar ${isEdit ? 'bg-warning' : 'bg-primary'}`}
+            style={{ width: `${(currentStep / 5) * 100}%` }}
+          />
+        </div>
+      </div>
+
+      {/* CONTENIDO */}
+      <div style={{
+        minHeight: visibleFields.length === 0 && currentStep > 1 ? '150px' : 'auto',
+        transition: 'min-height 0.3s ease',
+        display: 'flex',
+        flexDirection: 'column'
+      }}>
+        {renderStepContent()}
+      </div>
+
+      {/* NAVEGACIÓN */}
+      {showNavigation && (
+        <div className="step-navigation mt-4 pt-3 border-top">
+          <div className="d-flex justify-content-between">
+            {/* BOTÓN PRÉCÉDENT */}
+            <div>
+              {currentStep > 1 ? (
+                <button
+                  className="btn btn-outline-secondary"
+                  onClick={() => onStepChange && onStepChange(currentStep - 1)}
+                >
+                  <i className="fas fa-arrow-left me-2"></i> Précédent
+                </button>
+              ) : (
+                isEdit && (
+                  <button
+                    className="btn btn-outline-warning"
+                    onClick={() => onStepChange && onStepChange(currentStep - 1)}
+                  >
+                    <i className="fas fa-edit me-2"></i> Modifier catégorie
+                  </button>
+                )
+              )}
+            </div>
+
+            {/* BOTÓN SUIVANT/PUBLIER */}
+            <button
+              className={`btn ${isEdit ? 'btn-warning' : 'btn-primary'}`}
+              onClick={() => {
+                if (currentStep < 5) {
+                  onStepChange && onStepChange(currentStep + 1);
+                }
+              }}
+              disabled={!canContinue()}
+            >
+              {currentStep < 5 ? (
+                <>
+                  {isEdit ? 'Continuer' : 'Suivant'}
+                  <i className="fas fa-arrow-right ms-2"></i>
+                </>
+              ) : (
+                <>
+                  Continuer
+                  <i className="fas fa-arrow-right ms-2"></i>
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* MENSAJE DE VALIDACIÓN */}
+          {!canContinue() && currentStep !== 5 && (
+            <div className="alert alert-warning mt-3 py-2 mb-0">
+              <small>
+                <i className="fas fa-exclamation-circle me-1"></i>
+                {currentStep === 2 && 'Complétez le titre et la description'}
+                {currentStep === 3 && 'Indiquez un prix'}
+                {currentStep === 4 && 'Renseignez le téléphone et la wilaya'}
+              </small>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ESTILOS */}
+      <style jsx>{`
+        .dynamic-field-manager {
+          background: white;
+          padding: 25px;
+          border-radius: 10px;
+          box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+          min-height: ${visibleFields.length === 0 && currentStep > 1 ? '250px' : 'auto'};
+          transition: all 0.3s ease;
+          display: flex;
+          flex-direction: column;
+        }
+        
+        .step-header {
+          padding-bottom: 15px;
+          border-bottom: 1px solid #eee;
+          flex-shrink: 0;
+        }
+        
+        .category-badge {
+          background: #f8f9fa;
+          padding: 2px 8px;
+          border-radius: 4px;
+          border: 1px solid #dee2e6;
+          font-size: 0.85rem;
+          white-space: nowrap;
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+        }
+        
+        .category-path-card {
+          background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+          padding: 15px;
+          border-radius: 8px;
+          border: 1px solid #dee2e6;
+        }
+        
+        .path-step {
+          display: inline-flex;
+          align-items: center;
+          background: white;
+          padding: 5px 12px;
+          border-radius: 6px;
+          border: 1px solid #dee2e6;
+          margin-bottom: 5px;
+        }
+        
+        .path-emoji {
+          margin-right: 8px;
+          font-size: 1.2rem;
+        }
+        
+        .path-name {
+          font-weight: 500;
+          font-size: 0.9rem;
+        }
+        
+        .path-arrow {
+          color: #6c757d;
+        }
+        
+        .field-wrapper {
+          background: #f8f9fa;
+          padding: 15px;
+          border-radius: 8px;
+          border: 1px solid #dee2e6;
+          margin-bottom: 15px;
+          transition: all 0.2s ease;
+          min-height: 90px;
+          height: 100%;
+        }
+        
+        .field-wrapper:hover {
+          border-color: #0d6efd;
+          box-shadow: 0 2px 5px rgba(13, 110, 253, 0.1);
+          background: #fff;
+        }
+        
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
+        .step-content {
+          animation: fadeIn 0.3s ease;
+        }
+        
+        @media (max-width: 768px) {
+          .dynamic-field-manager {
+            padding: 15px;
+          }
+          
+          .category-path-card {
+            padding: 10px;
+          }
+          
+          .path-step {
+            padding: 3px 8px;
+            font-size: 0.8rem;
+          }
+        }
+      `}</style>
+    </div>
+  );
+};
+
+// PROPIEDADES POR DEFECTO
+DynamicFieldManager.defaultProps = {
+  currentStep: 1,
+  showNavigation: true,
+  isEdit: false,
+  mainCategory: null,
+  subCategory: null,
+  articleType: null,
+  postData: {},
+  handleChangeInput: () => { },
+  isRTL: false,
+  onStepChange: () => { }
+};
+
+export default DynamicFieldManager;
+// src/components/CATEGORIES/FieldConfig.js
+
+export const DYNAMIC_FIELDS_CONFIG = {
+  // ============ ALIMENTAIRES ============
+  'alimentaires': {
+    step2: ['title', 'description', 'reference', 'livraison'],
+    step3: ['price', 'unite', 'typeOffre', 'echange', 'grossdtail'],
+    step4: ['wilaya', 'telephone', 'email'],
+    step5: ['images']
+  },
+  'boutiques': {
+    // Campos comunes para todas las boutiques
+    step2: [
+      'nom_boutique', 
+      'domaine_boutique', 
+      'slogan_boutique', 
+      'description_boutique',
+      'categories_produits',
+      'couleur_theme'
+    ],
+    step3: [
+      'plan_boutique', 
+      'duree_abonnement',
+      'total_credits',
+      'stockage_max',
+      'inclusions_plan'
+    ],
+    step4: [
+      'proprietaire_nom', 
+      'proprietaire_email', 
+      'proprietaire_telephone',
+      'proprietaire_wilaya',
+      'proprietaire_adresse',
+      'reseaux_sociaux',
+      'accepte_conditions'
+    ],
+    step5: ['images', 'logo_boutique']
+  },
+  // ============ VÉHICULES ============
+  'vehicules': {
+    step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'annee', 'kilometrage', 'carburant', 'boiteVitesse'],
+    step3: ['price', 'unite', 'typeOffre', 'echange', 'puissance', 'couleur', 'options'],
+    step4: ['wilaya',   'telephone', 'commune'],
+    step5: ['images'],
+    subCategories: {
+      'automobiles': {
+        step2: [  'marque', 'modele', 'annee', , 'couleur','kilometrage', 'carburant', 'boiteVitesse' , 'optionduvoiture' ],
+        step3: ['price','unite', 'typeOffre', 'echange'],
+        step4: ['wilaya', 'telephone', 'commune'],
+        step5: ['images']
+      },
+      'utilitaires': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'annee', 'kilometrage', 'carburant', 'chargeUtile'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'puissance', 'couleur', 'options'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'motos': {
+        step2: [ 'marqueVehicules', 'modeleVehicules', 'annee', , 'couleur','kilometrage', 'carburant', 'description'],
+        step3: ['price','unite', 'typeOffre', 'echange'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'quads': {
+        step2: [  'marqueVehicules', 'modeleVehicules', 'annee', , 'couleur','kilometrage', 'carburant', 'description'],
+        step3: ['price','unite', 'typeOffre', 'echange'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'fourgons':{
+        step2: [  'marqueVehicules', 'modeleVehicules', 'annee', , 'couleur','kilometrage', 'carburant', 'description'],
+        step3: ['price','unite', 'typeOffre', 'echange'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'camions': {
+        step2: [  'marqueVehicules', 'modeleVehicules', 'annee', , 'couleur','kilometrage', 'carburant', 'description'],
+        step3: ['price','unite', 'typeOffre', 'echange'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'bus':{
+        step2: [  'marqueVehicules', 'modeleVehicules', 'annee', , 'couleur','kilometrage', 'carburant', 'description'],
+        step3: ['price','unite', 'typeOffre', 'echange'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'engins': {
+        step2: [  'marqueVehicules', 'modeleVehicules', 'annee', , 'couleur','kilometrage', 'carburant', 'description'],
+        step3: ['price','unite', 'typeOffre', 'echange'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'tracteurs': {
+        step2: [  'marqueVehicules', 'modeleVehicules', 'annee', , 'couleur','kilometrage', 'carburant', 'description'],
+        step3: ['price','unite', 'typeOffre', 'echange'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'remorques':{
+        step2: [  'marqueVehicules', 'modeleVehicules', 'annee', , 'couleur','kilometrage', 'carburant', 'description'],
+        step3: ['price','unite', 'typeOffre', 'echange'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'bateaux': {
+        step2: [  'marqueVehicules', 'modeleVehicules', 'annee', , 'couleur','kilometrage', 'carburant', 'description'],
+        step3: ['price','unite', 'typeOffre', 'echange'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+    }
+  },
+
+  // ============ TÉLÉPHONES ============
+  'telephones': {
+    step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'couleur', 'garantie', 'accessoires'],
+    step3: ['price', 'unite', 'typeOffre', 'echange', 'capaciteStockage', 'ram', 'systemeExploitation', 'reseau', 'camera', 'batterie'],
+    step4: ['wilaya', 'adresse', 'telephone', 'email'],
+    step5: ['images'],
+    subCategories: {
+      'smartphones': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'couleur', 'garantie', 'accessoires'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'capaciteStockage', 'ram', 'systemeExploitation', 'reseau', 'camera', 'batterie', 'ecran'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'telephones_cellulaires': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'couleur'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'reseau', 'batterie'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'tablettes': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'couleur', 'tailleEcran'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'capaciteStockage', 'ram', 'systemeExploitation', 'batterie'],
+        step4: ['wilaya', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'fixes_fax': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'couleur'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeFix'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'smartwatchs': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'couleur'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'systemeExploitation', 'batterie', 'taille'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'protection_antichoc': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'couleur', 'typeProtection'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'compatibilite', 'materiau'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'ecouteurs_son': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'couleur', 'typeEcouteurs'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'connectivite', 'batterie'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'chargeurs_cables': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'couleur'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeAccessoire', 'quantite'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'supports_stabilisateurs': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'couleur'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeSupport', 'compatibilite'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'manettes': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'couleur'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'compatibilite', 'typeManette'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'vr': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'compatibilite', 'resolution'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'power_banks': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'couleur'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'capacite', 'nombrePorts'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'stylets': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'couleur'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'compatibilite', 'typeStylet'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'cartes_memoire': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'capacite', 'vitesse'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'accessoires': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'couleur'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeAccessoire', 'quantite'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'pieces_rechange': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typePiece'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'compatibilite', 'etat'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'offres_abonnements': {
+        step2: ['title', 'description', 'reference', 'operateur'],
+        step3: ['price', 'unite', 'typeOffre', 'duree', 'data', 'appels'],
+        step4: ['wilaya', 'telephone', 'email'],
+        step5: ['images']
+      }
+    }
+  },
+
+  // ============ INFORMATIQUE ============
+  'informatique': {
+    step2: ['title', 'description', 'etat', 'reference', 'typeProduit', 'marque', 'modele', 'processeur', 'carteGraphique'],
+    step3: ['price', 'unite', 'typeOffre', 'echange', 'ram', 'stockage', 'systemeExploitation', 'garantie'],
+    step4: ['wilaya', 'adresse', 'telephone', 'email'],
+    step5: ['images'],
+    subCategories: {
+      'ordinateurs_portables': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'processeur', 'carteGraphique', 'tailleEcran'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'ram', 'stockage', 'systemeExploitation', 'garantie', 'batterie'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'ordinateurs_bureau': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'processeur', 'carteGraphique'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'ram', 'stockage', 'systemeExploitation', 'garantie'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'serveurs': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'processeur', 'ram'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'stockage', 'typeServeur', 'garantie'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'ecrans': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'taille', 'resolution'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeEcran', 'refreshRate', 'garantie'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'composants_pc_fixe': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeComposant'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'specifications', 'garantie'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'composants_pc_portable': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeComposant'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'specifications', 'garantie'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'composants_serveur': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeComposant'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'specifications', 'garantie'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'imprimantes_cartouches': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeImprimante'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'fonctions', 'garantie'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'reseau_connexion': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeReseau'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'vitesse', 'ports'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'stockage_externe_racks': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeStockage'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'capacite', 'vitesse'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'onduleurs_stabilisateurs': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'puissance', 'typeProtection'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'compteuses_billets': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'vitesse', 'devises'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'claviers_souris': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeClavier'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'connectivite', 'ergonomie'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'casques_son': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeCasque', 'connectivite'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'webcam_videoconference': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'resolution', 'microphone'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'data_shows': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'luminosite', 'resolution'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'cables_adaptateurs': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeCable', 'longueur'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'stylets_tablettes': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'compatibilite', 'typeStylet'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'cartables_sacoches': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'capacite', 'materiau'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'manettes_simulateurs': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'compatibilite', 'typeManette'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'vr': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'compatibilite', 'resolution'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      }
+    }
+  },
+
+  // ============ IMMOBILIER ============
+  'immobilier': {
+    step2: ['title', 'description', 'etat', 'reference', 'typeImmobilier', 'operationType', 'surface', 'chambres', 'sallesBain'],
+    step3: ['price', 'unite', 'typeOffre', 'echange', 'loyer', 'charges', 'etage', 'meuble'],
+    step4: ['wilaya', 'adresse', 'telephone', 'email', 'quartier', 'proximiteTransport', 'parking'],
+    step5: ['images'],
+    subCategories: {
+      'appartement': {
+        step2: ['title', 'description', 'etat', 'reference', 'operationType', 'surface', 'chambres', 'sallesBain', 'etage'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'loyer', 'charges', 'meuble', 'ascenseur'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email', 'quartier'],
+        step5: ['images']
+      },
+      'villa': {
+        step2: ['title', 'description', 'etat', 'reference', 'operationType', 'surface', 'chambres', 'sallesBain', 'etages'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'jardin', 'piscine', 'garage'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email', 'quartier'],
+        step5: ['images']
+      },
+      'terrain': {
+        step2: ['title', 'description', 'etat', 'reference', 'operationType', 'surface', 'typeTerrain'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'viabilise', 'pente'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'local': {
+        step2: ['title', 'description', 'etat', 'reference', 'operationType', 'surface', 'typeLocal'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'loyer', 'charges'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'immeuble': {
+        step2: ['title', 'description', 'etat', 'reference', 'operationType', 'surface', 'etages', 'appartements'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'ascenseur', 'garage'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'bungalow': {
+        step2: ['title', 'description', 'etat', 'reference', 'operationType', 'surface', 'chambres'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'equipements', 'vue'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'terrain_agricole': {
+        step2: ['title', 'description', 'etat', 'reference', 'operationType', 'surface', 'typeCulture'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'irrigation', 'accessibilite'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      }
+    }
+  },
+
+  // ============ ÉLECTROMÉNAGER ============
+  'electromenager': {
+    step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeAppareil', 'classeEnergetique'],
+    step3: ['price', 'unite', 'typeOffre', 'echange', 'anneeFabrication', 'garantie', 'consommation'],
+    step4: ['wilaya', 'adresse', 'telephone', 'email'],
+    step5: ['images'],
+    subCategories: {
+      'televiseurs': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'taille', 'resolution'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'smartTV', 'garantie'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'demodulateurs_box_tv': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'compatibilite', 'garantie'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'paraboles_switch_tv': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeParabole', 'canaux'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'abonnements_iptv': {
+        step2: ['title', 'description', 'reference', 'operateur'],
+        step3: ['price', 'unite', 'typeOffre', 'duree', 'canaux'],
+        step4: ['wilaya', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'cameras_accessories': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'resolution', 'typeCamera'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'audio': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'puissance', 'typeAudio'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'refrigerateurs_congelateurs': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'capacite', 'classeEnergetique'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'machines_laver': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'capacite', 'programmes'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'lave_vaisselles': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'capacite', 'programmes'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'fours_cuisson': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeFour', 'capacite'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'chauffage_climatisation': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'puissance', 'typeClimatisation'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'appareils_cuisine': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeAppareil'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'puissance', 'capacite'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'aspirateurs_nettoyeurs': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'puissance', 'typeAspirateur'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'repassage': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeRepassage', 'puissance'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'beaute_hygiene': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeAppareil', 'fonctions'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'machines_coudre': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeMachine', 'programmes'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'telecommandes': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'compatibilite', 'fonctions'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'securite_gps': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeSecurite', 'fonctions'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'composants_electroniques': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeComposant', 'specifications'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'pieces_rechange': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typePiece'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'compatibilite', 'etat'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'autre': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeAppareil'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      }
+    }
+  },
+
+  // ============ PIÈCES DÉTACHÉES ============
+  'piecesDetachees': {
+    step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typePiece'],
+    step3: ['price', 'unite', 'typeOffre', 'echange', 'compatibilite', 'garantie'],
+    step4: ['wilaya', 'adresse', 'telephone', 'email'],
+    step5: ['images'],
+    subCategories: {
+      'pieces_automobiles': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typePiece'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'compatibilite', 'garantie'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'pieces_vehicules': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typePiece'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'compatibilite', 'garantie'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'pieces_moto': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typePiece'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'compatibilite', 'garantie'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'pieces_bateaux': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typePiece'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'compatibilite', 'garantie'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'alarme_securite': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeAlarme', 'fonctions'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'nettoyage_entretien': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeProduit'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'quantite', 'application'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'outils_diagnostics': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeOutil', 'fonctions'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'lubrifiants': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeLubrifiant'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'quantite', 'viscosite'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      }
+    }
+  },
+
+  // ============ VÊTEMENTS ============
+  'vetements': {
+    step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'couleur', 'taille'],
+    step3: ['price', 'unite', 'typeOffre', 'echange', 'matiere', 'occasion'],
+    step4: ['wilaya', 'adresse', 'telephone', 'email'],
+    step5: ['images'],
+    subCategories: {
+      'vetements_homme': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'couleur', 'taille', 'typeVetement'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'matiere', 'occasion'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'vetements_femme': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'couleur', 'taille', 'typeVetement'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'matiere', 'occasion'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'chaussures_homme': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'couleur', 'pointure', 'typeChaussure'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'matiere', 'occasion'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'chaussures_femme': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'couleur', 'pointure', 'typeChaussure'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'matiere', 'occasion', 'hauteurTalon'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'garcons': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'couleur', 'taille', 'ageRecommandé'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'matiere', 'occasion'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'filles': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'couleur', 'taille', 'ageRecommandé'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'matiere', 'occasion'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'bebe': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'couleur', 'taille', 'age'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'matiere', 'typeVetement'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'tenues_pro': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'couleur', 'taille', 'profession'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'matiere', 'occasion'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'sacs': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'couleur', 'typeSac'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'matiere', 'occasion', 'capacite'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'montres': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'couleur'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeMontre', 'materiauBracelet'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'lunettes': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'couleur', 'typeLunettes'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'correction', 'protection'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'bijoux': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'couleur', 'typeBijou'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'materiau', 'pierres'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      }
+    }
+  },
+
+  // ============ SANTÉ & BEAUTÉ ============
+  'santebeaute': {
+    step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeProduit'],
+    step3: ['price', 'unite', 'typeOffre', 'echange', 'quantite', 'datePeremption'],
+    step4: ['wilaya', 'adresse', 'telephone', 'email'],
+    step5: ['images'],
+    subCategories: {
+      'cosmetiques_beaute': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeCosmetique'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'quantite', 'datePeremption', 'typePeau'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'parfums_deodorants_femme': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeParfum'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'quantite', 'datePeremption', 'familleOlfactive'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'parfums_deodorants_homme': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeParfum'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'quantite', 'datePeremption', 'familleOlfactive'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'parapharmacie_sante': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeProduit'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'quantite', 'datePeremption', 'usage'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      }
+    }
+  },
+
+  // ============ MEUBLES ============
+  'meubles': {
+    step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeMeuble'],
+    step3: ['price', 'unite', 'typeOffre', 'echange', 'matiere', 'dimensions'],
+    step4: ['wilaya', 'adresse', 'telephone', 'email'],
+    step5: ['images'],
+    subCategories: {
+      'meubles_maison': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeMeuble'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'matiere', 'dimensions', 'style'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'decoration': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeDecoration'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'matiere', 'dimensions'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'vaisselle': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeVaisselle'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'matiere', 'nombrePieces'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'meubles_bureau': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeMeubleBureau'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'matiere', 'dimensions', 'ergonomie'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'rideaux': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeRideau'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'matiere', 'dimensions', 'opacite'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'literie_linge': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeLiterie'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'matiere', 'dimensions', 'composition'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'puericulture': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeProduit'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'matiere', 'ageRecommandé', 'securite'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'tapis_moquettes': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeTapis'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'matiere', 'dimensions', 'epaisseur'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'meubles_exterieur': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeMeuble'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'matiere', 'dimensions', 'resistanceMeteo'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'fournitures_scolaires': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeFourniture'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'quantite', 'ageRecommandé'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'luminaire': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeLuminaire'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'puissance', 'typeAmpoule', 'design'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'autre': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeMeuble'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      }
+    }
+  },
+
+  // ============ LOISIRS ============
+  'loisirs': {
+    step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+    step3: ['price', 'unite', 'typeOffre', 'echange', 'ageRecommandé'],
+    step4: ['wilaya', 'adresse', 'telephone', 'email'],
+    step5: ['images'],
+    subCategories: {
+      'animalerie': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeAnimal'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'age', 'race', 'vaccin'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'consoles_jeux_videos': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeConsole', 'jeuxInclus'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'livres_magazines': {
+        step2: ['title', 'description', 'etat', 'reference', 'auteur', 'editeur'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'genre', 'nombrePages', 'langue'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'instruments_musique': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeInstrument', 'materiau'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'jeux_loisirs': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeJeu', 'nombreJoueurs', 'ageRecommandé'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'jouets': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeJouet', 'ageRecommandé', 'materiau'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'chasse_peche': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeEquipement', 'materiau'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'jardinage': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeOutils', 'materiau'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'antiquites_collections': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'age', 'origine', 'etatConservation'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'barbecue_grillades': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeBarbecue', 'materiau', 'dimensions'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'vapes_chichas': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeProduit', 'aromes'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'produits_accesoires_ete': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeProduit', 'materiau', 'protectionUV'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'autre': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeLoisir'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      }
+    }
+  },
+
+  // ============ SPORT ============
+  'sport': {
+    step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+    step3: ['price', 'unite', 'typeOffre', 'echange', 'taille'],
+    step4: ['wilaya', 'adresse', 'telephone', 'email'],
+    step5: ['images'],
+    subCategories: {
+      'football': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeEquipement'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'taille', 'couleur'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'hand_voley_basket': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeEquipement'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'taille', 'couleur', 'typeSport'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'sport_combat': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeEquipement'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'taille', 'poids', 'typeSport'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'fitness_musculation': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeEquipement'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'poids', 'dimensions'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'natation': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeEquipement'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'taille', 'materiau'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'velos_trotinettes': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeVehicule'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'tailleRoue', 'vitesses', 'couleur'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'sports_raquette': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeSport'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'taille', 'poids', 'tension'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'sport_aquatiques': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeEquipement'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'taille', 'materiau', 'flottabilite'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      }
+    }
+  },
+
+  // ============ SERVICES ============
+  'services': {
+    step2: ['title', 'description', 'reference', 'typeService'],
+    step3: ['price', 'unite', 'typeOffre', 'duree', 'disponibilite'],
+    step4: ['wilaya', 'adresse', 'telephone', 'email'],
+    step5: ['images'],
+    subCategories: {
+      'construction_travaux': {
+        step2: ['title', 'description', 'reference', 'typeTravaux'],
+        step3: ['price', 'unite', 'typeOffre', 'duree', 'surface', 'materiaux'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'ecoles_formations': {
+        step2: ['title', 'description', 'reference', 'typeFormation'],
+        step3: ['price', 'unite', 'typeOffre', 'duree', 'niveau', 'certification'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'industrie_fabrication': {
+        step2: ['title', 'description', 'reference', 'typeIndustrie'],
+        step3: ['price', 'unite', 'typeOffre', 'capacite', 'delai'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'transport_demenagement': {
+        step2: ['title', 'description', 'reference', 'typeTransport'],
+        step3: ['price', 'unite', 'typeOffre', 'distance', 'volume', 'vehicule'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'decoration_amenagement': {
+        step2: ['title', 'description', 'reference', 'typeDecoration'],
+        step3: ['price', 'unite', 'typeOffre', 'surface', 'style', 'materiaux'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'publicite_communication': {
+        step2: ['title', 'description', 'reference', 'typePublicite'],
+        step3: ['price', 'unite', 'typeOffre', 'duree', 'support', 'portée'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'nettoyage_jardinage': {
+        step2: ['title', 'description', 'reference', 'typeService'],
+        step3: ['price', 'unite', 'typeOffre', 'surface', 'frequence', 'equipements'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'froid_climatisation': {
+        step2: ['title', 'description', 'reference', 'typeService'],
+        step3: ['price', 'unite', 'typeOffre', 'puissance', 'marque', 'garantie'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'traiteurs_gateaux': {
+        step2: ['title', 'description', 'reference', 'typeTraiteur'],
+        step3: ['price', 'unite', 'typeOffre', 'nombrePersonnes', 'menu', 'livraison'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'medecine_sante': {
+        step2: ['title', 'description', 'reference', 'typeService'],
+        step3: ['price', 'unite', 'typeOffre', 'specialite', 'disponibilite'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'reparation_auto_diagnostic': {
+        step2: ['title', 'description', 'reference', 'typeReparation'],
+        step3: ['price', 'unite', 'typeOffre', 'marque', 'probleme', 'delai'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'securite_alarme': {
+        step2: ['title', 'description', 'reference', 'typeSecurite'],
+        step3: ['price', 'unite', 'typeOffre', 'surface', 'typeSysteme', 'monitoring'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'projets_etudes': {
+        step2: ['title', 'description', 'reference', 'typeProjet'],
+        step3: ['price', 'unite', 'typeOffre', 'domaine', 'delai', 'complexite'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'bureautique_internet': {
+        step2: ['title', 'description', 'reference', 'typeService'],
+        step3: ['price', 'unite', 'typeOffre', 'debit', 'equipements', 'support'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'location_vehicules': {
+        step2: ['title', 'description', 'reference', 'typeVehicule'],
+        step3: ['price', 'unite', 'typeOffre', 'duree', 'kilometrage', 'assurance'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'menuiserie_meubles': {
+        step2: ['title', 'description', 'reference', 'typeMenuiserie'],
+        step3: ['price', 'unite', 'typeOffre', 'materiau', 'dimensions', 'design'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'impression_edition': {
+        step2: ['title', 'description', 'reference', 'typeImpression'],
+        step3: ['price', 'unite', 'typeOffre', 'quantite', 'format', 'couleur'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'hotellerie_restauration_salles': {
+        step2: ['title', 'description', 'reference', 'typeService'],
+        step3: ['price', 'unite', 'typeOffre', 'capacite', 'duree', 'services'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'esthetique_beaute': {
+        step2: ['title', 'description', 'reference', 'typeService'],
+        step3: ['price', 'unite', 'typeOffre', 'duree', 'produits', 'certification'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'image_son': {
+        step2: ['title', 'description', 'reference', 'typeService'],
+        step3: ['price', 'unite', 'typeOffre', 'duree', 'equipements', 'equipe'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'comptabilite_economie': {
+        step2: ['title', 'description', 'reference', 'typeService'],
+        step3: ['price', 'unite', 'typeOffre', 'typeComptabilite', 'frequence', 'logiciels'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'couture_confection': {
+        step2: ['title', 'description', 'reference', 'typeCouture'],
+        step3: ['price', 'unite', 'typeOffre', 'typeVetement', 'tissu', 'delai'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'maintenance_informatique': {
+        step2: ['title', 'description', 'reference', 'typeMaintenance'],
+        step3: ['price', 'unite', 'typeOffre', 'typeEquipement', 'probleme', 'urgence'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'reparation_electromenager': {
+        step2: ['title', 'description', 'reference', 'typeAppareil'],
+        step3: ['price', 'unite', 'typeOffre', 'marque', 'probleme', 'delai'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'evenements_divertissement': {
+        step2: ['title', 'description', 'reference', 'typeEvenement'],
+        step3: ['price', 'unite', 'typeOffre', 'duree', 'nombrePersonnes', 'animations'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'paraboles_demos': {
+        step2: ['title', 'description', 'reference', 'typeInstallation'],
+        step3: ['price', 'unite', 'typeOffre', 'typeParabole', 'canaux', 'garantie'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'reparation_electronique': {
+        step2: ['title', 'description', 'reference', 'typeAppareil'],
+        step3: ['price', 'unite', 'typeOffre', 'marque', 'probleme', 'delai'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'services_etranger': {
+        step2: ['title', 'description', 'reference', 'typeService'],
+        step3: ['price', 'unite', 'typeOffre', 'pays', 'duree', 'documents'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'flashage_reparation_telephones': {
+        step2: ['title', 'description', 'reference', 'typeTelephone'],
+        step3: ['price', 'unite', 'typeOffre', 'marque', 'probleme', 'delai'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'flashage_installation_jeux': {
+        step2: ['title', 'description', 'reference', 'typeConsole'],
+        step3: ['price', 'unite', 'typeOffre', 'marque', 'jeux', 'delai'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'juridique': {
+        step2: ['title', 'description', 'reference', 'typeService'],
+        step3: ['price', 'unite', 'typeOffre', 'domaine', 'complexite', 'delai'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      }
+    }
+  },
+
+  // ============ MATÉRIAUX ============
+  'materiaux': {
+    step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele', 'typeMateriau'],
+    step3: ['price', 'unite', 'typeOffre', 'echange', 'quantite', 'dimensions'],
+    step4: ['wilaya', 'adresse', 'telephone', 'email'],
+    step5: ['images'],
+    subCategories: {
+      'materiel_professionnel': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeEquipement', 'puissance'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'outillage_professionnel': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeOutil', 'materiau'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'materiaux_construction': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeMateriau', 'dimensions', 'resistance'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'matieres_premieres': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeMatiere', 'pureté', 'quantite'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'produits_hygiene': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeProduit', 'quantite', 'datePeremption'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'materiel_agricole': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeEquipement', 'puissance', 'largeur'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'autre': {
+        step2: ['title', 'description', 'etat', 'reference', 'marque', 'modele'],
+        step3: ['price', 'unite', 'typeOffre', 'echange', 'typeMateriau'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      }
+    }
+  },
+
+  // ============ VOYAGES ============
+  'voyages': {
+    step2: ['title', 'description', 'reference', 'typeVoyage'],
+    step3: ['price', 'unite', 'typeOffre', 'duree', 'inclusions'],
+    step4: ['wilaya', 'adresse', 'telephone', 'email'],
+    step5: ['images'],
+    subCategories: {
+      'voyage_organise': {
+        step2: ['title', 'description', 'reference', 'destination'],
+        step3: ['price', 'unite', 'typeOffre', 'duree', 'transport', 'hotel', 'repas'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'location_vacances': {
+        step2: ['title', 'description', 'reference', 'destination', 'typeLogement'],
+        step3: ['price', 'unite', 'typeOffre', 'duree', 'capacite', 'equipements'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'hajj_omra': {
+        step2: ['title', 'description', 'reference', 'typePelerinage'],
+        step3: ['price', 'unite', 'typeOffre', 'duree', 'transport', 'hotel', 'guide'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'reservations_visa': {
+        step2: ['title', 'description', 'reference', 'destination'],
+        step3: ['price', 'unite', 'typeOffre', 'typeVisa', 'delai', 'documents'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'sejour': {
+        step2: ['title', 'description', 'reference', 'destination'],
+        step3: ['price', 'unite', 'typeOffre', 'duree', 'typeSejour', 'activites'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'croisiere': {
+        step2: ['title', 'description', 'reference', 'destination'],
+        step3: ['price', 'unite', 'typeOffre', 'duree', 'navire', 'cabine'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      },
+      'autre': {
+        step2: ['title', 'description', 'reference', 'typeVoyage'],
+        step3: ['price', 'unite', 'typeOffre', 'duree', 'services'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      }
+    }
+  },
+
+  // ============ EMPLOI ============
+  'emploi': {
+    step2: ['title', 'description', 'reference', 'typeEmploi', 'secteur', 'experience'],
+    step3: ['salaire', 'typeContrat', 'localisation', 'teletravail', 'avantages'],
+    step4: ['wilaya', 'adresse', 'telephone', 'email', 'nomSociete'],
+    step5: ['images'],
+    subCategories: {
+      'offres_emploi': {
+        step2: ['title', 'description', 'reference', 'poste', 'secteur', 'experienceRequise'],
+        step3: ['salaire', 'typeContrat', 'localisation', 'teletravail', 'avantages'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email', 'nomSociete'],
+        step5: ['images']
+      },
+      'demandes_emploi': {
+        step2: ['title', 'description', 'reference', 'posteRecherche', 'secteur', 'experience'],
+        step3: ['salaireSouhaite', 'typeContrat', 'localisation', 'mobilite', 'competences'],
+        step4: ['wilaya', 'adresse', 'telephone', 'email'],
+        step5: ['images']
+      }
+    }
+  }
+};
+
+
+// 🔥 FUNCIÓN SIMPLE PARA OBTENER CAMPOS
+// ============ FUNCIONES ACTUALIZADAS ============
+
+// 🔥 FUNCIÓN PRINCIPAL MEJORADA - ACEPTA SUBCATEGORÍA
+export const getFieldsForCategory = (mainCategory, subCategory = null, step = null) => {
+  console.log('🔍 FieldConfig - Buscando campos:', { mainCategory, subCategory, step });
+  
+  if (!mainCategory) {
+    console.log('⚠️ No hay categoría seleccionada');
+    return step ? [] : { step2: [], step3: [], step4: [], step5: [] };
+  }
+  
+  if (!DYNAMIC_FIELDS_CONFIG[mainCategory]) {
+    console.log(`❌ Categoría "${mainCategory}" no configurada en FieldConfig.js`);
+    return step ? [] : { step2: [], step3: [], step4: [], step5: [] };
+  }
+  
+  // 1. PRIMERO buscar en subcategoría específica
+  if (subCategory && DYNAMIC_FIELDS_CONFIG[mainCategory].subCategories) {
+    const subConfig = DYNAMIC_FIELDS_CONFIG[mainCategory].subCategories[subCategory];
+    
+    if (subConfig) {
+      console.log(`✅ Usando configuración de subcategoría: ${subCategory}`);
+      
+      if (step) {
+        const stepKey = `step${step}`;
+        const fields = subConfig[stepKey] || DYNAMIC_FIELDS_CONFIG[mainCategory][stepKey] || [];
+        console.log(`📋 Campos para ${mainCategory}/${subCategory} → ${stepKey}:`, fields);
+        return fields;
+      }
+      
+      // Devolver toda la configuración de la subcategoría
+      return {
+        step2: subConfig.step2 || DYNAMIC_FIELDS_CONFIG[mainCategory].step2 || [],
+        step3: subConfig.step3 || DYNAMIC_FIELDS_CONFIG[mainCategory].step3 || [],
+        step4: subConfig.step4 || DYNAMIC_FIELDS_CONFIG[mainCategory].step4 || [],
+        step5: subConfig.step5 || DYNAMIC_FIELDS_CONFIG[mainCategory].step5 || []
+      };
+    }
+  }
+  
+  // 2. Si no hay subcategoría o no está configurada, usar categoría principal
+  console.log(`✅ Usando configuración de categoría principal: ${mainCategory}`);
+  
+  if (step) {
+    const stepKey = `step${step}`;
+    const fields = DYNAMIC_FIELDS_CONFIG[mainCategory][stepKey] || [];
+    console.log(`📋 Campos para ${mainCategory} → ${stepKey}:`, fields);
+    return fields;
+  }
+  
+  // Devolver toda la configuración de la categoría
+  return {
+    step2: DYNAMIC_FIELDS_CONFIG[mainCategory].step2 || [],
+    step3: DYNAMIC_FIELDS_CONFIG[mainCategory].step3 || [],
+    step4: DYNAMIC_FIELDS_CONFIG[mainCategory].step4 || [],
+    step5: DYNAMIC_FIELDS_CONFIG[mainCategory].step5 || []
+  };
+};
+
+// 🔥 FUNCIÓN COMPATIBLE (backward compatibility)
+export const getFieldsForStep = (mainCategory, stepNumber, subCategory = null) => {
+  console.warn('⚠️ getFieldsForStep está deprecada, usa getFieldsForCategory');
+  return getFieldsForCategory(mainCategory, subCategory, stepNumber);
+};
+
+// 🔥 FUNCIÓN PARA VERIFICAR SI UNA CATEGORÍA/SUBCATEGORÍA ESTÁ CONFIGURADA
+export const isCategoryConfigured = (mainCategory, subCategory = null) => {
+  if (!mainCategory || !DYNAMIC_FIELDS_CONFIG[mainCategory]) {
+    return false;
+  }
+  
+  if (subCategory && DYNAMIC_FIELDS_CONFIG[mainCategory].subCategories) {
+    return !!DYNAMIC_FIELDS_CONFIG[mainCategory].subCategories[subCategory];
+  }
+  
+  return true;
+};
+
+// 🔥 FUNCIÓN PARA OBTENER SUBCATEGORÍAS DE UNA CATEGORÍA
+export const getSubCategories = (mainCategory) => {
+  if (!mainCategory || !DYNAMIC_FIELDS_CONFIG[mainCategory]) {
+    return [];
+  }
+  
+  if (DYNAMIC_FIELDS_CONFIG[mainCategory].subCategories) {
+    return Object.keys(DYNAMIC_FIELDS_CONFIG[mainCategory].subCategories);
+  }
+  
+  return [];
+};
+
+// 🔥 FUNCIÓN PARA OBTENER TODAS LAS CATEGORÍAS CONFIGURADAS
+export const getConfiguredCategories = () => {
+  return Object.keys(DYNAMIC_FIELDS_CONFIG);
+};
+
+// 🔥 FUNCIÓN PARA OBTENER CONFIGURACIÓN COMPLETA
+export const getFullConfig = () => {
+  return DYNAMIC_FIELDS_CONFIG;
+};
+
+// 🔥 FUNCIÓN PARA VALIDAR SI UN CAMPO EXISTE EN UNA CATEGORÍA
+export const isFieldInCategory = (mainCategory, subCategory, fieldName, step = null) => {
+  const config = getFieldsForCategory(mainCategory, subCategory);
+  
+  if (step) {
+    const stepKey = `step${step}`;
+    return config[stepKey]?.includes(fieldName) || false;
+  }
+  
+  // Buscar en todos los steps
+  return ['step2', 'step3', 'step4', 'step5'].some(
+    stepKey => config[stepKey]?.includes(fieldName)
+  );
+};
+
+// 🔥 FUNCIÓN PARA OBTENER LOS STEPS DISPONIBLES
+export const getAvailableSteps = (mainCategory, subCategory = null) => {
+  const config = getFieldsForCategory(mainCategory, subCategory);
+  const steps = [];
+  
+  if (config.step2 && config.step2.length > 0) steps.push(2);
+  if (config.step3 && config.step3.length > 0) steps.push(3);
+  if (config.step4 && config.step4.length > 0) steps.push(4);
+  if (config.step5 && config.step5.length > 0) steps.push(5);
+  
+  return steps;
+};
+
+// 🔥 FUNCIÓN PARA OBTENER CAMPOS POR STEP (MÁS ESPECÍFICA)
+export const getFieldsByStep = (mainCategory, subCategory, step) => {
+  return getFieldsForCategory(mainCategory, subCategory, step);
+};// 📁 src/components/CATEGORIES/FieldRenderer.js - VERSIÓN SIMPLIFICADA
+import React from 'react';
+
+// 🔥 IMPORTAR SOLO LOS COMPONENTES QUE REALMENTE USAS
+import ImmobiliersFields from './specificFields/ImmobiliersFields';
+import VehiculesFields from './specificFields/VehiculesFields';
+import VetementsFields from './specificFields/VetementsFields';
+import TelephonesFields from './specificFields/TelephonesFields';
+import InformatiqueFields from './specificFields/InformatiqueFields';
+import MateriauxFields from './specificFields/MateriauxFields';
+import ElectromenagerFields from './specificFields/ElectromenagerFields';
+import PieceDetache from './specificFields/PiecesDetacheesFields';
+import SanteBeauteFields from './specificFields/SanteBeauteFields';
+import MuebleField from './specificFields/MeublesFields';
+import LoisirsFields from './specificFields/LoisirsFields';
+import SportFields from './specificFields/SportFields';
+import AlimentairesFields from './specificFields/AlimentairesFields';
+import ServicesFields from './specificFields/ServicesFields';
+import VoyagesFields from './specificFields/VoyagesFields';
+import EmploiFields from './specificFields/EmploiFields';
+import BoutiquesField from './specificFields/BoutiquesField';
+
+// 🔥 MAPA SIMPLIFICADO
+const CATEGORY_COMPONENTS = {
+  'immobilier': ImmobiliersFields,
+  'vehicules': VehiculesFields,
+  'vetements': VetementsFields,
+  'telephones': TelephonesFields,
+  'informatique': InformatiqueFields,
+  'electromenager': ElectromenagerFields,
+  'pieces_detachees': PieceDetache,
+  'santebeaute': SanteBeauteFields,
+  'meubles': MuebleField,
+  'loisirs': LoisirsFields,
+  'sport': SportFields,
+  'alimentaires': AlimentairesFields,
+  'services': ServicesFields,
+  'materiaux': MateriauxFields,
+  'voyages': VoyagesFields,
+  'emploi': EmploiFields,
+  'boutiques': BoutiquesField
+};
+
+// 🔥 COMPONENTE PRINCIPAL SIMPLIFICADO
+const FieldRenderer = ({
+  fieldName,
+  mainCategory,
+  subCategory,
+  articleType,
+  postData,
+  handleChangeInput,
+  isRTL,
+  t,
+  step // Agregar step si lo usas
+}) => {
+  
+  // 1. Obtener el componente específico de la categoría
+  const CategoryComponent = CATEGORY_COMPONENTS[mainCategory];
+  
+  if (!CategoryComponent) {
+    console.warn(`⚠️ No hay componente para: ${mainCategory}`);
+    return null;
+  }
+
+  // 2. Renderizar el componente específico con todos los parámetros
+  return (
+    <CategoryComponent
+      fieldName={fieldName}
+      mainCategory={mainCategory}
+      subCategory={subCategory}
+      articleType={articleType}
+      postData={postData}
+      handleChangeInput={handleChangeInput}
+      isRTL={isRTL}
+      t={t}
+      step={step} // Pasar step si existe
+    />
+  );
+};
+
+export default FieldRenderer;
+// 📁 src/components/CATEGORIES/FieldRendererUniversal.js
+import React from 'react';
+
+// 🔥 IMPORTAR TODOS LOS COMPONENTES ESPECÍFICOS DE CATEGORÍA
+
+ 
+import ImmobiliersFields from './specificFields/ImmobiliersFields';
+ 
+import VetementsFields from './specificFields/VetementsFields';
+import TelephonesFields from './specificFields/TelephonesFields';
+import InformatiqueFields from './specificFields/InformatiqueFields';
+import MateriauxFields from './specificFields/MateriauxFields';
+import ElectromenagerFields from './specificFields/ElectromenagerFields';
+import PieceDetacheFields from './specificFields/PiecesDetacheesFields';
+import SanteBeauteFields from './specificFields/SanteBeauteFields';
+import MuebleField from './specificFields/MeublesFields';
+import LoisirsFields from './specificFields/LoisirsFields';
+import SportFields from './specificFields/SportFields';
+import AlimentairesFields from './specificFields/AlimentairesFields';
+import ServicesField from './specificFields/ServicesFields';
+import VoyagesFields from './specificFields/VoyagesFields';
+import EmploiFields from './specificFields/EmploiFields';
+import BoutiqueSelector from '../boutique/BoutiqueSelectorField';
+import VehiculesFields from './specificFields/VehiculesFields';
+import BaseCategoryField from './specificFields/BaseCategoryField';
+ 
+ 
+// 🔥 MAPA DE CATEGORÍA → COMPONENTE
+const CATEGORY_COMPONENTS = {
+  'immobilier': ImmobiliersFields,
+  'vehicules': VehiculesFields,
+  'vetements': VetementsFields,
+  'telephones': TelephonesFields,
+  'informatique': InformatiqueFields,
+  'electromenager': ElectromenagerFields,
+  'piecesDetachees': PieceDetacheFields,
+  'santebeaute': SanteBeauteFields,
+  'meubles': MuebleField,
+  'loisirs': LoisirsFields,
+  'sport': SportFields,
+  'alimentaires': AlimentairesFields,
+  'services': ServicesField,
+  'materiaux': MateriauxFields,
+  'voyages': VoyagesFields,
+  'emploi': EmploiFields,
+  'boutiques': BoutiqueSelector,
+   
+
+};
+
+
+const FieldRendererUniversal = ({
+  fieldName,
+  mainCategory,
+  subCategory,
+  articleType,
+  postData,
+  handleChangeInput,
+  isRTL,
+  t
+}) => {
+  
+  // 1. PRIMERO intentar con BaseCategoryField (campos comunes)
+  try {
+    const baseField = BaseCategoryField({
+      fieldName,
+      mainCategory,
+      subCategory,
+      postData,
+      handleChangeInput,
+      isRTL,
+      t
+    });
+    
+    if (baseField) {
+      console.log('✅ BaseCategoryField maneja:', fieldName);
+      return baseField;
+    }
+  } catch (error) {
+    console.log('⚠️ BaseCategoryField no pudo manejar:', fieldName, error);
+  }
+  
+  // 2. SI NO ES CAMPO COMÚN, buscar componente específico
+  const CategoryComponent = CATEGORY_COMPONENTS[mainCategory];
+  
+  if (!CategoryComponent) {
+    console.error(`❌ No hay componente para: ${mainCategory}`);
+    
+    // Usar FieldFallback como último recurso
+    return (
+      <FieldFallback
+        fieldName={fieldName}
+        postData={postData}
+        handleChangeInput={handleChangeInput}
+        isRTL={isRTL}
+        t={t}
+      />
+    );
+  }
+  
+  // 3. Usar el componente específico de la categoría
+  try {
+    const specificField = CategoryComponent({
+      fieldName,
+      mainCategory,
+      subCategory,
+      articleType,
+      postData,
+      handleChangeInput,
+      isRTL,
+      t
+    });
+    
+    if (specificField) {
+      console.log('✅ Componente específico maneja:', fieldName);
+      return specificField;
+    }
+    
+    // 4. Si el componente específico no maneja este campo, usar FieldFallback
+    console.log(`🔄 ${mainCategory} no maneja ${fieldName}, usando FieldFallback`);
+    
+    return (
+      <FieldFallback
+        fieldName={fieldName}
+        postData={postData}
+        handleChangeInput={handleChangeInput}
+        isRTL={isRTL}
+        t={t}
+      />
+    );
+    
+  } catch (error) {
+    console.error(`❌ Error en ${mainCategory}:`, error);
+    
+    return (
+      <FieldFallback
+        fieldName={fieldName}
+        postData={postData}
+        handleChangeInput={handleChangeInput}
+        isRTL={isRTL}
+        t={t}
+      />
+    );
+  }
+};
+
+export default FieldRendererUniversal;
+import React from 'react';
+
+// 📝 Campos básicos
+ import TitleField from './TitleField';
+ import ReferenceField from './RefereceField';
+
+import DescriptionField from './DescriptionField';
+
+// 🏷️ Campos de estado y características
+import EtatField from './EtatField';
+import TailleField from './TailleField';
+import CouleurField from './CouleurField';
+import QuantiteField from './QuantiteField';
+
+// 💰 Campos de precio y negociación
+import PriceField from './PriceField';
+ 
+import TypeOffreField from './TypeOffreField';
+import EchangeField from './EchangeField';
+
+// 📍 Campos de localización
+import WilayaField from './WilayaField';
+import CommuneField from './CommuneField';
+import AdresseField from './AdresseField';
+
+// 📞 Campos de contacto
+import TelephoneField from './TelephoneField';
+import EmailField from './EmailField';
+
+// 🚚 Campos de entrega
+import LivraisonField from './LivraisonFileld';
+import Unite from './Unite';
+
+ 
+// 🔧 Función para renderizar cualquier campo común
+export const renderCommonField = (fieldName, props) => {
+  const {
+    postData = {},
+    handleChangeInput,
+    isRTL = false,
+    t = (key, fallback) => fallback,
+    mainCategory,
+    subCategory,
+    fieldConfig = {},
+    wilayasData = [],
+    communesList = [],
+    selectedWilaya = null,
+    onWilayaChange = null
+  } = props;
+
+  // Configuración específica del campo
+  const config = {
+    name: fieldConfig.name || fieldName,
+    label: fieldConfig.label || getDefaultLabel(fieldName),
+    required: fieldConfig.required || false,
+    disabled: fieldConfig.disabled || false,
+    ...fieldConfig
+  };
+
+  // Mapeo de campos a componentes
+  const fieldComponents = {
+    // 📝 Campos básicos
+    'title': (
+      <TitleField
+        key="title"
+        postData={postData}
+        handleChangeInput={handleChangeInput}
+        name={config.name}
+        label={config.label}
+        required={config.required}
+        disabled={config.disabled}
+      />
+    ),
+    
+    'reference': (
+      <ReferenceField
+        key="reference"
+        postData={postData}
+        handleChangeInput={handleChangeInput}
+        name={config.name}
+        label={config.label}
+        required={config.required}
+        disabled={config.disabled}
+      />
+    ),
+    
+    'description': (
+      <DescriptionField
+        key="description"
+        postData={postData}
+        handleChangeInput={handleChangeInput}
+        name={config.name}
+        label={config.label}
+        required={config.required}
+        disabled={config.disabled}
+        isRTL={isRTL}
+        t={t}
+      />
+    ),
+    
+    // 🏷️ Campos de estado y características
+    'etat': (
+      <EtatField
+        key="etat"
+        postData={postData}
+        handleChangeInput={handleChangeInput}
+        name={config.name}
+        label={config.label}
+        required={config.required}
+        disabled={config.disabled}
+        isRTL={isRTL}
+        t={t}
+      />
+    ),
+    
+    'taille': (
+      <TailleField
+        key="taille"
+        postData={postData}
+        handleChangeInput={handleChangeInput}
+        name={config.name}
+        label={config.label}
+        required={config.required}
+        disabled={config.disabled}
+        isRTL={isRTL}
+        t={t}
+      />
+    ),
+    
+    'couleur': (
+      <CouleurField
+        key="couleur"
+        mainCategory={mainCategory}
+        subCategory={subCategory}
+        postData={postData}
+        handleChangeInput={handleChangeInput}
+        name={config.name}
+        label={config.label}
+        required={config.required}
+        disabled={config.disabled}
+        isRTL={isRTL}
+        t={t}
+      />
+    ),
+    
+    'quantite': (
+      <QuantiteField
+        key="quantite"
+        postData={postData}
+        handleChangeInput={handleChangeInput}
+        name={config.name}
+        label={config.label}
+        required={config.required}
+        disabled={config.disabled}
+      />
+    ),
+    
+    // 💰 Campos de precio y negociación
+    'prix': (
+      <PriceField
+        key="prix"
+        postData={postData}
+        handleChangeInput={handleChangeInput}
+        name={config.name}
+        label={config.label}
+        required={config.required}
+        disabled={config.disabled}
+      />
+    ),
+    
+    'unitePrix': (
+      <Unite
+        key="unitePrix"
+        postData={postData}
+        handleChangeInput={handleChangeInput}
+        name={config.name}
+        label={config.label}
+        required={config.required}
+        disabled={config.disabled}
+      />
+    ),
+    
+    'typeOffre': (
+      <TypeOffreField
+        key="typeOffre"
+        postData={postData}
+        handleChangeInput={handleChangeInput}
+        name={config.name}
+        label={config.label}
+        required={config.required}
+        disabled={config.disabled}
+      />
+    ),
+    
+    'echange': (
+      <EchangeField
+        key="echange"
+        postData={postData}
+        handleChangeInput={handleChangeInput}
+        name={config.name}
+        label={config.label}
+        required={config.required}
+        disabled={config.disabled}
+      />
+    ),
+    
+    // 📍 Campos de localización
+    'wilaya': (
+      <WilayaField
+        key="wilaya"
+        postData={postData}
+        handleChangeInput={handleChangeInput}
+        name={config.name}
+        label={config.label}
+        required={config.required}
+        disabled={config.disabled}
+        onWilayaChange={onWilayaChange}
+        wilayasData={wilayasData}
+      />
+    ),
+    
+    'commune': (
+      <CommuneField
+        key="commune"
+        postData={postData}
+        handleChangeInput={handleChangeInput}
+        name={config.name}
+        label={config.label}
+        required={config.required}
+        disabled={config.disabled}
+        communes={communesList}
+        wilayaSelected={selectedWilaya}
+      />
+    ),
+    
+    'adresse': (
+      <AdresseField
+        key="adresse"
+        postData={postData}
+        handleChangeInput={handleChangeInput}
+        name={config.name}
+        label={config.label}
+        required={config.required}
+        disabled={config.disabled}
+        isRTL={isRTL}
+        t={t}
+      />
+    ),
+    
+    // 📞 Campos de contacto
+    'telephone': (
+      <TelephoneField
+        key="telephone"
+        postData={postData}
+        handleChangeInput={handleChangeInput}
+        name={config.name}
+        label={config.label}
+        required={config.required}
+        disabled={config.disabled}
+        isRTL={isRTL}
+        t={t}
+      />
+    ),
+    
+    'email': (
+      <EmailField
+        key="email"
+        postData={postData}
+        handleChangeInput={handleChangeInput}
+        name={config.name}
+        label={config.label}
+        required={config.required}
+        disabled={config.disabled}
+        isRTL={isRTL}
+        t={t}
+      />
+    ),
+    
+    // 🚚 Campos de entrega
+    'livraison': (
+      <LivraisonField
+        key="livraison"
+        postData={postData}
+        handleChangeInput={handleChangeInput}
+        name={config.name}
+        label={config.label}
+        required={config.required}
+        disabled={config.disabled}
+        isRTL={isRTL}
+        t={t}
+      />
+    )
+  };
+
+  const FieldComponent = fieldComponents[fieldName];
+  
+  if (!FieldComponent) {
+    console.warn(`⚠️ Campo común "${fieldName}" no encontrado en camposComunField`);
+    
+    // Campo genérico como fallback
+    return (
+      <div className="mb-3">
+        <label>{config.label} {config.required && '*'}</label>
+        <input
+          type="text"
+          name={config.name}
+          value={postData[config.name] || ''}
+          onChange={handleChangeInput}
+          required={config.required}
+          disabled={config.disabled}
+          className="form-control"
+          placeholder={`Entrez ${config.label.toLowerCase()}`}
+          dir={isRTL ? 'rtl' : 'ltr'}
+        />
+      </div>
+    );
+  }
+
+  return FieldComponent;
+};
+
+// 🔧 Función para obtener etiquetas por defecto en francés
+const getDefaultLabel = (fieldName) => {
+  const labels = {
+    'title': '📝 Titre',
+    'reference': '🏷️ Référence',
+    'description': '📄 Description',
+    'etat': '🔧 État',
+    'taille': '📏 Taille',
+    'couleur': '🎨 Couleur',
+    'quantite': '📦 Quantité',
+    'prix': '💰 Prix',
+    'unitePrix': '💵 Unité de prix',
+    'typeOffre': '🏷️ Type d\'offre',
+    'echange': '🔄 Échange',
+    'wilaya': '📍 Wilaya',
+    'commune': '🏘️ Commune',
+    'adresse': '🏠 Adresse',
+    'telephone': '📞 Téléphone',
+    'email': '📧 Email',
+    'livraison': '🚚 Livraison'
+  };
+  
+  return labels[fieldName] || fieldName;
+};
+
+// 📋 Lista de todos los campos comunes disponibles
+export const ALL_COMMON_FIELDS = [
+  'title',
+  'reference',
+  'description',
+  'etat',
+  'taille',
+  'couleur',
+  'quantite',
+  'prix',
+  'unitePrix',
+  'typeOffre',
+  'echange',
+  'wilaya',
+  'commune',
+  'adresse',
+  'telephone',
+  'email',
+  'livraison'
+];
+
+// 🎯 Campos requeridos por defecto
+export const REQUIRED_COMMON_FIELDS = [
+  'title',
+  'description',
+  'etat',
+  'prix',
+  'wilaya',
+  'commune',
+  'telephone'
+];
+
+// 📊 Campos agrupados por categoría
+export const GROUPED_COMMON_FIELDS = {
+  'informations': ['title', 'reference', 'description'],
+  'caracteristiques': ['etat', 'taille', 'couleur', 'quantite'],
+  'prix': ['prix', 'unitePrix', 'typeOffre', 'echange'],
+  'localisation': ['wilaya', 'commune', 'adresse'],
+  'contact': ['telephone', 'email'],
+  'livraison': ['livraison']
+};
+
+// 🔄 Función para renderizar múltiples campos comunes
+export const renderMultipleCommonFields = (fieldNames, props) => {
+  return fieldNames.map(fieldName => (
+    <div key={fieldName} className="mb-3">
+      {renderCommonField(fieldName, props)}
+    </div>
+  ));
+};
+
+// 🏗️ Componente wrapper para campos comunes
+const CamposComunField = ({ fieldName, ...props }) => {
+  return renderCommonField(fieldName, props);
+};
+
+export default CamposComunField;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+CreateAnnoncePage (Padre Controlador)
+    │
+    ├── PASO 1 → CategoryAccordion
+    │       ↓ handleInputChange
+    │       (actualiza: categoryData)
+    │
+    ├── PASOS 2-4 → DynamicFieldManager
+    │       ↓ Recibe: mainCategory, subCategory, articleType
+    │       ↓ Consulta: FieldConfig.js (estático)
+    │       ↓ Renderiza: FieldRendererUniversal
+    │       ↓ Que renderiza: VehiculesFields/ImmobiliersFields/etc.
+    │       ↓ handleInputChange
+    │       (actualiza: specificData o commonData)
+    │
+    ├── PASO 5 → ImagesStep
+    │       ↓ setImages
+    │       (actualiza: images)
+    │       ↓ onComplete → handleSubmit
+    │
+    └── handleSubmit → Redux Action → Backend → MongoDB

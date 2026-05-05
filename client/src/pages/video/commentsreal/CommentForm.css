@@ -1,0 +1,268 @@
+/* components/Video/css/commentForm.css */
+
+/* ============================================
+   COMMENT FORM - Estilo profesional
+   ============================================ */
+
+   .comment-form {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 16px 20px;
+    border-bottom: 0.5px solid rgba(255, 255, 255, 0.06);
+    transition: all 0.2s ease;
+  }
+  
+  .comment-form.reply-form {
+    padding: 12px 0 8px 0;
+    border-bottom: none;
+    margin-top: 8px;
+  }
+  
+  .form-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    border: 2px solid rgba(102, 126, 234, 0.3);
+    transition: transform 0.2s ease;
+  }
+  
+  .form-avatar:active {
+    transform: scale(0.95);
+  }
+  
+  .form-input-wrapper {
+    flex: 1;
+    position: relative;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 24px;
+    padding: 10px 48px 10px 16px;
+    transition: all 0.2s ease;
+  }
+  
+  .comment-form.focused .form-input-wrapper {
+    background: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+  }
+  
+  .reply-form .form-input-wrapper {
+    background: rgba(255, 255, 255, 0.04);
+    padding: 8px 44px 8px 14px;
+    border-radius: 20px;
+  }
+  
+  .form-input {
+    width: 100%;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: white;
+    font-size: 0.85rem;
+    resize: none;
+    font-family: inherit;
+    max-height: 100px;
+    line-height: 1.4;
+  }
+  
+  .form-input::placeholder {
+    color: rgba(255, 255, 255, 0.4);
+    transition: color 0.2s ease;
+  }
+  
+  .form-input:focus::placeholder {
+    color: rgba(255, 255, 255, 0.2);
+  }
+  
+  .reply-form .form-input {
+    font-size: 0.8rem;
+  }
+  
+  /* Botones de acción del formulario */
+  .form-actions {
+    position: absolute;
+    right: 12px;
+    bottom: 10px;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  
+  .reply-form .form-actions {
+    right: 10px;
+    bottom: 6px;
+  }
+  
+  .send-btn {
+    background: none;
+    border: none;
+    color: #667eea;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+  }
+  
+  .send-btn:active {
+    transform: scale(0.9);
+  }
+  
+  .send-btn:disabled {
+    color: rgba(255, 255, 255, 0.3);
+    cursor: not-allowed;
+  }
+  
+  .cancel-btn {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+  }
+  
+  .cancel-btn:active {
+    transform: scale(0.9);
+    color: rgba(255, 255, 255, 0.8);
+  }
+  
+  /* Animación de entrada */
+  .comment-form {
+    animation: formSlideIn 0.2s ease;
+  }
+  
+  @keyframes formSlideIn {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  /* Estado de carga del formulario */
+  .comment-form.loading .form-input-wrapper {
+    opacity: 0.6;
+    pointer-events: none;
+  }
+  
+  .comment-form.loading .send-btn {
+    animation: loadingPulse 1s ease-in-out infinite;
+  }
+  
+  @keyframes loadingPulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+  
+  /* Responsive para Android */
+  @media (max-width: 480px) {
+    .comment-form {
+      padding: 12px 16px;
+      gap: 10px;
+    }
+    
+    .form-avatar {
+      width: 32px;
+      height: 32px;
+    }
+    
+    .form-input-wrapper {
+      padding: 8px 44px 8px 14px;
+    }
+    
+    .form-input {
+      font-size: 0.8rem;
+    }
+    
+    .reply-form .form-input-wrapper {
+      padding: 6px 40px 6px 12px;
+    }
+    
+    .send-btn svg,
+    .cancel-btn svg {
+      width: 16px;
+      height: 16px;
+    }
+  }
+  
+  /* Touch optimization */
+  .send-btn,
+  .cancel-btn,
+  .form-avatar {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  /* Contenedor del formulario de respuesta */
+.reply-form-container {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 0.5px solid rgba(255, 255, 255, 0.06);
+  animation: replyFormSlideIn 0.2s ease;
+}
+
+@keyframes replyFormSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Estilos específicos para el formulario dentro de reply */
+.reply-form-container .comment-form {
+  padding: 0;
+  border-bottom: none;
+}
+
+.reply-form-container .form-avatar {
+  width: 28px;
+  height: 28px;
+}
+
+.reply-form-container .form-input-wrapper {
+  padding: 6px 44px 6px 12px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.reply-form-container .form-input {
+  font-size: 0.75rem;
+}
+
+.reply-form-container .form-actions {
+  bottom: 5px;
+  right: 10px;
+}
+
+/* Responsive para Android */
+@media (max-width: 480px) {
+  .reply-form-container {
+    margin-top: 10px;
+  }
+  
+  .reply-form-container .form-avatar {
+    width: 24px;
+    height: 24px;
+  }
+  
+  .reply-form-container .form-input-wrapper {
+    padding: 5px 40px 5px 10px;
+  }
+}

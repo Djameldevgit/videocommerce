@@ -1,0 +1,8 @@
+src/components/CATEGORIES/
+├── DynamicFieldManager.js      # Gestiona steps y campos
+├── FieldConfig.js              # Configuración SIN 'title' ✅
+├── FieldRendererUnified.js     # Renderiza campos
+├── GeneracionTitulo.js         # Genera título automático 🆕
+├── camposComun/
+│   └── camposComunField.js     # Mapeo de campos comunes
+└── specificFields/             # Campos específicos (opcional)

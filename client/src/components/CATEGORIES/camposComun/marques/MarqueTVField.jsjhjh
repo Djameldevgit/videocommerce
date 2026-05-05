@@ -1,0 +1,78 @@
+import React from 'react';
+import { Form } from 'react-bootstrap';
+
+const MarqueTVField = ({ 
+  postData, 
+  handleChangeInput, 
+  isRTL, 
+  t, 
+  name = 'marque_tv', 
+  label = 'brand_tv'
+}) => {
+  
+  const tvBrands = [
+    // Marcas internacionales líderes globales [citation:1][citation:3][citation:5]
+    'Samsung',
+    'LG',
+    'Sony',
+    'TCL',
+    'Hisense',
+    'Panasonic',
+    'Philips',
+    'Xiaomi',
+    'Vizio',
+    'Sharp',
+    'AOC',
+    
+    // Marcas locales y de fuerte presencia en Argelia [citation:2][citation:7]
+    'IRIS',
+    'Continental',
+    'Stream',
+    'Rapitron',
+    'Maxipower',
+    'Brandt',
+    'Thomson',
+    'Geant',
+    'Kiowa',
+    'Maxwell',
+    'Maxtor',
+    'Cristor',
+    'Raylan',
+    
+    // Otras marcas globales y regionales
+    'Philco',
+    'Mianhong',
+    'JVC',
+    'Toshiba',
+    'Hitachi',
+    'Pioneer',
+    'Bang & Olufsen',
+    'Loewe',
+    
+    // Opción genérica
+    'Other'
+  ];
+
+  return (
+    <Form.Group>
+      <Form.Label>📺 {t(label, 'Marque de Télévision')}</Form.Label>
+      <Form.Control
+        as="select"
+        name={name}
+        value={postData[name] || ''}
+        onChange={handleChangeInput}
+        dir={isRTL ? 'rtl' : 'ltr'}
+        custom
+      >
+        <option value="">{t('select_tv_brand', 'Sélectionnez une marque de TV')}</option>
+        {tvBrands.map((brand) => (
+          <option key={brand} value={brand}>
+            {brand}
+          </option>
+        ))}
+      </Form.Control>
+    </Form.Group>
+  );
+};
+
+export default MarqueTVField;

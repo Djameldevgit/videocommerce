@@ -1,0 +1,484 @@
+// 📁 src/components/post/DescriptionPost.js
+import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Container, Row, Col, Badge, Button, Card, Spinner } from 'react-bootstrap';
+import { useSelector, useDispatch } from 'react-redux';
+import { useHistory } from 'react-router-dom';
+import { MESS_TYPES } from '../../../redux/actions/messageAction';
+import { GLOBALTYPES } from '../../../redux/actions/globalTypes';
+
+const DescriptionPost = ({ post }) => {
+    const { auth, languageReducer } = useSelector(state => state);
+    const dispatch = useDispatch();
+    const history = useHistory();
+    const { t, i18n } = useTranslation();
+    
+    const lang = languageReducer.language || 'fr';
+    const isRTL = lang === 'ar';
+
+    // 🎯 OBTENER TODOS LOS DATOS DEL POST DE FORMA DINÁMICA
+    const getAllPostData = () => {
+        if (!post) return {};
+        
+        const combinedData = {};
+        
+        // 1. Campos directos del post (excluir los que no queremos mostrar)
+        const excludeFields = [
+            '_id', 'user', 'store', 'images', 'likes', 'comments', 
+            'createdAt', 'updatedAt', '__v', 'searchKeywords',
+            'isPromoted', 'isUrgent', 'isActive', 'views'
+        ];
+        
+        Object.keys(post).forEach(key => {
+            if (!excludeFields.includes(key) && 
+                post[key] !== undefined && 
+                post[key] !== null && 
+                post[key] !== '') {
+                combinedData[key] = post[key];
+            }
+        });
+        
+        // 2. Campos de categorySpecificData (Map u Object)
+        if (post.categorySpecificData) {
+            let specificData = {};
+            
+            if (post.categorySpecificData instanceof Map) {
+                post.categorySpecificData.forEach((value, key) => {
+                    if (value !== undefined && value !== null && value !== '') {
+                        specificData[key] = value;
+                    }
+                });
+            } else if (typeof post.categorySpecificData === 'object') {
+                Object.entries(post.categorySpecificData).forEach(([key, value]) => {
+                    if (value !== undefined && value !== null && value !== '') {
+                        specificData[key] = value;
+                    }
+                });
+            }
+            
+            // Combinar con los datos existentes
+            Object.assign(combinedData, specificData);
+        }
+        
+        return combinedData;
+    };
+
+    const postData = getAllPostData();
+    const user = post?.user || {};
+
+    // 🎨 EMOJIS DINÁMICOS POR TIPO DE CAMPO
+    const getFieldEmoji = (fieldName, value) => {
+        const emojiMap = {
+            // Información básica
+            'title': '🏷️', 'description': '📄', 'categorie': '🏷️', 'subCategory': '🏷️',
+            
+            // Precio y dinero
+            'price': '💰', 'prix': '💰', 'loyer': '💵', 'unite': '💲',
+            'grossdetail': '📦', 'negotiable': '🤝', 'negociable': '🤝',
+            
+            // Contacto
+            'telephone': '📞', 'phone': '📞', 'email': '📧',
+            'wilaya': '🏙️', 'commune': '🏘️', 'adresse': '📍',
+            
+            // Vehículos
+            'marque': '🚗', 'modele': '🚘', 'annee': '📅', 'kilometrage': '🛣️',
+            'carburant': '⛽', 'boiteVitesse': '⚙️', 'couleur': '🎨',
+            
+            // Inmuebles
+            'surface': '📏', 'chambres': '🛏️', 'sallesBain': '🚿',
+            'meuble': '🛋️', 'jardin': '🌳', 'piscine': '🏊',
+            
+            // Electrónica
+            'ram': '💾', 'stockage': '💿', 'processeur': '⚙️',
+            'ecran': '🖥️', 'systemeExploitation': '💻',
+            
+            // Estados y condiciones
+            'etat': '⭐', 'reference': '🔢', 'echange': '🔄', 'livraison': '🚚',
+            
+            // Alimentación
+            'typeProduit': '🥫', 'poids': '⚖️', 'dlc': '📅', 'ingredients': '🥗',
+            
+            // Por tipo de valor (fallback)
+            'boolean': '✅', 'number': '🔢', 'string': '📝'
+        };
+        
+        // Buscar emoji por nombre de campo
+        if (emojiMap[fieldName]) return emojiMap[fieldName];
+        
+        // Fallback por tipo de dato
+        if (typeof value === 'boolean') return '✅';
+        if (typeof value === 'number') return '🔢';
+        
+        return '📝';
+    };
+
+    // 📝 FORMATAR VALORES DE FORMA INTELIGENTE
+    const formatValue = (field, value) => {
+        if (value === undefined || value === null) return '-';
+        
+        // Booleanos
+        if (typeof value === 'boolean') {
+            return value ? '✅ Oui' : '❌ Non';
+        }
+        
+        // Arrays
+        if (Array.isArray(value)) {
+            return value.join(', ');
+        }
+        
+        // Números
+        if (typeof value === 'number') {
+            // Precios
+            if (['price', 'prix', 'loyer'].includes(field)) {
+                return new Intl.NumberFormat('fr-FR').format(value) + ' DZD';
+            }
+            // Medidas
+            if (['surface', 'superficie', 'taille'].includes(field)) {
+                return new Intl.NumberFormat('fr-FR').format(value) + ' m²';
+            }
+            if (['kilometrage', 'km'].includes(field)) {
+                return new Intl.NumberFormat('fr-FR').format(value) + ' km';
+            }
+            // Por defecto
+            return new Intl.NumberFormat('fr-FR').format(value);
+        }
+        
+        // Strings con valores especiales
+        const stringValue = String(value).trim();
+        
+        const specialValues = {
+            'vente': '🛒 Vente',
+            'location': '🏠 Location', 
+            'echange': '🔄 Échange',
+            'don': '🎁 Don',
+            'neuf': '✨ Neuf',
+            'occasion': '🔄 Occasion',
+            'gross': '📦 En gros',
+            'detail': '🛍️ Au détail',
+            'both': '📦🛍️ Gros et détail',
+            'true': '✅ Oui',
+            'false': '❌ Non'
+        };
+        
+        if (specialValues[stringValue]) {
+            return specialValues[stringValue];
+        }
+        
+        // Capitalizar primera letra
+        return stringValue.charAt(0).toUpperCase() + stringValue.slice(1);
+    };
+
+    // 🏷️ TRADUCIR NOMBRES DE CAMPOS
+    const translateField = (fieldName) => {
+        const translations = {
+            // Campos comunes
+            'title': 'Titre',
+            'description': 'Description',
+            'categorie': 'Catégorie',
+            'subCategory': 'Sous-catégorie',
+            'articleType': 'Type d\'article',
+            'price': 'Prix',
+            'etat': 'État',
+            'reference': 'Référence',
+            'wilaya': 'Wilaya',
+            'commune': 'Commune',
+            'adresse': 'Adresse',
+            'telephone': 'Téléphone',
+            'email': 'Email',
+            
+            // Vehículos
+            'marque': 'Marque',
+            'modele': 'Modèle',
+            'annee': 'Année',
+            'kilometrage': 'Kilométrage',
+            'carburant': 'Carburant',
+            'boiteVitesse': 'Boîte de vitesse',
+            'couleur': 'Couleur',
+            
+            // Inmuebles
+            'surface': 'Surface',
+            'chambres': 'Chambres',
+            'sallesBain': 'Salles de bain',
+            'meuble': 'Meublé',
+            'jardin': 'Jardin',
+            'piscine': 'Piscine',
+            
+            // Electrónica
+            'ram': 'RAM',
+            'stockage': 'Stockage',
+            'processeur': 'Processeur',
+            'ecran': 'Écran',
+            'systemeExploitation': 'Système d\'exploitation',
+            
+            // Condiciones
+            'unite': 'Unité',
+            'typeOffre': 'Type d\'offre',
+            'echange': 'Échange possible',
+            'livraison': 'Livraison possible',
+            'grossdetail': 'Type de vente',
+            'negotiable': 'Négociable'
+        };
+        
+        return translations[fieldName] || 
+               fieldName.replace(/([A-Z])/g, ' $1')
+                        .toLowerCase()
+                        .replace(/^./, str => str.toUpperCase());
+    };
+
+    // 📊 ORDENAR CAMPOS POR IMPORTANCIA
+    const getOrderedFields = () => {
+        const fields = Object.keys(postData);
+        
+        // Orden de prioridad
+        const priorityOrder = [
+            'title', 'description', 'categorie', 'subCategory',
+            'price', 'etat', 'reference',
+            'marque', 'modele', 'annee', 'kilometrage',
+            'surface', 'chambres', 'sallesBain',
+            'ram', 'stockage', 'processeur',
+            'wilaya', 'commune', 'adresse',
+            'telephone', 'email'
+        ];
+        
+        // Separar campos prioritarios y otros
+        const priorityFields = [];
+        const otherFields = [];
+        
+        fields.forEach(field => {
+            if (priorityOrder.includes(field)) {
+                priorityFields.push(field);
+            } else {
+                otherFields.push(field);
+            }
+        });
+        
+        // Ordenar campos prioritarios según el orden definido
+        priorityFields.sort((a, b) => {
+            return priorityOrder.indexOf(a) - priorityOrder.indexOf(b);
+        });
+        
+        // Ordenar otros campos alfabéticamente
+        otherFields.sort();
+        
+        return [...priorityFields, ...otherFields];
+    };
+
+    // 💬 MANEJAR CONTACTO
+    const handleContact = () => {
+        if (!auth.user) {
+            dispatch({ 
+                type: GLOBALTYPES.ALERT, 
+                payload: { error: 'Veuillez vous connecter pour contacter le vendeur' } 
+            });
+            return;
+        }
+        
+        if (!user || !user._id || auth.user._id === user._id) return;
+        
+        dispatch({
+            type: MESS_TYPES.ADD_USER,
+            payload: { 
+                ...user, 
+                text: '', 
+                media: [],
+                postTitle: postData.title || 'Annonce',
+                postId: post._id,
+                postPrice: postData.price,
+                postImage: post.images?.[0]?.url
+            }
+        });
+        
+        history.push(`/message/${user._id}`);
+    };
+
+    // 🎨 COMPONENTE DE LÍNEA DE CAMPO
+    const FieldLine = ({ field }) => {
+        const value = postData[field];
+        const emoji = getFieldEmoji(field, value);
+        const formattedValue = formatValue(field, value);
+        const label = translateField(field);
+        
+        return (
+            <div className="field-line d-flex align-items-center py-3 border-bottom">
+                <div className="field-emoji me-3" style={{ fontSize: '1.3rem', width: '40px', textAlign: 'center' }}>
+                    {emoji}
+                </div>
+                <div className="field-content flex-grow-1">
+                    <div className="field-label fw-semibold text-muted mb-1" style={{ fontSize: '0.9rem' }}>
+                        {label}
+                    </div>
+                    <div className="field-value fw-bold text-dark" style={{ fontSize: '1.1rem' }}>
+                        {formattedValue}
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    // 🏷️ RENDERIZAR HEADER
+    const renderHeader = () => {
+        const title = postData.title || 'Annonce';
+        
+        return (
+            <div className="mb-4">
+                <div className="d-flex align-items-start gap-3 mb-4">
+                    <div className="category-icon" style={{ fontSize: '3rem' }}>
+                        {getFieldEmoji('categorie')}
+                    </div>
+                    <div className="flex-grow-1">
+                        <h1 className="fw-bold mb-2" style={{ fontSize: '1.8rem', lineHeight: '1.3' }}>
+                            {title}
+                        </h1>
+                        <div className="d-flex flex-wrap gap-2">
+                            {postData.categorie && (
+                                <Badge bg="primary" className="px-3 py-2" style={{ fontSize: '0.9rem' }}>
+                                    {postData.categorie.charAt(0).toUpperCase() + postData.categorie.slice(1)}
+                                </Badge>
+                            )}
+                            {postData.subCategory && (
+                                <Badge bg="secondary" className="px-3 py-2" style={{ fontSize: '0.9rem' }}>
+                                    {postData.subCategory}
+                                </Badge>
+                            )}
+                            {postData.etat && (
+                                <Badge bg="info" className="px-3 py-2" style={{ fontSize: '0.9rem' }}>
+                                    {formatValue('etat', postData.etat)}
+                                </Badge>
+                            )}
+                        </div>
+                    </div>
+                    {postData.price && (
+                        <div className="price-display text-end">
+                            <div className="price-label text-muted small">Prix</div>
+                            <div className="price-value fw-bold" style={{ fontSize: '1.8rem', color: '#2ecc71' }}>
+                                {formatValue('price', postData.price)}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
+    // 📱 RENDERIZAR BOTONES DE ACCIÓN
+    const renderActionButtons = () => {
+        return (
+            <div className="mt-4 pt-4 border-top">
+                <Row className="g-3">
+                    {postData.telephone && (
+                        <Col xs={12} md={6}>
+                            <Button 
+                                variant="success" 
+                                size="lg"
+                                className="w-100 d-flex align-items-center justify-content-center gap-2 py-3"
+                                style={{ fontSize: '1rem', borderRadius: '12px' }}
+                                onClick={() => window.location.href = `tel:${postData.telephone}`}
+                            >
+                                <span style={{ fontSize: '1.2rem' }}>📞</span>
+                                <span>Appeler maintenant</span>
+                            </Button>
+                        </Col>
+                    )}
+                    
+                    <Col xs={12} md={postData.telephone ? 6 : 12}>
+                        {auth.user && user?._id && auth.user._id !== user._id && (
+                            <Button 
+                                variant="primary" 
+                                size="lg"
+                                className="w-100 d-flex align-items-center justify-content-center gap-2 py-3"
+                                style={{ fontSize: '1rem', borderRadius: '12px' }}
+                                onClick={handleContact}
+                            >
+                                <span style={{ fontSize: '1.2rem' }}>💬</span>
+                                <span>Contacter le vendeur</span>
+                            </Button>
+                        )}
+                    </Col>
+                </Row>
+            </div>
+        );
+    };
+
+    // ✅ VERIFICAR SI HAY DATOS
+    if (!post) {
+        return (
+            <Container className="py-5 text-center">
+                <Spinner animation="border" variant="primary" />
+                <p className="mt-3">Chargement de l'annonce...</p>
+            </Container>
+        );
+    }
+
+    if (Object.keys(postData).length === 0) {
+        return (
+            <Container className="py-5">
+                <div className="alert alert-info text-center">
+                    <h5 className="mb-2">Aucune information disponible</h5>
+                    <p className="mb-0">Cette annonce ne contient pas de détails supplémentaires.</p>
+                </div>
+            </Container>
+        );
+    }
+
+    const orderedFields = getOrderedFields();
+
+    return (
+        <Container className="py-4 description-post" style={{ 
+            direction: isRTL ? 'rtl' : 'ltr', 
+            maxWidth: '900px' 
+        }}>
+            {/* HEADER */}
+            {renderHeader()}
+            
+            {/* CAMPOS DINÁMICOS */}
+            <Card className="border-0 shadow-lg mb-4 overflow-hidden">
+                <Card.Body className="p-0">
+                    {orderedFields.map((field, index) => (
+                        <div key={field} className="field-container">
+                            <FieldLine field={field} />
+                        </div>
+                    ))}
+                </Card.Body>
+            </Card>
+            
+            {/* BOTONES DE ACCIÓN */}
+            {renderActionButtons()}
+            
+            {/* ESTILOS */}
+            <style jsx>{`
+                .description-post {
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                }
+                
+                .field-line:last-child {
+                    border-bottom: none !important;
+                }
+                
+                .field-line:hover {
+                    background-color: #f8f9fa;
+                }
+                
+                .shadow-lg {
+                    box-shadow: 0 10px 30px rgba(0,0,0,0.08) !important;
+                    border-radius: 16px !important;
+                }
+                
+                .category-icon {
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    background-clip: text;
+                }
+                
+                @media (max-width: 768px) {
+                    .price-display {
+                        text-align: left !important;
+                        margin-top: 1rem;
+                    }
+                }
+            `}</style>
+        </Container>
+    );
+};
+
+export default DescriptionPost;

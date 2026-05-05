@@ -1,0 +1,307 @@
+/* components/Video/css/commentCard.css */
+.comment-card {
+    display: flex;
+    gap: 14px;
+    padding: 16px 20px;
+    transition: all 0.2s ease;
+    border-bottom: 0.5px solid rgba(255, 255, 255, 0.06);
+  }
+  
+  .comment-card:hover {
+    background: rgba(255, 255, 255, 0.02);
+  }
+  
+  .comment-card.last {
+    border-bottom: none;
+  }
+  
+  /* Avatar */
+  .comment-card-avatar {
+    position: relative;
+    flex-shrink: 0;
+  }
+  
+  .comment-card-avatar img {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid rgba(102, 126, 234, 0.3);
+  }
+  
+  .avatar-badge {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 20px;
+    height: 20px;
+    background: #1a1a1a;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px solid #0f0f0f;
+  }
+  
+  /* Contenido */
+  .comment-card-content {
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .comment-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  
+  .comment-card-user {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .username {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #ffffff;
+  }
+  
+  .time {
+    font-size: 0.65rem;
+    color: rgba(255, 255, 255, 0.4);
+  }
+  
+  .pro-badge {
+    font-size: 0.6rem;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    padding: 2px 8px;
+    border-radius: 12px;
+    color: white;
+    font-weight: 600;
+  }
+  
+  .edited-badge {
+    font-size: 0.6rem;
+    color: rgba(255, 255, 255, 0.35);
+    font-style: italic;
+  }
+  
+  /* Menú */
+  .comment-card-menu {
+    position: relative;
+  }
+  
+  .menu-trigger {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.4);
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+  }
+  
+  .menu-trigger:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.8);
+  }
+  
+  .menu-dropdown {
+    position: absolute;
+    right: 0;
+    top: 100%;
+    background: #1e1e2a;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    padding: 6px 0;
+    min-width: 140px;
+    z-index: 100;
+    border: 0.5px solid rgba(255, 255, 255, 0.08);
+    animation: fadeInScale 0.15s ease;
+  }
+  
+  .menu-dropdown button {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 10px 16px;
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: background 0.2s ease;
+  }
+  
+  .menu-dropdown button:first-child {
+    color: #667eea;
+  }
+  
+  .menu-dropdown button.danger {
+    color: #ef4444;
+  }
+  
+  .menu-dropdown button:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+  
+  /* Texto */
+  .comment-text {
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.85);
+    line-height: 1.45;
+    margin: 0 0 12px 0;
+    word-break: break-word;
+  }
+  
+  /* Acciones */
+  .comment-card-actions {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+  }
+  
+  .action-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.7rem;
+    cursor: pointer;
+    padding: 6px 10px;
+    border-radius: 24px;
+    transition: all 0.15s ease;
+  }
+  
+  .action-btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+  
+  .action-btn:active {
+    transform: scale(0.95);
+  }
+  
+  .like-btn.active {
+    color: #ef4444;
+  }
+  
+  .like-btn.active:hover {
+    background: rgba(239, 68, 68, 0.1);
+  }
+  
+  /* Modo edición */
+  .edit-mode {
+    margin: 8px 0 12px;
+  }
+  
+  .edit-mode textarea {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(102, 126, 234, 0.3);
+    border-radius: 16px;
+    padding: 12px;
+    color: white;
+    font-size: 0.85rem;
+    resize: vertical;
+    font-family: inherit;
+    outline: none;
+    transition: all 0.2s ease;
+  }
+  
+  .edit-mode textarea:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+  }
+  
+  .edit-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  
+  .save-btn {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    border: none;
+    border-radius: 24px;
+    padding: 6px 16px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+  }
+  
+  .save-btn:active {
+    transform: scale(0.96);
+  }
+  
+  .cancel-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: none;
+    border-radius: 24px;
+    padding: 6px 16px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+  }
+  
+  /* Respuestas */
+  .replies-container {
+    margin-top: 14px;
+    padding-left: 20px;
+    border-left: 2px solid rgba(102, 126, 234, 0.25);
+  }
+  
+  /* Animaciones */
+  @keyframes fadeInScale {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  
+  /* Responsive */
+  @media (max-width: 480px) {
+    .comment-card {
+      padding: 12px 16px;
+      gap: 10px;
+    }
+    
+    .comment-card-avatar img {
+      width: 36px;
+      height: 36px;
+    }
+    
+    .username {
+      font-size: 0.8rem;
+    }
+    
+    .comment-text {
+      font-size: 0.8rem;
+    }
+    
+    .replies-container {
+      padding-left: 12px;
+    }
+  }

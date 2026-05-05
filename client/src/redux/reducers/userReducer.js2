@@ -1,0 +1,243 @@
+// redux/reducers/userReducer.js - Agregar casos para Pro
+
+import { USER_TYPES } from '../actions/userAction';
+
+const initialState = {
+    // Usuarios normales
+    loading: false,
+    users: [],
+    result: 0,
+    page: 1,
+    error: null,
+    
+    // Usuarios bloqueados (para admin)
+    blockedUsers: [],
+    blockedResult: 0,
+    blockedPage: 1,
+    loadingBlocked: false,
+    
+    // Comentarios admin
+    adminComments: {}
+};
+
+const userReducer = (state = initialState, action) => {
+    switch (action.type) {
+        // ============ USUARIOS NORMALES ============
+        case USER_TYPES.LOADING_USERS:
+            return { ...state, loading: action.payload };
+
+        case USER_TYPES.GET_USERS:
+            const { users, result, page } = action.payload;
+            const cleanUsers = (users || []).filter(u => u && u._id);
+            
+            console.log('📥 GET_USERS:', {
+                page: page,
+                nuevos: cleanUsers.length,
+                acumulados: page === 1 ? cleanUsers.length : state.users.length + cleanUsers.length,
+                totalResult: result
+            });
+            
+            // ✅ Acumular si no es página 1
+            const updatedUsers = (page === 1) 
+                ? cleanUsers 
+                : [...state.users, ...cleanUsers];
+            
+            return {
+                ...state,
+                users: updatedUsers,
+                result: result || 0,
+                page: page || 1,
+                loading: false
+            };
+
+        case USER_TYPES.RESET_USERS:
+            console.log('🔄 RESET_USERS - Limpiando lista');
+            return {
+                ...state,
+                users: [],
+                result: 0,
+                page: 1,
+                loading: false
+            };
+        case USER_TYPES.UPDATE_USER_VERIFICATION:
+            return {
+                ...state,
+                users: state.users.map(u =>
+                    u._id === action.payload._id 
+                        ? { ...u, isVerified: action.payload.isVerified } 
+                        : u
+                ),
+            };
+
+        case USER_TYPES.UPDATE_USER:
+            return {
+                ...state,
+                users: state.users.map(user =>
+                    user._id === action.payload._id ? { ...user, ...action.payload } : user
+                ),
+            };
+
+        case USER_TYPES.DELETE_USER:
+            return {
+                ...state,
+                users: state.users.filter(u => u._id !== action.payload),
+                result: state.result - 1
+            };
+
+        // ============ ACTIVAR/DESACTIVAR USUARIO ============
+        case USER_TYPES.ACTIVATE_USER:
+            console.log('🟢 ACTIVATE_USER recibido:', action.payload);
+            return {
+                ...state,
+                users: state.users.map(user =>
+                    user._id === action.payload._id
+                        ? { ...user, isActive: true }
+                        : user
+                )
+            };
+
+        case USER_TYPES.DEACTIVATE_USER:
+            console.log('🔴 DEACTIVATE_USER recibido:', action.payload);
+            return {
+                ...state,
+                users: state.users.map(user =>
+                    user._id === action.payload._id
+                        ? { ...user, isActive: false }
+                        : user
+                )
+            };
+
+        case USER_TYPES.TOGGLE_ACTIVE_STATUS:
+            console.log('🔄 TOGGLE_ACTIVE_STATUS recibido:', action.payload);
+            return {
+                ...state,
+                users: state.users.map(user =>
+                    user._id === action.payload._id
+                        ? { ...user, isActive: action.payload.isActive }
+                        : user
+                )
+            };
+
+        // ============ BLOQUEO/DESBLOQUEO USUARIO ============
+        case USER_TYPES.BLOCK_USER:
+            console.log('🔵 BLOCK_USER recibido:', action.payload);
+            return {
+                ...state,
+                users: state.users.map(user =>
+                    user._id === action.payload._id
+                        ? { 
+                            ...user, 
+                            isBlocked: true,
+                            isActive: false,
+                            blockDetails: action.payload.blockDetails || {
+                                reason: action.payload.reason,
+                                description: action.payload.description,
+                                blockExpiryDate: action.payload.blockExpiryDate
+                            }
+                          }
+                        : user
+                ),
+                blockedUsers: state.blockedUsers.map(user =>
+                    user._id === action.payload._id
+                        ? { ...user, isBlocked: true, ...action.payload }
+                        : user
+                )
+            };
+
+        case USER_TYPES.UNBLOCK_USER:
+            console.log('🟢 UNBLOCK_USER recibido:', action.payload);
+            return {
+                ...state,
+                users: state.users.map(user =>
+                    user._id === action.payload._id
+                        ? { 
+                            ...user, 
+                            isBlocked: false,
+                            isActive: true,
+                            blockDetails: null
+                          }
+                        : user
+                ),
+                blockedUsers: state.blockedUsers.filter(
+                    user => user._id !== action.payload._id
+                )
+            };
+
+        // ============ USUARIO PRO ============
+        case USER_TYPES.ACTIVATE_PRO:
+            console.log('⭐ ACTIVATE_PRO recibido:', action.payload);
+            return {
+                ...state,
+                users: state.users.map(user =>
+                    user._id === action.payload._id
+                        ? { 
+                            ...user, 
+                            isPro: true,
+                            proExpiryDate: action.payload.proExpiryDate || null
+                          }
+                        : user
+                )
+            };
+
+        case USER_TYPES.DEACTIVATE_PRO:
+            console.log('🚫 DEACTIVATE_PRO recibido:', action.payload);
+            return {
+                ...state,
+                users: state.users.map(user =>
+                    user._id === action.payload._id
+                        ? { 
+                            ...user, 
+                            isPro: false,
+                            proExpiryDate: null
+                          }
+                        : user
+                )
+            };
+
+        // ============ USUARIOS BLOQUEADOS (para admin) ============
+        case USER_TYPES.LOADING_BLOCKED_USERS:
+            return { ...state, loadingBlocked: action.payload };
+
+        case USER_TYPES.GET_BLOCKED_USERS:
+            console.log('📥 GET_BLOCKED_USERS recibido:', {
+                blockedUsersCount: action.payload.blockedUsers?.length || 0,
+                page: action.payload.page
+            });
+            return {
+                ...state,
+                blockedUsers: action.payload.page === 1
+                    ? action.payload.blockedUsers
+                    : [...state.blockedUsers, ...action.payload.blockedUsers],
+                blockedResult: action.payload.result || 0,
+                blockedPage: action.payload.page || 1,
+                loadingBlocked: false
+            };
+
+        // ============ COMENTARIOS ADMIN ============
+        case USER_TYPES.GET_ADMIN_COMMENTS:
+            return {
+                ...state,
+                adminComments: {
+                    ...state.adminComments,
+                    [action.payload.adminUserId]: action.payload.comments
+                }
+            };
+
+        case USER_TYPES.ADD_ADMIN_COMMENT:
+            return {
+                ...state,
+                adminComments: {
+                    ...state.adminComments,
+                    [action.payload.blogAuthor]: [
+                        action.payload,
+                        ...(state.adminComments[action.payload.blogAuthor] || [])
+                    ]
+                }
+            };
+
+        default:
+            return state;
+    }
+};
+
+export default userReducer;

@@ -1,0 +1,169 @@
+// components/home/Posts.js - VERSIÓN FINAL
+import React, { useMemo } from 'react';
+import { useSelector } from 'react-redux';
+import { useLocation } from 'react-router-dom';
+import PostCard from '../PostCard';
+ 
+ 
+const Posts = ({ 
+    selectedCategory, 
+    selectedSubcategory, // 🆕 NUEVO: Aceptar subcategoría
+    fromCategoryPage = false,
+    fromSubcategoryPage = false, // 🆕 NUEVO: Identificar si es página de subcategoría
+    displayMode = 'grid'
+}) => {
+    const location = useLocation();
+    const { homePosts } = useSelector(state => state);
+    
+    console.log('🔍 Posts - Parámetros recibidos:', {
+        selectedCategory,
+        selectedSubcategory, // 🆕
+        fromCategoryPage,
+        fromSubcategoryPage, // 🆕
+        path: location.pathname,
+        postsInState: homePosts.posts?.length,
+        currentCategory: homePosts.category,
+        currentSubcategory: homePosts.subcategory, // 🆕
+        categorySpecificPosts: homePosts.categorySpecificPosts?.length
+    });
+    
+    // 📌 LÓGICA MEJORADA DE FILTRADO
+    const displayPosts = useMemo(() => {
+        let postsToShow = [];
+        
+        // 🆕 CASO 1: Página de SUBCATEGORÍA
+        if (fromSubcategoryPage || (selectedSubcategory && selectedCategory)) {
+            console.log('📂 SubcategoryPage - Filtrando por subcategoría:', {
+                category: selectedCategory,
+                subcategory: selectedSubcategory
+            });
+            
+            // Opción A: Usar posts del estado que ya deberían estar filtrados
+            if (homePosts.posts && homePosts.posts.length > 0) {
+                postsToShow = homePosts.posts.filter(post => {
+                    const matchesCategory = !selectedCategory || post.categorie === selectedCategory;
+                    const matchesSubcategory = !selectedSubcategory || post.subCategory === selectedSubcategory;
+                    return matchesCategory && matchesSubcategory;
+                });
+                
+                console.log(`✅ Filtrados ${postsToShow.length} posts de ${homePosts.posts.length}`);
+            }
+            // Opción B: Filtrar desde categorySpecificPosts
+            else if (homePosts.categorySpecificPosts && homePosts.categorySpecificPosts.length > 0) {
+                postsToShow = homePosts.categorySpecificPosts.filter(post => 
+                    post.subCategory === selectedSubcategory
+                );
+                console.log(`✅ Desde categorySpecificPosts: ${postsToShow.length}`);
+            }
+        }
+        
+        // CASO 2: Página de CATEGORÍA específica
+        else if (fromCategoryPage || location.pathname.startsWith('/category/')) {
+            console.log('📂 CategoryPage - Usando categorySpecificPosts');
+            postsToShow = homePosts.categorySpecificPosts || [];
+        }
+        
+        // CASO 3: Home con categoría "all"
+        else if (selectedCategory === 'all') {
+            console.log('🏠 Home - Mostrando TODOS los posts');
+            postsToShow = homePosts.posts || [];
+        }
+        
+        // CASO 4: Home con categoría específica (filtro en Home)
+        else if (homePosts.categoryPosts && homePosts.categoryPosts[selectedCategory]) {
+            console.log(`🏠 Home - Filtrado para ${selectedCategory}`);
+            postsToShow = homePosts.categoryPosts[selectedCategory] || [];
+        }
+        
+        // 🆕 CASO 5: Filtro adicional por categoría (si solo hay categoría)
+        else if (selectedCategory && !selectedSubcategory) {
+            console.log(`🔍 Filtrando solo por categoría: ${selectedCategory}`);
+            if (homePosts.posts && homePosts.posts.length > 0) {
+                postsToShow = homePosts.posts.filter(post => 
+                    post.categorie === selectedCategory
+                );
+            }
+        }
+        
+        console.log(`📊 Posts a mostrar: ${postsToShow.length}`);
+        
+        // 🆕 DEPURACIÓN: Mostrar detalles de los primeros posts
+        if (postsToShow.length > 0 && selectedSubcategory) {
+            console.log('🔍 Primer post para verificar filtro:', {
+                id: postsToShow[0]._id,
+                categorie: postsToShow[0].categorie,
+                subCategory: postsToShow[0].subCategory,
+                title: postsToShow[0].title
+            });
+        }
+        
+        return postsToShow;
+        
+    }, [
+        homePosts, 
+        selectedCategory, 
+        selectedSubcategory, 
+        fromCategoryPage, 
+        fromSubcategoryPage, 
+        location.pathname
+    ]);
+    
+    // 📌 ESTILOS DIFERENTES SEGÚN MODO DE VISUALIZACIÓN
+    const renderPosts = () => {
+        if (displayMode === 'horizontal') {
+            return (
+                <div style={{ 
+                    display: 'inline-flex', 
+                    gap: '20px', 
+                    padding: '0 10px',
+                    flexWrap: 'nowrap'
+                }}>
+                    {displayPosts.map(post => (
+                        <div key={post._id} style={{ minWidth: '280px' }}>
+                            <PostCard post={post} />
+                        </div>
+                    ))}
+                </div>
+            );
+        }
+        
+        // Modo grid (por defecto)
+        return (
+            <div className="post_thumb">
+                {displayPosts.map(post => (
+                    <div key={post._id} className="post_thumb_display">
+                        <PostCard post={post} />
+                    </div>
+                ))}
+            </div>
+        );
+    };
+    
+    // 📌 MENSAJES DE ESTADO VACÍO
+    if (!displayPosts || displayPosts.length === 0) {
+        return (
+            <div className="text-center py-5">
+                <div className="display-1 mb-3">
+                    {selectedSubcategory ? '🔍' : '📭'}
+                </div>
+                <h4 className="text-muted mb-3">
+                    {selectedSubcategory 
+                        ? `No hay anuncios en "${selectedSubcategory}"`
+                        : selectedCategory && selectedCategory !== 'all'
+                            ? `No hay anuncios en "${selectedCategory}"`
+                            : 'No hay anuncios publicados aún'
+                    }
+                </h4>
+                {selectedSubcategory && (
+                    <p className="text-muted">
+                        Prueba a buscar en toda la categoría "{selectedCategory}"
+                    </p>
+                )}
+            </div>
+        );
+    }
+    
+    return renderPosts();
+};
+
+export default Posts;

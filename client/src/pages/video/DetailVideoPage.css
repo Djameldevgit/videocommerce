@@ -1,0 +1,871 @@
+/* components/Video/DetailVideoPage.css - Estilos para la sección comercial */
+/* Las clases coinciden EXACTAMENTE con las que usas en DetailVideoPage.jsx */
+
+/* Contenedor principal de la sección comercial */
+.commercial-wrapper {
+  max-width: 650px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 0 4px;
+}
+
+@media (min-width: 768px) {
+  .commercial-wrapper {
+    max-width: 750px;
+    padding: 0 8px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .commercial-wrapper {
+    max-width: 850px;
+  }
+}
+
+/* Sección comercial */
+.commercial-section {
+  background: linear-gradient(135deg, rgba(0,0,0,0.85) 0%, rgba(20,20,40,0.9) 100%);
+  backdrop-filter: blur(12px);
+  border-radius: 24px;
+  margin: 20px 16px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.1);
+  position: relative;
+  z-index: 10;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+}
+
+/* Header de la sección comercial */
+.commercial-header {
+  background: linear-gradient(135deg, rgba(102,126,234,0.15), rgba(118,75,162,0.15));
+  padding: 18px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.commercial-header h5 {
+  color: white !important;
+  font-weight: 700 !important;
+  margin: 0 !important;
+  font-size: 1.1rem !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+}
+
+/* Badges comerciales */
+.commercial-badges {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.commercial-badge {
+  padding: 6px 14px;
+  border-radius: 30px;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: white !important;
+  letter-spacing: 0.3px;
+}
+
+.commercial-badge.wholesale {
+  background: #ff980025;
+  color: #ffb74d !important;
+  border: 1px solid #ff980040;
+}
+
+.commercial-badge.pickup {
+  background: #2196f325;
+  color: #64b5f6 !important;
+  border: 1px solid #2196f340;
+}
+
+.commercial-badge.delivery {
+  background: #4caf5025;
+  color: #81c784 !important;
+  border: 1px solid #4caf5040;
+}
+
+/* Grid de información comercial */
+.commercial-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  padding: 20px;
+}
+
+/* Cada tarjeta de información */
+.commercial-card-item {
+  background: rgba(255,255,255,0.06);
+  border-radius: 16px;
+  padding: 18px 16px;
+  transition: all 0.3s ease;
+  border: 1px solid rgba(255,255,255,0.05);
+  position: relative;
+  overflow: hidden;
+}
+
+.commercial-card-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #667eea, #764ba2);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.commercial-card-item:hover {
+  background: rgba(255,255,255,0.1);
+  transform: translateY(-3px);
+  border-color: rgba(102,126,234,0.3);
+}
+
+.commercial-card-item:hover::before {
+  opacity: 1;
+}
+
+/* Icono wrapper */
+.commercial-icon-wrapper {
+  width: 44px;
+  height: 44px;
+  background: linear-gradient(135deg, rgba(102,126,234,0.2), rgba(118,75,162,0.2));
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+  transition: all 0.3s ease;
+}
+
+.commercial-card-item:hover .commercial-icon-wrapper {
+  background: linear-gradient(135deg, rgba(102,126,234,0.3), rgba(118,75,162,0.3));
+  transform: scale(1.05);
+}
+
+.commercial-icon-wrapper svg {
+  color: #8b9eff;
+  width: 22px;
+  height: 22px;
+}
+
+/* Labels y valores */
+.commercial-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: rgba(255,255,255,0.5) !important;
+  margin-bottom: 8px;
+  display: block;
+  font-weight: 500;
+}
+
+.commercial-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: white !important;
+  word-break: break-word;
+  line-height: 1.3;
+}
+
+.commercial-value.price {
+  color: #4caf50 !important;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.commercial-value.stock {
+  color: #ffb74d !important;
+}
+
+.commercial-subvalue {
+  font-size: 12px;
+  color: rgba(255,255,255,0.45) !important;
+  margin-top: 8px;
+  display: block;
+  font-weight: 400;
+}
+
+/* Contenedor del mapa */
+.map-container {
+  margin: 0 20px 20px 20px;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.map-header {
+  background: rgba(0,0,0,0.6);
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.map-title {
+  color: white !important;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.map-address {
+  color: rgba(255,255,255,0.6) !important;
+  font-size: 12px;
+  font-weight: 500;
+  background: rgba(0,0,0,0.3);
+  padding: 4px 12px;
+  border-radius: 20px;
+}
+
+/* Botón del mapa */
+.map-button {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  border: none;
+  padding: 8px 18px;
+  border-radius: 30px;
+  color: white !important;
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.3s ease;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(102,126,234,0.3);
+}
+
+.map-button:hover {
+  background: linear-gradient(135deg, #5a6fd6, #6a4190);
+  transform: scale(1.03);
+  color: white !important;
+  box-shadow: 0 4px 12px rgba(102,126,234,0.4);
+}
+
+/* Botones de contacto */
+.contact-buttons {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 0 20px 20px 20px;
+}
+
+.contact-btn {
+  flex: 1;
+  min-width: 120px;
+  padding: 12px 18px;
+  border-radius: 50px;
+  font-weight: 700;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: all 0.3s ease;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.contact-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transition: left 0.5s ease;
+}
+
+.contact-btn:hover::before {
+  left: 100%;
+}
+
+.contact-btn-whatsapp {
+  background: #25d366;
+  color: white !important;
+  box-shadow: 0 2px 10px rgba(37,211,102,0.3);
+}
+
+.contact-btn-whatsapp:hover {
+  background: #20b859;
+  transform: translateY(-2px);
+  color: white !important;
+  box-shadow: 0 4px 15px rgba(37,211,102,0.4);
+}
+
+.contact-btn-call {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white !important;
+  box-shadow: 0 2px 10px rgba(102,126,234,0.3);
+}
+
+.contact-btn-call:hover {
+  transform: translateY(-2px);
+  color: white !important;
+  box-shadow: 0 4px 15px rgba(102,126,234,0.4);
+}
+
+.contact-btn-email {
+  background: #ff9800;
+  color: white !important;
+  box-shadow: 0 2px 10px rgba(255,152,0,0.3);
+}
+
+.contact-btn-email:hover {
+  background: #e68900;
+  transform: translateY(-2px);
+  color: white !important;
+  box-shadow: 0 4px 15px rgba(255,152,0,0.4);
+}
+
+.contact-btn-share {
+  background: rgba(255,255,255,0.12);
+  color: white !important;
+  border: 1px solid rgba(255,255,255,0.2);
+  backdrop-filter: blur(4px);
+}
+
+.contact-btn-share:hover {
+  background: rgba(255,255,255,0.2);
+  transform: translateY(-2px);
+  color: white !important;
+  border-color: rgba(255,255,255,0.4);
+}
+
+/* Botón para mostrar teléfono oculto */
+.btn-show-phone {
+  background: linear-gradient(135deg, rgba(102,126,234,0.2), rgba(118,75,162,0.2));
+  border: 1px solid #667eea;
+  color: #8b9eff !important;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 16px;
+  border-radius: 30px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(4px);
+}
+
+.btn-show-phone:hover {
+  background: rgba(102,126,234,0.3);
+  transform: scale(1.02);
+  color: #a0b0ff !important;
+}
+
+/* Enlaces de teléfono y email */
+.phone-link,
+.email-link {
+  color: #8b9eff !important;
+  text-decoration: none;
+  font-size: 16px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.phone-link:hover,
+.email-link:hover {
+  text-decoration: underline;
+  color: #a0b0ff !important;
+}
+
+/* Animación de entrada */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.commercial-section {
+  animation: fadeInUp 0.4s ease-out;
+}
+
+.commercial-card-item {
+  animation: fadeInUp 0.4s ease-out;
+  animation-fill-mode: both;
+}
+
+.commercial-card-item:nth-child(1) { animation-delay: 0.05s; }
+.commercial-card-item:nth-child(2) { animation-delay: 0.1s; }
+.commercial-card-item:nth-child(3) { animation-delay: 0.15s; }
+.commercial-card-item:nth-child(4) { animation-delay: 0.2s; }
+.commercial-card-item:nth-child(5) { animation-delay: 0.25s; }
+/* ============================================
+   MEJORAS PARA EL MAPA - CENTRADO Y RESPONSIVE
+   ============================================ */
+
+/* Contenedor del mapa - versión mejorada */
+.map-container {
+  margin: 0 20px 20px 20px;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  background: #1a1a2e;
+  width: auto;
+}
+
+/* Header del mapa */
+.map-header {
+  background: rgba(0,0,0,0.6);
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* Título del mapa */
+.map-title {
+  color: white !important;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Dirección */
+.map-address {
+  color: rgba(255,255,255,0.6) !important;
+  font-size: 12px;
+  font-weight: 500;
+  background: rgba(0,0,0,0.3);
+  padding: 4px 12px;
+  border-radius: 20px;
+  word-break: break-word;
+  text-align: center;
+}
+
+/* Botón del mapa */
+.map-button {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  border: none;
+  padding: 8px 18px;
+  border-radius: 30px;
+  color: white !important;
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.3s ease;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(102,126,234,0.3);
+  white-space: nowrap;
+}
+
+.map-button:hover {
+  background: linear-gradient(135deg, #5a6fd6, #6a4190);
+  transform: scale(1.03);
+  color: white !important;
+  box-shadow: 0 4px 12px rgba(102,126,234,0.4);
+}
+
+/* Iframe del mapa - ESTILO MEJORADO */
+.map-iframe {
+  width: 100%;
+  height: 250px;
+  border: none;
+  display: block;
+  background: #0a0a1a;
+}
+
+/* ============================================
+   RESPONSIVE PARA ANDROID (PANTALLAS PEQUEÑAS)
+   ============================================ */
+
+/* Pantallas menores a 480px (Android típico) */
+@media (max-width: 480px) {
+  .commercial-wrapper {
+    padding: 0 8px;
+  }
+  
+  .commercial-section {
+    margin: 16px 12px;
+    border-radius: 20px;
+  }
+  
+  .commercial-header {
+    padding: 14px 16px;
+  }
+  
+  .commercial-header h5 {
+    font-size: 0.95rem !important;
+  }
+  
+  .commercial-badges {
+    gap: 8px;
+    margin-top: 10px;
+  }
+  
+  .commercial-badge {
+    padding: 4px 10px;
+    font-size: 10px;
+  }
+  
+  .commercial-grid {
+    padding: 14px;
+    gap: 10px;
+  }
+  
+  .commercial-card-item {
+    padding: 12px 12px;
+  }
+  
+  .commercial-icon-wrapper {
+    width: 36px;
+    height: 36px;
+    margin-bottom: 10px;
+  }
+  
+  .commercial-icon-wrapper svg {
+    width: 18px;
+    height: 18px;
+  }
+  
+  .commercial-label {
+    font-size: 10px;
+    margin-bottom: 4px;
+  }
+  
+  .commercial-value {
+    font-size: 14px;
+  }
+  
+  .commercial-value.price {
+    font-size: 18px;
+  }
+  
+  .commercial-subvalue {
+    font-size: 10px;
+    margin-top: 6px;
+  }
+  
+  /* Mapa para Android */
+  .map-container {
+    margin: 0 14px 14px 14px;
+    border-radius: 14px;
+  }
+  
+  .map-header {
+    padding: 10px 12px;
+    gap: 8px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .map-title {
+    font-size: 12px;
+    justify-content: center;
+  }
+  
+  .map-address {
+    font-size: 10px;
+    text-align: center;
+    padding: 4px 10px;
+  }
+  
+  .map-button {
+    width: 100%;
+    padding: 8px 14px;
+    font-size: 12px;
+    white-space: normal;
+    justify-content: center;
+  }
+  
+  .map-iframe {
+    height: 200px;
+  }
+  
+  /* Botones de contacto para Android */
+  .contact-buttons {
+    padding: 0 14px 14px 14px;
+    gap: 8px;
+  }
+  
+  .contact-btn {
+    padding: 10px 14px;
+    font-size: 12px;
+    min-width: auto;
+  }
+  
+  .phone-link,
+  .email-link {
+    font-size: 13px;
+  }
+  
+  .btn-show-phone {
+    font-size: 11px;
+    padding: 4px 10px;
+  }
+}
+
+/* Pantallas muy pequeñas (menos de 360px) */
+@media (max-width: 360px) {
+  .commercial-section {
+    margin: 12px 8px;
+    border-radius: 16px;
+  }
+  
+  .commercial-header {
+    padding: 10px 12px;
+  }
+  
+  .commercial-header h5 {
+    font-size: 0.85rem !important;
+  }
+  
+  .commercial-grid {
+    padding: 10px;
+    gap: 8px;
+  }
+  
+  .commercial-card-item {
+    padding: 10px 10px;
+  }
+  
+  .commercial-icon-wrapper {
+    width: 32px;
+    height: 32px;
+  }
+  
+  .commercial-icon-wrapper svg {
+    width: 16px;
+    height: 16px;
+  }
+  
+  .commercial-value {
+    font-size: 13px;
+  }
+  
+  .commercial-value.price {
+    font-size: 16px;
+  }
+  
+  .map-container {
+    margin: 0 10px 10px 10px;
+    border-radius: 12px;
+  }
+  
+  .map-header {
+    padding: 8px 10px;
+  }
+  
+  .map-title {
+    font-size: 11px;
+  }
+  
+  .map-address {
+    font-size: 9px;
+  }
+  
+  .map-button {
+    padding: 6px 12px;
+    font-size: 11px;
+  }
+  
+  .map-iframe {
+    height: 180px;
+  }
+  
+  .contact-buttons {
+    padding: 0 10px 10px 10px;
+  }
+  
+  .contact-btn {
+    padding: 8px 12px;
+    font-size: 11px;
+  }
+  
+  .contact-btn svg {
+    width: 14px;
+    height: 14px;
+  }
+}
+
+/* Para tablets */
+@media (min-width: 481px) and (max-width: 768px) {
+  .commercial-wrapper {
+    max-width: 100%;
+  }
+  
+  .map-container {
+    margin: 0 18px 18px 18px;
+  }
+  
+  .map-header {
+    flex-wrap: wrap;
+  }
+  
+  .map-address {
+    order: 3;
+    width: 100%;
+    text-align: center;
+  }
+  
+  .map-button {
+    margin-left: auto;
+  }
+}
+
+/* Mejora para pantallas con gestos (Android moderno) */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .commercial-section {
+    margin-bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+}
+
+/* Animación suave para el mapa */
+.map-container {
+  transition: all 0.3s ease;
+}
+
+.map-container:active {
+  transform: scale(0.99);
+}
+/* Responsive para móvil */
+@media (max-width: 768px) {
+  .commercial-section {
+    margin: 16px 12px;
+    border-radius: 20px;
+  }
+  
+  .commercial-header {
+    padding: 14px 16px;
+  }
+  
+  .commercial-header h5 {
+    font-size: 1rem !important;
+  }
+  
+  .commercial-grid {
+    grid-template-columns: 1fr;
+    padding: 16px;
+    gap: 12px;
+  }
+  
+  .commercial-card-item {
+    padding: 14px 14px;
+  }
+  
+  .commercial-value {
+    font-size: 16px;
+  }
+  
+  .commercial-value.price {
+    font-size: 20px;
+  }
+  
+  .contact-buttons {
+    flex-direction: column;
+    padding: 0 16px 16px 16px;
+    gap: 10px;
+  }
+  
+  .contact-btn {
+    width: 100%;
+    padding: 11px 16px;
+  }
+  
+  .map-container {
+    margin: 0 16px 16px 16px;
+  }
+  
+  .map-header {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 12px 14px;
+  }
+  
+  .map-address {
+    font-size: 11px;
+  }
+  
+  .map-button {
+    width: 100%;
+    justify-content: center;
+    padding: 8px 16px;
+  }
+}
+
+/* Soporte para pantallas muy pequeñas */
+@media (max-width: 380px) {
+  .commercial-section {
+    margin: 12px 8px;
+    border-radius: 18px;
+  }
+  
+  .commercial-header {
+    padding: 12px 14px;
+  }
+  
+  .commercial-grid {
+    padding: 12px;
+    gap: 10px;
+  }
+  
+  .commercial-card-item {
+    padding: 12px 12px;
+  }
+  
+  .commercial-value {
+    font-size: 14px;
+  }
+  
+  .commercial-value.price {
+    font-size: 18px;
+  }
+  
+  .commercial-icon-wrapper {
+    width: 38px;
+    height: 38px;
+    margin-bottom: 10px;
+  }
+  
+  .commercial-icon-wrapper svg {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+/* Mejoras de accesibilidad */
+.commercial-card-item:active {
+  transform: scale(0.98);
+}
+
+.contact-btn:active {
+  transform: scale(0.97);
+}
+
+/* Ajustes de texto para mejor legibilidad */
+.commercial-card-item {
+  text-align: left;
+}
+
+.commercial-value {
+  text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
