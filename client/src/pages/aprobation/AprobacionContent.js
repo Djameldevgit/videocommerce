@@ -1,275 +1,220 @@
 // 📂 pages/aprobacionAdministration/AprobacionContent.js
-import React, { useState, useEffect, useCallback } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { Alert, Spinner, Tabs, Tab, Badge } from 'react-bootstrap';
-import { FaStore, FaBox, FaNewspaper } from 'react-icons/fa';
-import PostsPendientesTable from './components/PostsPendientesTable';
-import BoutiquesPendientesTable from './components/BoutiquesPendientesTable';
-import ProductosPendientesTable from './components/ProductosPendientesTable';
+import React, { useState, useEffect } from 'react';
+import { useSelector } from 'react-redux';
+import { Spinner, Badge } from 'react-bootstrap';
+import { FaVideo, FaCheckCircle, FaTimesCircle } from 'react-icons/fa';
 
-const AprobacionContent = ({ selectedCategory, selectedType }) => {
-  const dispatch = useDispatch();
+const AprobacionContent = ({ selectedCategory }) => {
   const { auth } = useSelector(state => state);
-  const [activeTab, setActiveTab] = useState('posts');
   const [loading, setLoading] = useState(false);
-  const [data, setData] = useState({ posts: [], boutiques: [], productos: [] });
+  const [videos, setVideos] = useState([]);
   const [pagination, setPagination] = useState({
-    posts: { page: 1, total: 0, totalPages: 1 },
-    boutiques: { page: 1, total: 0, totalPages: 1 },
-    productos: { page: 1, total: 0, totalPages: 1 }
+    page: 1,
+    total: 0,
+    totalPages: 1
   });
   
-  // Cambiar tab según el tipo seleccionado
-  useEffect(() => {
-    if (selectedType) {
-      setActiveTab(selectedType);
-    }
-  }, [selectedType]);
-  
-  // Cargar datos según el tipo y categoría
-  const fetchData = useCallback(async (type, page = 1) => {
-    setLoading(true);
-    try {
-      let url = '';
-      let params = new URLSearchParams({ page, limit: 10 });
-      
-      if (type === 'posts') {
-        if (selectedCategory && selectedCategory.slug !== 'posts') {
-          params.append('categorie', selectedCategory.slug);
-        }
-        url = `/api/posts/admin/pendientes?${params.toString()}`;
-        
-        const res = await fetch(url, {
-          headers: { Authorization: `Bearer ${auth.token}` }
-        });
-        const result = await res.json();
-        
-        if (result.success) {
-          setData(prev => ({ ...prev, posts: result.posts }));
-          setPagination(prev => ({
-            ...prev,
-            posts: {
-              page: result.page,
-              total: result.total,
-              totalPages: result.totalPages
-            }
-          }));
-        }
-      } 
-      else if (type === 'boutiques') {
-        url = `/api/boutiques/admin/pendientes?${params.toString()}`;
-        
-        const res = await fetch(url, {
-          headers: { Authorization: `Bearer ${auth.token}` }
-        });
-        const result = await res.json();
-        
-        if (result.success) {
-          setData(prev => ({ ...prev, boutiques: result.boutiques }));
-          setPagination(prev => ({
-            ...prev,
-            boutiques: {
-              page: result.page,
-              total: result.total,
-              totalPages: result.totalPages
-            }
-          }));
-        }
-      }
-      else if (type === 'productos') {
-        let boutiqueId = '';
-        if (selectedCategory && selectedCategory.slug !== 'productos') {
-          // Si es una boutique específica
-          boutiqueId = selectedCategory._id;
-        }
-        url = `/api/boutiques/products/pendientes?${params.toString()}&boutiqueId=${boutiqueId}`;
-        
-        const res = await fetch(url, {
-          headers: { Authorization: `Bearer ${auth.token}` }
-        });
-        const result = await res.json();
-        
-        if (result.success) {
-          setData(prev => ({ ...prev, productos: result.products }));
-          setPagination(prev => ({
-            ...prev,
-            productos: {
-              page: result.page,
-              total: result.total,
-              totalPages: result.totalPages
-            }
-          }));
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching data:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [auth.token, selectedCategory]);
-  
-  useEffect(() => {
-    if (auth.token) {
-      fetchData(activeTab, 1);
-    }
-  }, [auth.token, activeTab, selectedCategory, fetchData]);
-  
-  const handlePageChange = (type, newPage) => {
-    fetchData(type, newPage);
-  };
-  
-  const handleApprove = async (type, item, onSuccess) => {
-    try {
-      let url = '';
-      if (type === 'posts') {
-        url = `/api/posts/admin/aprobar/${item._id}`;
-      } else if (type === 'boutiques') {
-        url = `/api/boutiques/admin/aprobar/${item._id}`;
-      } else if (type === 'productos') {
-        url = `/api/boutiques/products/aprobar/${item._id}`;
-      }
-      
-      const res = await fetch(url, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${auth.token}`
-        }
-      });
-      
-      const result = await res.json();
-      if (result.success) {
-        // Recargar datos
-        fetchData(type, pagination[type].page);
-        if (onSuccess) onSuccess();
-      }
-    } catch (error) {
-      console.error('Error approving:', error);
-    }
-  };
-  
-  const handleReject = async (type, item) => {
-    if (!window.confirm(`¿Rechazar este elemento?`)) return;
-    
-    try {
-      let url = '';
-      if (type === 'posts') {
-        url = `/api/posts/admin/rechazar/${item._id}`;
-      } else if (type === 'boutiques') {
-        url = `/api/boutiques/admin/rechazar/${item._id}`;
-      } else if (type === 'productos') {
-        url = `/api/boutiques/products/rechazar/${item._id}`;
-      }
-      
-      const res = await fetch(url, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${auth.token}` }
-      });
-      
-      const result = await res.json();
-      if (result.success) {
-        fetchData(type, pagination[type].page);
-      }
-    } catch (error) {
-      console.error('Error rejecting:', error);
-    }
-  };
+  // Estados locales para manejar la aprobación/rechazo
+  const [processingId, setProcessingId] = useState(null);
+  const [showVideoModal, setShowVideoModal] = useState(false);
+  const [selectedVideo, setSelectedVideo] = useState(null);
   
   const getTitle = () => {
-    if (activeTab === 'posts') {
-      if (selectedCategory && selectedCategory.slug !== 'posts') {
-        return `Posts pendientes - ${selectedCategory.name}`;
-      }
-      return 'Todos los posts pendientes';
+    if (selectedCategory && selectedCategory.slug) {
+      return `Vidéos pendantes - ${selectedCategory.name}`;
     }
-    if (activeTab === 'boutiques') {
-      return 'Boutiques pendientes de verificación';
-    }
-    if (activeTab === 'productos') {
-      if (selectedCategory && selectedCategory.slug !== 'productos') {
-        return `Productos pendientes - ${selectedCategory.name}`;
-      }
-      return 'Todos los productos pendientes de boutique';
-    }
-    return 'Elementos pendientes';
+    return 'Toutes les vidéos en attente d\'approbation';
   };
   
-  const tabs = [
-    { key: 'posts', label: 'Posts', icon: <FaNewspaper />, count: pagination.posts.total },
-    { key: 'boutiques', label: 'Boutiques', icon: <FaStore />, count: pagination.boutiques.total },
-    { key: 'productos', label: 'Produits', icon: <FaBox />, count: pagination.productos.total }
-  ];
+  // Función para aprobar video
+  const handleApprove = async (video) => {
+    if (!window.confirm(`Approuver la vidéo "${video.title}" ?`)) return;
+    
+    setProcessingId(video._id);
+    try {
+      // TODO: Conectar con tu backend de videos
+      console.log('Aprobar video:', video._id);
+      // const res = await fetch(`/api/videos/admin/aprobar/${video._id}`, {
+      //   method: 'PUT',
+      //   headers: { 'Authorization': `Bearer ${auth.token}` }
+      // });
+      // if (res.ok) {
+      //   setVideos(prev => prev.filter(v => v._id !== video._id));
+      // }
+    } catch (error) {
+      console.error('Error al aprobar:', error);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+  
+  // Función para rechazar video
+  const handleReject = async (video) => {
+    if (!window.confirm(`Rejeter la vidéo "${video.title}" ?`)) return;
+    
+    setProcessingId(video._id);
+    try {
+      // TODO: Conectar con tu backend de videos
+      console.log('Rechazar video:', video._id);
+      // const res = await fetch(`/api/videos/admin/rechazar/${video._id}`, {
+      //   method: 'DELETE',
+      //   headers: { 'Authorization': `Bearer ${auth.token}` }
+      // });
+      // if (res.ok) {
+      //   setVideos(prev => prev.filter(v => v._id !== video._id));
+      // }
+    } catch (error) {
+      console.error('Error al rechazar:', error);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+  
+  // Ver video
+  const handleViewVideo = (video) => {
+    setSelectedVideo(video);
+    setShowVideoModal(true);
+  };
   
   return (
     <div>
       <div className="d-flex justify-content-between align-items-center mb-4">
         <div>
           <h4 className="fw-bold mb-0">{getTitle()}</h4>
-          <p className="text-muted small mb-0">Gérez les validations des contenus</p>
+          <p className="text-muted small mb-0">Validez les vidéos mises en ligne par les utilisateurs</p>
         </div>
+        <Badge bg="primary" pill className="px-3 py-2">
+          Total: {pagination.total} vidéos
+        </Badge>
       </div>
-      
-      <Tabs
-        activeKey={activeTab}
-        onSelect={(k) => setActiveTab(k)}
-        className="mb-4 border-bottom"
-      >
-        {tabs.map(tab => (
-          <Tab
-            key={tab.key}
-            eventKey={tab.key}
-            title={
-              <span className="d-flex align-items-center gap-2">
-                {tab.icon}
-                {tab.label}
-                {tab.count > 0 && (
-                  <Badge bg="danger" pill className="ms-1">
-                    {tab.count}
-                  </Badge>
-                )}
-              </span>
-            }
-          />
-        ))}
-      </Tabs>
       
       {loading ? (
         <div className="text-center py-5">
           <Spinner animation="border" variant="primary" />
-          <p className="mt-3">Chargement...</p>
+          <p className="mt-3">Chargement des vidéos...</p>
         </div>
       ) : (
         <>
-          {activeTab === 'posts' && (
-            <PostsPendientesTable
-              posts={data.posts}
-              pagination={pagination.posts}
-              onPageChange={(page) => handlePageChange('posts', page)}
-              onApprove={(post) => handleApprove('posts', post)}
-              onReject={(post) => handleReject('posts', post)}
-            />
+          {videos.length === 0 ? (
+            <div className="text-center py-5">
+              <FaVideo size={50} className="text-muted mb-3" />
+              <h5>Aucune vidéo en attente</h5>
+              <p className="text-muted">Toutes les vidéos ont été traitées</p>
+            </div>
+          ) : (
+            <div className="videos-pendientes-grid">
+              {videos.map(video => (
+                <div key={video._id} className="video-card">
+                  {/* Miniatura del video */}
+                  <div className="video-thumbnail" onClick={() => handleViewVideo(video)}>
+                    {video.thumbnail ? (
+                      <img src={video.thumbnail} alt={video.title} />
+                    ) : (
+                      <div className="video-placeholder">
+                        <FaVideo size={40} />
+                      </div>
+                    )}
+                    <div className="video-play-overlay">
+                      <FaVideo />
+                    </div>
+                  </div>
+                  
+                  {/* Info del video */}
+                  <div className="video-info">
+                    <h6 className="video-title">{video.title}</h6>
+                    <p className="video-description">{video.description?.substring(0, 80)}...</p>
+                    <div className="video-meta">
+                      <span>👤 {video.user?.name || video.user?.username}</span>
+                      <span>📅 {new Date(video.createdAt).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                  
+                  {/* Botones de acción */}
+                  <div className="video-actions">
+                    <button
+                      className="btn-approve"
+                      onClick={() => handleApprove(video)}
+                      disabled={processingId === video._id}
+                    >
+                      {processingId === video._id ? (
+                        <Spinner size="sm" />
+                      ) : (
+                        <>
+                          <FaCheckCircle /> Approuver
+                        </>
+                      )}
+                    </button>
+                    <button
+                      className="btn-reject"
+                      onClick={() => handleReject(video)}
+                      disabled={processingId === video._id}
+                    >
+                      <FaTimesCircle /> Rejeter
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
           
-          {activeTab === 'boutiques' && (
-            <BoutiquesPendientesTable
-              boutiques={data.boutiques}
-              pagination={pagination.boutiques}
-              onPageChange={(page) => handlePageChange('boutiques', page)}
-              onApprove={(boutique) => handleApprove('boutiques', boutique)}
-              onReject={(boutique) => handleReject('boutiques', boutique)}
-            />
-          )}
-          
-          {activeTab === 'productos' && (
-            <ProductosPendientesTable
-              products={data.productos}
-              pagination={pagination.productos}
-              onPageChange={(page) => handlePageChange('productos', page)}
-              onApprove={(product) => handleApprove('productos', product)}
-              onReject={(product) => handleReject('productos', product)}
-            />
+          {/* Paginación */}
+          {pagination.totalPages > 1 && (
+            <div className="pagination-container mt-4">
+              <button
+                disabled={pagination.page === 1}
+                onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
+              >
+                Précédent
+              </button>
+              <span>Page {pagination.page} sur {pagination.totalPages}</span>
+              <button
+                disabled={pagination.page === pagination.totalPages}
+                onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+              >
+                Suivant
+              </button>
+            </div>
           )}
         </>
+      )}
+      
+      {/* Modal para ver el video */}
+      {showVideoModal && selectedVideo && (
+        <div className="video-modal-overlay" onClick={() => setShowVideoModal(false)}>
+          <div className="video-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="video-modal-header">
+              <h5>{selectedVideo.title}</h5>
+              <button onClick={() => setShowVideoModal(false)}>✕</button>
+            </div>
+            <div className="video-modal-body">
+              <video
+                src={selectedVideo.url}
+                controls
+                autoPlay
+                style={{ width: '100%', maxHeight: '70vh' }}
+              />
+              <div className="video-modal-info mt-3">
+                <p><strong>Description:</strong> {selectedVideo.description}</p>
+                <p><strong>Utilisateur:</strong> {selectedVideo.user?.name || selectedVideo.user?.username}</p>
+                <p><strong>Mis en ligne:</strong> {new Date(selectedVideo.createdAt).toLocaleString()}</p>
+              </div>
+            </div>
+            <div className="video-modal-footer">
+              <button className="btn-approve" onClick={() => {
+                handleApprove(selectedVideo);
+                setShowVideoModal(false);
+              }}>
+                Approuver
+              </button>
+              <button className="btn-reject" onClick={() => {
+                handleReject(selectedVideo);
+                setShowVideoModal(false);
+              }}>
+                Rejeter
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

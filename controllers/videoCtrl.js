@@ -9,6 +9,30 @@ cloudinary.config({
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
+
+const deleteFromCloudinary = async (publicId, resourceType = 'video') => {
+  if (!publicId) return { success: false, error: 'No publicId provided' };
+  try {
+    const result = await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
+    if (result.result === 'ok') {
+      console.log(`✅ Eliminado de Cloudinary: ${publicId} (${resourceType})`);
+      return { success: true };
+    } else if (result.result === 'not found') {
+      console.log(`⚠️ Recurso no encontrado en Cloudinary: ${publicId}`);
+      return { success: true }; // No es error, ya no existe
+    } else {
+      console.error(`❌ Error eliminando ${publicId}: ${result.result}`);
+      return { success: false, error: result.result };
+    }
+  } catch (err) {
+    console.error(`❌ Excepción eliminando ${publicId}:`, err.message);
+    return { success: false, error: err.message };
+  }
+};
+
+
+
+
 const validateAndGetCategory = async (categoryIdOrSlug) => {
   if (!categoryIdOrSlug) return null;
   
@@ -31,11 +55,11 @@ const validateAndGetCategory = async (categoryIdOrSlug) => {
   
   return category;
 };
-// ============================================
-// 🎵 MÚSICA CON JAMENDO API
-// ============================================
+
+
 const JAMENDO_CLIENT_ID = process.env.JAMENDO_CLIENT_ID || '9dee24cd';
 const JAMENDO_API_URL = 'https://api.jamendo.com/v3.0/tracks/';
+
 
 const getMusicLibrary = async (req, res) => {
   const query = req.query.q || 'background';
@@ -289,6 +313,244 @@ const createVideo = async (req, res) => {
     });
   }
 };
+
+ 
+const updateVideo = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { 
+      title, description, music, videoUrl, videoPublicId, thumbnail, duration,
+      isCommercial, price, wholesale, minQuantity, phone, phoneHidden, email,
+      website, wilaya, commune, location, delivery, pickupOnly, businessHours,
+      stock, category, tags
+    } = req.body;
+    
+    console.log("🔴 ========== UPDATE VIDEO ==========");
+    console.log("🔴 ID:", id);
+    
+    const video = await Video.findById(id);
+    if (!video) {
+      return res.status(404).json({ success: false, message: 'Video no encontrado' });
+    }
+    
+    const isOwner = video.user.toString() === req.user._id.toString();
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'moderator';
+    
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ success: false, message: 'No autorizado' });
+    }
+    
+    // Guardar el ID del vídeo anterior (si existe y es local)
+    const oldVideoPublicId = video.videoPublicId;
+    
+    // Validar campos comerciales si se está actualizando a comercial
+    const finalIsCommercial = isCommercial !== undefined ? isCommercial : video.isCommercial;
+    if (finalIsCommercial) {
+      const finalWilaya = wilaya !== undefined ? wilaya : video.wilaya;
+      const finalCommune = commune !== undefined ? commune : video.commune;
+      const finalPhone = phone !== undefined ? phone : video.phone;
+      const finalEmail = email !== undefined ? email : video.email;
+      
+      if (!finalWilaya || !finalCommune) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Pour les vidéos commerciales, wilaya et commune sont obligatoires' 
+        });
+      }
+      if (!finalPhone && !finalEmail) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Au moins un moyen de contact (téléphone ou email) est requis' 
+        });
+      }
+    }
+    
+    // Limpiar URL de transformaciones (para la música)
+    const cleanUrlFromTransformations = (url) => {
+      if (!url) return url;
+      let cleanUrl = url;
+      cleanUrl = cleanUrl.replace(/\/l_audio:[^/]+,fl_layer_apply\//g, '/');
+      cleanUrl = cleanUrl.replace(/\/upload\/l_audio:[^,]+,fl_layer_apply\//, '/upload/');
+      return cleanUrl.replace(/\/l_audio:[^/]+,fl_layer_apply\//g, '/');
+    };
+    
+    // Actualizar campos básicos
+    if (title) video.title = title;
+    if (description !== undefined) video.description = description;
+    if (thumbnail) video.thumbnail = thumbnail;
+    if (duration) video.duration = duration;
+    if (videoUrl) video.videoUrl = videoUrl;
+    if (category !== undefined) video.category = category;
+    if (tags) video.tags = tags;
+    
+    // Actualizar campos comerciales
+    if (isCommercial !== undefined) video.isCommercial = isCommercial;
+    if (price !== undefined) video.price = price;
+    if (wholesale !== undefined) video.wholesale = wholesale;
+    if (minQuantity !== undefined) video.minQuantity = minQuantity;
+    if (phone !== undefined) video.phone = phone;
+    if (phoneHidden !== undefined) video.phoneHidden = phoneHidden;
+    if (email !== undefined) video.email = email;
+    if (website !== undefined) video.website = website;
+    if (wilaya !== undefined) video.wilaya = wilaya;
+    if (commune !== undefined) video.commune = commune;
+    if (delivery !== undefined) video.delivery = delivery;
+    if (pickupOnly !== undefined) video.pickupOnly = pickupOnly;
+    if (businessHours !== undefined) video.businessHours = businessHours;
+    if (stock !== undefined) video.stock = stock;
+    
+    // Actualizar ubicación
+    if (location) {
+      if (location.coordinates && location.coordinates.length === 2) {
+        video.location = {
+          type: 'Point',
+          coordinates: location.coordinates,
+          address: location.address || video.location.address || '',
+          googleMapsUrl: location.googleMapsUrl || video.location.googleMapsUrl || ''
+        };
+      } else if (wilaya && commune && !location.coordinates) {
+        video.location = {
+          type: 'Point',
+          coordinates: [0, 0],
+          address: `${commune}, ${wilaya}`,
+          googleMapsUrl: ''
+        };
+      }
+    }
+    
+    // Manejar música y posible nuevo videoPublicId
+    let finalVideoUrl = video.videoUrl;
+    
+    if (music !== undefined && music !== null) {
+      if (music === null) {
+        video.music = null;
+      } 
+      else if (music.audioPublicId) {
+        console.log("🎵 Regenerando mezcla de audio...");
+        let baseVideoUrl = videoUrl || video.videoUrl;
+        baseVideoUrl = cleanUrlFromTransformations(baseVideoUrl);
+        try {
+          const formattedAudioId = music.audioPublicId.replace(/\//g, ':');
+          const uploadIndex = baseVideoUrl.indexOf('/upload/');
+          if (uploadIndex !== -1) {
+            const base = baseVideoUrl.substring(0, uploadIndex + 8);
+            const pathAndFile = baseVideoUrl.substring(uploadIndex + 8);
+            const transformation = `l_audio:${formattedAudioId},fl_layer_apply`;
+            finalVideoUrl = `${base}${transformation}/${pathAndFile}`;
+            const newThumbnail = finalVideoUrl.replace(/\.(mp4|mov|webm)$/, '.jpg');
+            if (newThumbnail !== video.thumbnail && !thumbnail) {
+              video.thumbnail = newThumbnail;
+            }
+            video.music = {
+              id: music.id || null,
+              title: music.title || null,
+              artist: music.artist || null,
+              audioUrl: music.audioUrl,
+              audioPublicId: music.audioPublicId,
+              duration: music.duration || null,
+              volume: music.volume !== undefined ? music.volume : 70,
+              processed: true
+            };
+          } else {
+            throw new Error('No se encontró /upload/ en la URL');
+          }
+        } catch (err) {
+          console.error('❌ Error en mezcla de audio:', err);
+          video.music = { ...music, processed: false, error: err.message };
+          finalVideoUrl = baseVideoUrl;
+        }
+      } 
+      else if (music.audioUrl) {
+        video.music = { ...music, processed: false };
+      }
+    }
+    
+    if (finalVideoUrl !== video.videoUrl) {
+      video.videoUrl = finalVideoUrl;
+    }
+    
+    // ✅ ACTUALIZAR videoPublicId si se proporciona
+    if (videoPublicId !== undefined) {
+      video.videoPublicId = videoPublicId;
+    }
+    
+    // Admin aprueba automáticamente
+    if (isAdmin && video.pendiente === true) {
+      video.pendiente = false;
+    }
+    
+    await video.save();
+    
+    // ✅ ELIMINAR EL VÍDEO ANTIGUO DE CLOUDINARY SI SE CAMBIÓ
+    if (oldVideoPublicId && video.videoPublicId && oldVideoPublicId !== video.videoPublicId) {
+      console.log(`🗑️ Eliminando vídeo antiguo de Cloudinary: ${oldVideoPublicId}`);
+      const deletionResult = await deleteFromCloudinary(oldVideoPublicId, 'video');
+      if (!deletionResult.success) {
+        console.warn(`⚠️ No se pudo eliminar el vídeo antiguo: ${deletionResult.error}`);
+        // No fallamos la operación, solo lo registramos
+      }
+    }
+    
+    const updatedVideo = await Video.findById(video._id)
+      .populate('user', 'username avatar isPro role')
+      .populate('category', 'name slug icon');
+    
+    res.json({ 
+      success: true, 
+      message: 'Video actualizado correctamente', 
+      video: updatedVideo 
+    });
+    
+  } catch (error) {
+    console.error('❌ Error updateVideo:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ============================================
+// 🗑️ ELIMINAR VIDEO (CORREGIDO USANDO videoPublicId)
+// ============================================
+const deleteVideo = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const video = await Video.findById(id);
+    if (!video) return res.status(404).json({ success: false, message: 'Video no encontrado' });
+
+    const isOwner = video.user.toString() === req.user._id.toString();
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'moderator';
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ success: false, message: 'No autorizado' });
+    }
+
+    const deletionErrors = [];
+
+    // Eliminar vídeo de Cloudinary si existe y es local (se identifica por tener videoPublicId)
+    if (video.videoPublicId) {
+      const result = await deleteFromCloudinary(video.videoPublicId, 'video');
+      if (!result.success) deletionErrors.push(`Video: ${result.error}`);
+    }
+
+    // Eliminar thumbnail de Cloudinary si es una imagen subida
+    if (video.thumbnail && video.thumbnail.includes('cloudinary.com')) {
+      let publicId = video.thumbnail.split('/').pop().split('.')[0];
+      const match = video.thumbnail.match(/\/upload\/(?:v\d+\/)?(.+?)\.\w+$/);
+      if (match) publicId = match[1];
+      const result = await deleteFromCloudinary(publicId, 'image');
+      if (!result.success) deletionErrors.push(`Miniatura: ${result.error}`);
+    }
+
+    await video.deleteOne();
+    const message = deletionErrors.length 
+      ? `Video eliminado de BD, pero con problemas en Cloudinary: ${deletionErrors.join(', ')}`
+      : 'Video eliminado correctamente';
+    res.json({ success: true, message, warnings: deletionErrors.length ? deletionErrors : undefined });
+  } catch (error) {
+    console.error('Error deleteVideo:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+
 const getCategoriesForSlider = async (req, res) => {
   try {
     console.log('🎠 Obteniendo categorías para slider...');
@@ -315,60 +577,7 @@ const getCategoriesForSlider = async (req, res) => {
     });
   }
 };
-
  
-// controllers/categoryController.js - AÑADIR
-
-const getCategoriesWithVideos = async (req, res) => {
-  try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 2;
-    const videosPerCategory = parseInt(req.query.videosPerCategory) || 6;
-    const skip = (page - 1) * limit;
-    
-    // Obtener categorías activas
-    const categories = await Category.find({ isActive: true })
-      .sort({ order: 1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
-    
-    // Para cada categoría, obtener sus videos recientes
-    const categoriesWithVideos = await Promise.all(
-      categories.map(async (category) => {
-        const videos = await Video.find({
-          category: category._id,
-          pendiente: false,
-          isActive: true
-        })
-          .sort({ createdAt: -1 })
-          .limit(videosPerCategory)
-          .populate('user', 'username avatar')
-          .lean();
-        
-        return {
-          ...category,
-          videos
-        };
-      })
-    );
-    
-    const total = await Category.countDocuments({ isActive: true });
-    
-    res.json({
-      success: true,
-      categories: categoriesWithVideos,
-      currentPage: page,
-      hasMore: skip + categories.length < total,
-      total
-    });
-  } catch (error) {
-    console.error('Error getCategoriesWithVideos:', error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-
 
 const filterCommercialVideos = async (req, res) => {
   try {
@@ -498,193 +707,7 @@ const getVideosNearby = async (req, res) => {
   }
 };
 
-
-
-const updateVideo = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { 
-      title, description, music, videoUrl, videoPublicId, thumbnail, duration,
-      // NUEVOS CAMPOS COMERCIALES
-      isCommercial, price, wholesale, minQuantity, phone, phoneHidden, email,
-      website, wilaya, commune, location, delivery, pickupOnly, businessHours,
-      stock, category, tags
-    } = req.body;
-    
-    console.log("🔴 ========== UPDATE VIDEO ==========");
-    console.log("🔴 ID:", id);
-    
-    const video = await Video.findById(id);
-    if (!video) {
-      return res.status(404).json({ success: false, message: 'Video no encontrado' });
-    }
-    
-    const isOwner = video.user.toString() === req.user._id.toString();
-    const isAdmin = req.user.role === 'admin' || req.user.role === 'moderator';
-    
-    if (!isOwner && !isAdmin) {
-      return res.status(403).json({ success: false, message: 'No autorizado' });
-    }
-    
-    // ✅ Validar campos comerciales si se está actualizando a comercial
-    const finalIsCommercial = isCommercial !== undefined ? isCommercial : video.isCommercial;
-    if (finalIsCommercial) {
-      const finalWilaya = wilaya !== undefined ? wilaya : video.wilaya;
-      const finalCommune = commune !== undefined ? commune : video.commune;
-      const finalPhone = phone !== undefined ? phone : video.phone;
-      const finalEmail = email !== undefined ? email : video.email;
-      
-      if (!finalWilaya || !finalCommune) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Pour les vidéos commerciales, wilaya et commune sont obligatoires' 
-        });
-      }
-      
-      if (!finalPhone && !finalEmail) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Au moins un moyen de contact (téléphone ou email) est requis' 
-        });
-      }
-    }
-    // ============================================
-// 🏪 FILTRAR VIDEOS COMERCIALES
-// ============================================
  
-
-
-
-    // Limpiar URL de transformaciones
-    const cleanUrlFromTransformations = (url) => {
-      if (!url) return url;
-      let cleanUrl = url;
-      cleanUrl = cleanUrl.replace(/\/l_audio:[^/]+,fl_layer_apply\//g, '/');
-      cleanUrl = cleanUrl.replace(/\/upload\/l_audio:[^,]+,fl_layer_apply\//, '/upload/');
-      return cleanUrl.replace(/\/l_audio:[^/]+,fl_layer_apply\//g, '/');
-    };
-    
-    // Actualizar campos básicos
-    if (title) video.title = title;
-    if (description !== undefined) video.description = description;
-    if (thumbnail) video.thumbnail = thumbnail;
-    if (duration) video.duration = duration;
-    if (videoUrl) video.videoUrl = videoUrl;
-    if (category !== undefined) video.category = category;
-    if (tags) video.tags = tags;
-    
-    // ✅ Actualizar campos comerciales
-    if (isCommercial !== undefined) video.isCommercial = isCommercial;
-    if (price !== undefined) video.price = price;
-    if (wholesale !== undefined) video.wholesale = wholesale;
-    if (minQuantity !== undefined) video.minQuantity = minQuantity;
-    if (phone !== undefined) video.phone = phone;
-    if (phoneHidden !== undefined) video.phoneHidden = phoneHidden;
-    if (email !== undefined) video.email = email;
-    if (website !== undefined) video.website = website;
-    if (wilaya !== undefined) video.wilaya = wilaya;
-    if (commune !== undefined) video.commune = commune;
-    if (delivery !== undefined) video.delivery = delivery;
-    if (pickupOnly !== undefined) video.pickupOnly = pickupOnly;
-    if (businessHours !== undefined) video.businessHours = businessHours;
-    if (stock !== undefined) video.stock = stock;
-    
-    // Actualizar ubicación
-    if (location) {
-      if (location.coordinates && location.coordinates.length === 2) {
-        video.location = {
-          type: 'Point',
-          coordinates: location.coordinates,
-          address: location.address || video.location.address || '',
-          googleMapsUrl: location.googleMapsUrl || video.location.googleMapsUrl || ''
-        };
-      } else if (wilaya && commune && !location.coordinates) {
-        video.location = {
-          type: 'Point',
-          coordinates: [0, 0],
-          address: `${commune}, ${wilaya}`,
-          googleMapsUrl: ''
-        };
-      }
-    }
-    
-    // Manejar música
-    let finalVideoUrl = video.videoUrl;
-    
-    if (music !== undefined && music !== null) {
-      if (music === null) {
-        video.music = null;
-      } 
-      else if (music.audioPublicId) {
-        console.log("🎵 Regenerando mezcla de audio...");
-        
-        let baseVideoUrl = videoUrl || video.videoUrl;
-        baseVideoUrl = cleanUrlFromTransformations(baseVideoUrl);
-        
-        try {
-          const formattedAudioId = music.audioPublicId.replace(/\//g, ':');
-          const uploadIndex = baseVideoUrl.indexOf('/upload/');
-          
-          if (uploadIndex !== -1) {
-            const base = baseVideoUrl.substring(0, uploadIndex + 8);
-            const pathAndFile = baseVideoUrl.substring(uploadIndex + 8);
-            const transformation = `l_audio:${formattedAudioId},fl_layer_apply`;
-            finalVideoUrl = `${base}${transformation}/${pathAndFile}`;
-            
-            const newThumbnail = finalVideoUrl.replace(/\.(mp4|mov|webm)$/, '.jpg');
-            if (newThumbnail !== video.thumbnail && !thumbnail) {
-              video.thumbnail = newThumbnail;
-            }
-            
-            video.music = {
-              id: music.id || null,
-              title: music.title || null,
-              artist: music.artist || null,
-              audioUrl: music.audioUrl,
-              audioPublicId: music.audioPublicId,
-              duration: music.duration || null,
-              volume: music.volume !== undefined ? music.volume : 70,
-              processed: true
-            };
-          } else {
-            throw new Error('No se encontró /upload/ en la URL');
-          }
-        } catch (err) {
-          console.error('❌ Error:', err);
-          video.music = { ...music, processed: false, error: err.message };
-          finalVideoUrl = baseVideoUrl;
-        }
-      } 
-      else if (music.audioUrl) {
-        video.music = { ...music, processed: false };
-      }
-    }
-    
-    if (finalVideoUrl !== video.videoUrl) {
-      video.videoUrl = finalVideoUrl;
-    }
-    
-    // Admin aprueba automáticamente
-    if (isAdmin && video.pendiente === true) {
-      video.pendiente = false;
-    }
-    
-    await video.save();
-    
-    const updatedVideo = await Video.findById(video._id)
-      .populate('user', 'username avatar isPro role');
-    
-    res.json({ 
-      success: true, 
-      message: 'Video actualizado correctamente', 
-      video: updatedVideo 
-    });
-    
-  } catch (error) {
-    console.error('❌ Error updateVideo:', error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
 const getVideoByIdPublic = async (req, res) => {
   try {
     const { id } = req.params;
@@ -941,49 +964,7 @@ const getPopularVideos = async (req, res) => {
 // controllers/videoCtrl.js - getTrendingVideos CORREGIDO (sin isActive)
 
  
-const deleteVideo = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const video = await Video.findById(id);
-    if (!video) return res.status(404).json({ success: false, message: 'Video no encontrado' });
-
-    const isOwner = video.user.toString() === req.user._id.toString();
-    const isAdmin = req.user.role === 'admin' || req.user.role === 'moderator';
-    if (!isOwner && !isAdmin) {
-      return res.status(403).json({ success: false, message: 'No autorizado' });
-    }
-
-    const deletionErrors = [];
-
-    if (video.videoType === 'local' && video.videoId) {
-      try {
-        const result = await cloudinary.uploader.destroy(video.videoId, { resource_type: 'video' });
-        if (result.result !== 'ok' && result.result !== 'not found') deletionErrors.push(`Video: ${result.result}`);
-      } catch (err) {
-        deletionErrors.push(`Video: ${err.message}`);
-      }
-    }
-
-    if (video.thumbnail && video.thumbnail.includes('cloudinary.com')) {
-      try {
-        let publicId = video.thumbnail.split('/').pop().split('.')[0];
-        const match = video.thumbnail.match(/\/upload\/(?:v\d+\/)?(.+?)\.\w+$/);
-        if (match) publicId = match[1];
-        const result = await cloudinary.uploader.destroy(publicId, { resource_type: 'image' });
-        if (result.result !== 'ok' && result.result !== 'not found') deletionErrors.push(`Miniatura: ${result.result}`);
-      } catch (err) {
-        deletionErrors.push(`Miniatura: ${err.message}`);
-      }
-    }
-
-    await video.deleteOne();
-    const message = deletionErrors.length ? `Video eliminado de BD, pero problemas en Cloudinary: ${deletionErrors.join(', ')}` : 'Video eliminado correctamente';
-    res.json({ success: true, message, warnings: deletionErrors.length ? deletionErrors : undefined });
-  } catch (error) {
-    console.error('Error deleteVideo:', error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
+ 
 
 // ✅ Like a video
 const toggleLikeVideo = async (req, res) => {

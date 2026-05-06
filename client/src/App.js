@@ -37,6 +37,7 @@ import CreateImageWizard from './pages/video/CreateImageWizard';
 import EditImageWizard from './pages/video/EditImageWizar';
 import Conversation from './pages/message/[id]';
 import Message from './pages/message/index';
+import Posts from './pages/aprobation/Posts';
 
 
 // ============================================
@@ -265,6 +266,7 @@ function App() {
           <Route path="/create-image-page" component={CreateImageWizard} />
           <Route path="/edit-image/:id" component={EditImageWizard} />
           <Route exact path="/admindashboard" component={AdminDashboard} />
+          <Route path="/admin/posts" component={Posts} />
               <Route exact path="/message" component={Message} />
           <Route exact path="/message/:id" component={Conversation} />
          
