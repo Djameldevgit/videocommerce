@@ -1,41 +1,38 @@
-// pages/video/EditVideoWizard.jsx - VERSIÓN COMPLETA CON CAMPOS COMERCIALES
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+// pages/video/EditVideoWizard.jsx - VERSION FINALE (FR, 3 étapes, champs obligatoires nom_entreprise/activite/catégories/titre)
+import React, { useState, useEffect, useCallback,  useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useHistory, useParams } from 'react-router-dom';
 import { Button, Alert, Spinner, Card, ProgressBar, Badge, Form, Row, Col } from 'react-bootstrap';
-import { 
-  ArrowLeft, ArrowRight, CloudUpload, PencilFill, Trash, MusicNote,
-  CashStack, GeoAlt, Telephone, Envelope, Building, Box, Tag
-} from 'react-bootstrap-icons';
+import { ArrowLeft, ArrowRight, CloudUpload, PencilFill, Trash, MusicNote, ChevronDown, ChevronUp, Tag } from 'react-bootstrap-icons';
 import StepIndicator from './StepIndicator';
 import StepMusicSelection from './StepMusicSelection';
-import { getVideoById  } from '../../redux/actions/videoAction';
-import { getCategoriesWithVideos } from '../../redux/actions/categoryAction';
+import { getVideoById } from '../../redux/actions/videoAction';
+import { getCategoriesWithVideos, getSliderCategories } from '../../redux/actions/categoryAction';
 import { GLOBALTYPES } from '../../redux/actions/globalTypes';
 import { videoUpload } from '../../utils/imageUpload';
 import { patchDataAPI } from '../../utils/fetchData';
-import { getSliderCategories } from '../../redux/actions/categoryAction';
 import './CreateVideoWizard.css';
+
 
 const EditVideoWizard = () => {
   const { id } = useParams();
   const dispatch = useDispatch();
   const history = useHistory();
-  const { auth, socket } = useSelector(state => state);
+  const { auth } = useSelector(state => state);
   const { currentVideo: video, loading: videoLoading } = useSelector(state => state.video || {});
   const { sliderCategories = [] } = useSelector(state => state.category || {});
   const { user } = auth;
-  
-  // Estados del wizard
+
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [keepExistingVideo, setKeepExistingVideo] = useState(true);
-  
-  // Datos del formulario
+  const [showCommercial, setShowCommercial] = useState(false);
+
+  // États du formulaire (une seule catégorie)
   const [wizardData, setWizardData] = useState({
-    // Video
+    // Vidéo
     videoSource: 'existing',
     videoFile: null,
     videoPreview: null,
@@ -43,66 +40,74 @@ const EditVideoWizard = () => {
     videoUrl: '',
     videoPublicId: '',
     thumbnail: '',
-    // Música
+    // Musique
     selectedMusic: null,
     musicVolume: 70,
-    // Información básica
-    title: '',
+    originalAudio: true,
+    // Champs obligatoires (Step 3)
+    nom_entreprise: '',
+    activite: '',
+    selectedCategory: '',        // ✅ UNIQUE category ID
+    titre: '',
     description: '',
-    category: '',
-    // Comerciales
-    isCommercial: false,
-    price: 0,
+    // Champs commerciaux optionnels
+    price: '',
     wholesale: false,
     minQuantity: 1,
     phone: '',
-    phoneHidden: false,
     email: '',
-    website: '',
     wilaya: '',
     commune: '',
+    pickupOnly: false,
     deliveryAvailable: false,
     deliveryCost: 0,
-    pickupOnly: false,
     stock: 0
   });
-  
+
   const isProActive = user?.isPro && (!user?.proExpiryDate || new Date(user.proExpiryDate) > new Date());
   const maxDuration = isProActive ? 60 : 30;
-  
-  // Cargar categorías si no están
+
+  // Charger catégories
   useEffect(() => {
     if (sliderCategories.length === 0) {
       dispatch(getSliderCategories());
     }
   }, [dispatch, sliderCategories.length]);
-  
-  // Cargar video existente
+
+  // Charger la vidéo existante
   useEffect(() => {
     if (id) {
       dispatch(getVideoById(id));
     }
   }, [dispatch, id]);
-  
-  // Rellenar wizard con datos del video
+
+  // Remplir le formulaire avec les données de la vidéo
   useEffect(() => {
     if (video && !videoLoading) {
-      console.log('📹 Editando video:', video);
-      
-      // Extraer música existente
+      console.log('📹 Édition vidéo:', video);
+
+      // Musique existante
       let existingMusic = null;
       if (video.music) {
         existingMusic = {
           id: video.music.id,
           title: video.music.title,
-          artist: video.music.artist || "Artiste inconnu",
+          artist: video.music.artist || 'Artiste inconnu',
           audioUrl: video.music.audioUrl,
           audioPublicId: video.music.audioPublicId,
           duration: video.music.duration,
           volume: video.music.volume || 70
         };
       }
-      
+
+      // ✅ Récupérer la catégorie unique (si ancien video.category ou video.categories[0])
+      let initialCategory = '';
+      if (video.category) {
+        initialCategory = typeof video.category === 'object' ? video.category._id : video.category;
+      } else if (video.categories && Array.isArray(video.categories) && video.categories.length > 0) {
+        initialCategory = typeof video.categories[0] === 'object' ? video.categories[0]._id : video.categories[0];
+      }
+
       setWizardData({
         videoSource: 'existing',
         videoFile: null,
@@ -113,35 +118,34 @@ const EditVideoWizard = () => {
         thumbnail: video.thumbnail,
         selectedMusic: existingMusic,
         musicVolume: existingMusic?.volume || 70,
-        title: video.title || '',
+        nom_entreprise: video.nom_entreprise || '',
+        activite: video.activite || '',
+        selectedCategory: initialCategory,
+        titre: video.titre || video.title || '',
         description: video.description || '',
-        category: video.category?._id || video.category || '',
-        isCommercial: video.isCommercial || false,
-        price: video.price || 0,
+        price: video.price || '',
         wholesale: video.wholesale || false,
         minQuantity: video.minQuantity || 1,
         phone: video.phone || '',
-        phoneHidden: video.phoneHidden || false,
         email: video.email || '',
-        website: video.website || '',
         wilaya: video.wilaya || '',
         commune: video.commune || '',
+        pickupOnly: video.pickupOnly || false,
         deliveryAvailable: video.delivery?.available || false,
         deliveryCost: video.delivery?.cost || 0,
-        pickupOnly: video.pickupOnly || false,
         stock: video.stock?.available || 0
       });
     }
   }, [video, videoLoading]);
-  
+
   const updateWizardData = useCallback((newData) => {
     setWizardData(prev => ({ ...prev, ...newData }));
     if (newData.videoFile) setKeepExistingVideo(false);
   }, []);
-  
-  // Validaciones por paso
+
+  // Validation des étapes
   const validateStep = useCallback((step) => {
-    switch(step) {
+    switch (step) {
       case 1:
         if (!keepExistingVideo && !wizardData.videoFile) {
           setError('Veuillez sélectionner une nouvelle vidéo');
@@ -152,22 +156,24 @@ const EditVideoWizard = () => {
           return false;
         }
         break;
+      case 2: // Musique - toujours valide
+        break;
       case 3:
-        if (!wizardData.title.trim()) {
-          setError('Le titre est obligatoire');
+        if (!wizardData.nom_entreprise.trim()) {
+          setError('Le nom de l\'entreprise est obligatoire');
           return false;
         }
-        break;
-      case 4:
-        if (wizardData.isCommercial) {
-          if (!wizardData.wilaya || !wizardData.commune) {
-            setError('La wilaya et la commune sont obligatoires pour les vidéos commerciales');
-            return false;
-          }
-          if (!wizardData.phone && !wizardData.email) {
-            setError('Au moins un moyen de contact (téléphone ou email) est requis');
-            return false;
-          }
+        if (!wizardData.activite.trim()) {
+          setError('L\'activité est obligatoire');
+          return false;
+        }
+        if (!wizardData.selectedCategory) {
+          setError('Veuillez sélectionner une catégorie');
+          return false;
+        }
+        if (!wizardData.titre.trim()) {
+          setError('Le titre est obligatoire');
+          return false;
         }
         break;
       default:
@@ -176,36 +182,33 @@ const EditVideoWizard = () => {
     setError(null);
     return true;
   }, [keepExistingVideo, wizardData, maxDuration]);
-  
+
   const nextStep = useCallback(() => {
     if (validateStep(currentStep)) {
-      setCurrentStep(prev => Math.min(prev + 1, 4));
+      setCurrentStep(prev => Math.min(prev + 1, 3));
       window.scrollTo(0, 0);
     }
   }, [currentStep, validateStep]);
-  
+
   const prevStep = useCallback(() => {
     setCurrentStep(prev => Math.max(prev - 1, 1));
     window.scrollTo(0, 0);
   }, []);
-  
-  // Envío del formulario
+
+  // Soumettre les modifications
   const handleSubmit = useCallback(async () => {
-    if (!validateStep(3) || !validateStep(4)) return;
-    
+    if (!validateStep(3)) return;
+
     setLoading(true);
     setUploadProgress(0);
     setError(null);
-    
+
     try {
       let videoUrl, videoPublicId, thumbnail, videoDuration;
-      
-      // Subir nuevo video si se cambió
+
+      // Upload nouvelle vidéo si changée
       if (!keepExistingVideo && wizardData.videoFile) {
-        console.log("📤 Subiendo nuevo video...");
-        const result = await videoUpload(wizardData.videoFile, (progress) => {
-          setUploadProgress(progress);
-        });
+        const result = await videoUpload(wizardData.videoFile, (progress) => setUploadProgress(progress));
         videoUrl = result.url;
         videoPublicId = result.public_id;
         thumbnail = result.thumbnail;
@@ -216,8 +219,8 @@ const EditVideoWizard = () => {
         thumbnail = wizardData.thumbnail;
         videoDuration = wizardData.videoDuration;
       }
-      
-      // Construir objeto música
+
+      // Musique
       let musicData = null;
       if (wizardData.selectedMusic) {
         musicData = {
@@ -230,66 +233,67 @@ const EditVideoWizard = () => {
           volume: wizardData.musicVolume
         };
       }
-      
-      // Preparar datos para actualizar
-      const videoData = {
-        title: wizardData.title,
+
+      // Préparer le payload (catégorie unique)
+      const hasCommercialData = !!(wizardData.price || wizardData.phone || wizardData.email || wizardData.wilaya || wizardData.stock);
+      const isCommercial = hasCommercialData;
+
+      const payload = {
+        nom_entreprise: wizardData.nom_entreprise,
+        activite: wizardData.activite,
+        titre: wizardData.titre,
         description: wizardData.description,
+        category: wizardData.selectedCategory,   // ✅ UNIQUE ID
         videoUrl,
         videoPublicId,
         thumbnail,
         duration: videoDuration,
         music: musicData,
-        category: wizardData.category || null,
-        isCommercial: wizardData.isCommercial,
-        price: wizardData.price,
+        isCommercial,
+        price: wizardData.price ? parseFloat(wizardData.price) : 0,
         wholesale: wizardData.wholesale,
-        minQuantity: wizardData.minQuantity,
+        minQuantity: wizardData.wholesale ? (wizardData.minQuantity || 1) : 1,
         phone: wizardData.phone,
-        phoneHidden: wizardData.phoneHidden,
         email: wizardData.email,
-        website: wizardData.website,
         wilaya: wizardData.wilaya,
         commune: wizardData.commune,
+        pickupOnly: wizardData.pickupOnly,
         delivery: {
           available: wizardData.deliveryAvailable,
-          cost: wizardData.deliveryCost,
-          estimatedDays: 3,
-          zones: []
+          cost: wizardData.deliveryCost ? parseFloat(wizardData.deliveryCost) : 0,
+          estimatedDays: 2,
+          zones: wizardData.wilaya ? [wizardData.wilaya] : []
         },
-        pickupOnly: wizardData.pickupOnly,
         stock: {
-          total: wizardData.stock,
-          available: wizardData.stock,
+          total: wizardData.stock ? parseInt(wizardData.stock) : 0,
+          available: wizardData.stock ? parseInt(wizardData.stock) : 0,
           reserved: 0
-        }
+        },
+        tags: wizardData.wilaya ? [wizardData.wilaya, wizardData.commune, wizardData.wholesale ? 'gros' : 'détail'] : []
       };
-      
-      const res = await patchDataAPI(`videos/${id}`, videoData, auth.token);
-      
+
+      const res = await patchDataAPI(`videos/${id}`, payload, auth.token);
       if (res.data.success) {
         dispatch({
           type: GLOBALTYPES.ALERT,
           payload: { success: '✏️ Vidéo modifiée avec succès !' }
         });
-        // ✅ Recargar las categorías del home para que muestren el video actualizado
-        dispatch(getCategoriesWithVideos(1, 2));
+        dispatch(getCategoriesWithVideos(1, 2)); // refresh home
         history.push('/');
-     
       } else {
         setError(res.data.message || 'Erreur lors de la modification');
       }
     } catch (err) {
-      console.error('❌ Error:', err);
-      setError(err.response?.data?.message || err.message || 'Erreur lors de la modification');
+      console.error('❌ Erreur:', err);
+      setError(err.response?.data?.message || err.message || 'Erreur réseau');
     } finally {
       setLoading(false);
     }
   }, [wizardData, keepExistingVideo, id, auth.token, dispatch, history, validateStep]);
-  
-  // ==================== RENDER PASOS ====================
-  
-  // Paso 1: Video
+
+  // ==================== RENDER DES ÉTAPES ====================
+
+  // Étape 1 : Vidéo (identique)
   const renderStep1 = () => (
     <div style={{ padding: '0 8px' }}>
       {keepExistingVideo && video && (
@@ -304,12 +308,12 @@ const EditVideoWizard = () => {
           <div className="mt-2 text-muted small">Durée: {Math.floor(video.duration / 60)}:{(video.duration % 60).toString().padStart(2, '0')}</div>
         </div>
       )}
-      
+
       {!keepExistingVideo && (
         <>
           <div style={{ display: 'flex', justifyContent: 'center', gap: '40px', marginBottom: '30px' }}>
             <div style={{ textAlign: 'center' }}>
-              <input type="file" id="videoInput" accept="video/mp4,video/quicktime,video/webm" style={{ display: 'none' }}
+              <input type="file" id="editVideoInput" accept="video/mp4,video/quicktime,video/webm" style={{ display: 'none' }}
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) {
@@ -330,7 +334,7 @@ const EditVideoWizard = () => {
                   }
                 }}
               />
-              <label htmlFor="videoInput" style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)', width: '70px', height: '70px', borderRadius: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', cursor: 'pointer' }}>
+              <label htmlFor="editVideoInput" style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)', width: '70px', height: '70px', borderRadius: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', cursor: 'pointer' }}>
                 <CloudUpload size={36} color="white" />
               </label>
               <div style={{ fontSize: '12px', marginTop: '8px', color: '#fff' }}>Nouvelle vidéo</div>
@@ -347,121 +351,174 @@ const EditVideoWizard = () => {
       )}
     </div>
   );
-  
-  // Paso 3: Información básica + categoría
+
+  // Étape 3 : Infos avec sélecteur de catégorie unique
   const renderStep3 = () => (
-    <div style={{ padding: '20px' }}>
-      <h5 style={{ color: 'white', fontWeight: 'bold' }} className="mb-4">📝 Informations générales</h5>
-      <div className="mb-4">
-        <label className="form-label text-white">Titre *</label>
-        <input type="text" className="form-control form-control-lg" placeholder="Titre de la vidéo..."
-          value={wizardData.title} onChange={e => updateWizardData({ title: e.target.value })} maxLength="100"
-          style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', borderRadius: '12px' }} />
-        <small className="text-muted">{wizardData.title.length}/100</small>
+    <div className="step3-container" style={{ padding: '0' }}>
+      <h5 className="mb-4" style={{ color: 'white', fontWeight: 'bold' }}>📝 Détails de l'annonce</h5>
+
+      {/* 1. Nom entreprise */}
+      <div className="mb-3">
+        <label className="form-label fw-bold" style={{ color: 'white' }}>Nom de l'entreprise *</label>
+        <input
+          type="text"
+          className="form-control form-control-lg"
+          placeholder="Ex: Boutique Lina"
+          value={wizardData.nom_entreprise}
+          onChange={(e) => updateWizardData({ nom_entreprise: e.target.value })}
+          style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', borderRadius: '12px' }}
+        />
       </div>
-      <div className="mb-4">
-        <label className="form-label text-white">Description</label>
-        <textarea className="form-control" rows="4" placeholder="Description..."
-          value={wizardData.description} onChange={e => updateWizardData({ description: e.target.value })} maxLength="500"
-          style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', borderRadius: '12px', resize: 'none' }} />
-        <small className="text-muted">{wizardData.description.length}/500</small>
+
+      {/* 2. Activité */}
+      <div className="mb-3">
+        <label className="form-label fw-bold" style={{ color: 'white' }}>Activité *</label>
+        <textarea
+          rows="2"
+          className="form-control"
+          placeholder="Ex: Vente de vêtements de mode pour femmes et hommes"
+          value={wizardData.activite}
+          onChange={(e) => updateWizardData({ activite: e.target.value })}
+          style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', borderRadius: '12px', resize: 'vertical' }}
+        />
       </div>
-      <div className="mb-4">
-        <label className="form-label text-white">Catégorie</label>
-        <select className="form-select" value={wizardData.category} onChange={e => updateWizardData({ category: e.target.value })}
-          style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', borderRadius: '12px' }}>
-          <option value="">Sélectionner une catégorie</option>
+
+      {/* 3. Catégorie unique (select) */}
+      <div className="mb-3">
+        <label className="form-label fw-bold" style={{ color: 'white' }}>Catégorie *</label>
+        <select
+          className="form-select"
+          value={wizardData.selectedCategory}
+          onChange={(e) => updateWizardData({ selectedCategory: e.target.value })}
+          style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', borderRadius: '12px' }}
+          required
+        >
+          <option value="">Sélectionnez une catégorie</option>
           {sliderCategories.map(cat => (
-            <option key={cat._id} value={cat._id}>{cat.name}</option>
+            <option key={cat._id} value={cat._id}>
+              {cat.icon} {cat.name}
+            </option>
           ))}
         </select>
+        <small className="text-muted mt-1 d-block">Choisissez la catégorie principale de votre annonce</small>
       </div>
-    </div>
-  );
-  
-  // Paso 4: Información comercial
-  const renderStep4 = () => (
-    <div style={{ padding: '20px' }}>
-      <h5 style={{ color: 'white', fontWeight: 'bold' }} className="mb-4">🛒 Informations commerciales</h5>
-      
-      <Form.Check type="switch" id="isCommercial" label="✅ Vidéo commerciale" className="mb-4 text-white"
-        checked={wizardData.isCommercial} onChange={e => updateWizardData({ isCommercial: e.target.checked })} />
-      
-      {wizardData.isCommercial && (
-        <>
-          <Row className="mb-3">
-            <Col md={6}>
-              <label className="form-label text-white">Prix (DA)</label>
-              <input type="number" className="form-control" value={wizardData.price} onChange={e => updateWizardData({ price: parseFloat(e.target.value) || 0 })}
-                style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }} />
-            </Col>
-            <Col md={6}>
-              <label className="form-label text-white">Stock disponible</label>
-              <input type="number" className="form-control" value={wizardData.stock} onChange={e => updateWizardData({ stock: parseInt(e.target.value) || 0 })}
-                style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }} />
-            </Col>
-          </Row>
-          
-          <Form.Check type="switch" id="wholesale" label="Vente en gros" className="mb-3 text-white"
-            checked={wizardData.wholesale} onChange={e => updateWizardData({ wholesale: e.target.checked })} />
-          
-          {wizardData.wholesale && (
-            <div className="mb-3">
-              <label className="form-label text-white">Quantité minimale</label>
-              <input type="number" className="form-control" value={wizardData.minQuantity} onChange={e => updateWizardData({ minQuantity: parseInt(e.target.value) || 1 })}
-                style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }} />
-            </div>
-          )}
-          
-          <Row className="mb-3">
-            <Col md={6}>
-              <label className="form-label text-white">Wilaya</label>
-              <input type="text" className="form-control" placeholder="Ex: Alger" value={wizardData.wilaya} onChange={e => updateWizardData({ wilaya: e.target.value })}
-                style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }} />
-            </Col>
-            <Col md={6}>
-              <label className="form-label text-white">Commune</label>
-              <input type="text" className="form-control" placeholder="Ex: Sidi M'Hamed" value={wizardData.commune} onChange={e => updateWizardData({ commune: e.target.value })}
-                style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }} />
-            </Col>
-          </Row>
-          
-          <div className="mb-3">
-            <label className="form-label text-white">Téléphone</label>
-            <input type="tel" className="form-control" value={wizardData.phone} onChange={e => updateWizardData({ phone: e.target.value })}
-              style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }} />
-            <Form.Check type="checkbox" id="phoneHidden" label="Masquer le numéro" className="mt-1 text-white-50"
-              checked={wizardData.phoneHidden} onChange={e => updateWizardData({ phoneHidden: e.target.checked })} />
+
+      {/* 4. Titre */}
+      <div className="mb-3">
+        <label className="form-label fw-bold" style={{ color: 'white' }}>Titre *</label>
+        <input
+          type="text"
+          className="form-control form-control-lg"
+          placeholder="Ex: Nouveaux vêtements en gros - Qualité premium"
+          value={wizardData.titre}
+          onChange={(e) => updateWizardData({ titre: e.target.value })}
+          maxLength="100"
+          style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', borderRadius: '12px' }}
+        />
+        <small className="text-muted">{wizardData.titre.length}/100</small>
+      </div>
+
+      {/* Description (optionnelle) */}
+      <div className="mb-3">
+        <label className="form-label" style={{ color: 'white' }}>Description (optionnelle)</label>
+        <textarea
+          rows="3"
+          className="form-control"
+          placeholder="Décrivez votre produit ou service..."
+          value={wizardData.description}
+          onChange={(e) => updateWizardData({ description: e.target.value })}
+          style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', borderRadius: '12px', resize: 'vertical' }}
+        />
+      </div>
+
+      {/* Section commerciale colapsable */}
+      <div className="mt-4">
+        <Button
+          variant="outline-light"
+          onClick={() => setShowCommercial(!showCommercial)}
+          className="w-100 d-flex justify-content-between align-items-center"
+          style={{ borderRadius: '40px', padding: '8px 16px', background: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.2)' }}
+        >
+          <span><Tag className="me-2" /> Informations commerciales (optionnel)</span>
+          {showCommercial ? <ChevronUp /> : <ChevronDown />}
+        </Button>
+
+        {showCommercial && (
+          <div className="mt-3 p-3" style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '16px', animation: 'fadeIn 0.3s ease' }}>
+            <Row>
+              <Col md={6} className="mb-2">
+                <label className="form-label" style={{ color: 'white' }}>Prix (DA)</label>
+                <input type="number" className="form-control" placeholder="Ex: 2500"
+                  value={wizardData.price} onChange={(e) => updateWizardData({ price: e.target.value })}
+                  style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }} />
+              </Col>
+              <Col md={6} className="mb-2">
+                <label className="form-label" style={{ color: 'white' }}>Stock disponible</label>
+                <input type="number" className="form-control" placeholder="Ex: 50"
+                  value={wizardData.stock} onChange={(e) => updateWizardData({ stock: e.target.value })}
+                  style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }} />
+              </Col>
+            </Row>
+
+            <Form.Check type="switch" id="editWholesale" label="Vente en gros (quantité minimale)"
+              checked={wizardData.wholesale} onChange={(e) => updateWizardData({ wholesale: e.target.checked })}
+              className="mb-2" style={{ color: 'white' }} />
+            {wizardData.wholesale && (
+              <div className="mb-2 ms-4">
+                <label className="form-label" style={{ color: 'white' }}>Quantité minimum</label>
+                <input type="number" className="form-control" style={{ width: '150px', background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }}
+                  value={wizardData.minQuantity} onChange={(e) => updateWizardData({ minQuantity: e.target.value })} />
+              </div>
+            )}
+
+            <Row className="mt-2">
+              <Col md={6} className="mb-2">
+                <label className="form-label" style={{ color: 'white' }}>Téléphone</label>
+                <input type="tel" className="form-control" placeholder="0555 12 34 56"
+                  value={wizardData.phone} onChange={(e) => updateWizardData({ phone: e.target.value })}
+                  style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }} />
+              </Col>
+              <Col md={6} className="mb-2">
+                <label className="form-label" style={{ color: 'white' }}>Email</label>
+                <input type="email" className="form-control" placeholder="contact@boutique.com"
+                  value={wizardData.email} onChange={(e) => updateWizardData({ email: e.target.value })}
+                  style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }} />
+              </Col>
+            </Row>
+
+            <Row className="mt-2">
+              <Col md={6} className="mb-2">
+                <label className="form-label" style={{ color: 'white' }}>Wilaya</label>
+                <input type="text" className="form-control" placeholder="Ex: Alger"
+                  value={wizardData.wilaya} onChange={(e) => updateWizardData({ wilaya: e.target.value })}
+                  style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }} />
+              </Col>
+              <Col md={6} className="mb-2">
+                <label className="form-label" style={{ color: 'white' }}>Commune</label>
+                <input type="text" className="form-control" placeholder="Ex: Sidi M'Hamed"
+                  value={wizardData.commune} onChange={(e) => updateWizardData({ commune: e.target.value })}
+                  style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }} />
+              </Col>
+            </Row>
+
+            <Form.Check type="switch" id="editPickup" label="Retrait en magasin uniquement"
+              checked={wizardData.pickupOnly} onChange={(e) => updateWizardData({ pickupOnly: e.target.checked })}
+              className="mt-2" style={{ color: 'white' }} />
+            <Form.Check type="switch" id="editDelivery" label="Livraison disponible"
+              checked={wizardData.deliveryAvailable} onChange={(e) => updateWizardData({ deliveryAvailable: e.target.checked })}
+              className="mt-2" style={{ color: 'white' }} />
+            {wizardData.deliveryAvailable && (
+              <div className="mt-2 ms-4">
+                <label className="form-label" style={{ color: 'white' }}>Frais de livraison (DA)</label>
+                <input type="number" className="form-control" style={{ width: '150px', background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }}
+                  value={wizardData.deliveryCost} onChange={(e) => updateWizardData({ deliveryCost: e.target.value })} />
+              </div>
+            )}
           </div>
-          
-          <div className="mb-3">
-            <label className="form-label text-white">Email</label>
-            <input type="email" className="form-control" value={wizardData.email} onChange={e => updateWizardData({ email: e.target.value })}
-              style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }} />
-          </div>
-          
-          <div className="mb-3">
-            <label className="form-label text-white">Site web (optionnel)</label>
-            <input type="url" className="form-control" value={wizardData.website} onChange={e => updateWizardData({ website: e.target.value })}
-              style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }} />
-          </div>
-          
-          <Form.Check type="switch" id="deliveryAvailable" label="Livraison disponible" className="mb-2 text-white"
-            checked={wizardData.deliveryAvailable} onChange={e => updateWizardData({ deliveryAvailable: e.target.checked })} />
-          {wizardData.deliveryAvailable && (
-            <div className="mb-3">
-              <label className="form-label text-white">Frais de livraison (DA)</label>
-              <input type="number" className="form-control" value={wizardData.deliveryCost} onChange={e => updateWizardData({ deliveryCost: parseFloat(e.target.value) || 0 })}
-                style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }} />
-            </div>
-          )}
-          
-          <Form.Check type="switch" id="pickupOnly" label="Retrait en magasin uniquement" className="mb-3 text-white"
-            checked={wizardData.pickupOnly} onChange={e => updateWizardData({ pickupOnly: e.target.checked })} />
-        </>
-      )}
-      
-      {/* Resumen de música actual */}
+        )}
+      </div>
+
+      {/* Aperçu musique si existante */}
       {wizardData.selectedMusic && (
         <div className="mt-4 p-3" style={{ background: 'rgba(102,126,234,0.2)', borderRadius: '12px' }}>
           <div className="d-flex align-items-center gap-2">
@@ -475,13 +532,13 @@ const EditVideoWizard = () => {
       )}
     </div>
   );
-  
-  const stepLabels = ['Vidéo', 'Musique', 'Infos', 'Commercial'];
-  
-  // Estados de carga
+
+  const stepLabels = ['Vidéo', 'Musique', 'Infos'];
+
+  // États de chargement
   if (videoLoading && !video) {
     return (
-      <div className="create-video-wizard" style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #1a1a2e, #16213e)', padding: '16px' }}>
+      <div className="create-video-wizard" style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #1a1a2e, #16213e)', padding: '12px' }}>
         <Card className="border-0 shadow-lg" style={{ background: 'rgba(255,255,255,0.05)' }}>
           <Card.Body className="p-5 text-center">
             <Spinner animation="border" variant="light" />
@@ -491,10 +548,10 @@ const EditVideoWizard = () => {
       </div>
     );
   }
-  
+
   if (!video && !videoLoading) {
     return (
-      <div className="create-video-wizard" style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #1a1a2e, #16213e)', padding: '16px' }}>
+      <div className="create-video-wizard" style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #1a1a2e, #16213e)', padding: '12px' }}>
         <Card className="border-0 shadow-lg" style={{ background: 'rgba(255,255,255,0.05)' }}>
           <Card.Body className="p-5 text-center">
             <p className="text-white">Vidéo non trouvée</p>
@@ -504,49 +561,48 @@ const EditVideoWizard = () => {
       </div>
     );
   }
-  
+
   return (
-    <div className="create-video-wizard" style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #1a1a2e, #16213e)', padding: '16px' }}>
+    <div className="create-video-wizard" style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #1a1a2e, #16213e)', padding: '12px' }}>
       <Card className="border-0 shadow-lg" style={{ background: 'rgba(255,255,255,0.05)', backdropFilter: 'blur(10px)', borderRadius: '24px' }}>
-        <Card.Body className="p-4">
-          <div className="d-flex justify-content-between align-items-center mb-3">
+        <Card.Body className="p-3">
+          <div className="d-flex justify-content-between align-items-center mb-2">
             <div>
               <h3 className="mb-0" style={{ color: 'white', fontWeight: 'bold' }}>
                 <PencilFill className="me-2" /> Modifier la vidéo
               </h3>
-              <small className="text-muted">{video?.title}</small>
+              <small className="text-muted">{video?.titre || video?.title}</small>
             </div>
             <Badge bg={isProActive ? 'primary' : 'warning'} className="p-2">
               {isProActive ? `⭐ Pro: ${maxDuration}s` : `⚡ ${maxDuration}s max`}
             </Badge>
           </div>
-          
-          <StepIndicator currentStep={currentStep} totalSteps={4} labels={stepLabels} />
-          
+
+          <StepIndicator currentStep={currentStep} totalSteps={3} labels={stepLabels} />
+
           {error && <Alert variant="danger" className="mt-3" onClose={() => setError(null)} dismissible>{error}</Alert>}
-          
+
           <div className="mt-4">
             {currentStep === 1 && renderStep1()}
             {currentStep === 2 && (
               <StepMusicSelection wizardData={wizardData} updateData={updateWizardData} />
             )}
             {currentStep === 3 && renderStep3()}
-            {currentStep === 4 && renderStep4()}
           </div>
-          
+
           <div className="mt-4 pt-3 d-flex justify-content-between">
             <Button variant="outline-secondary" onClick={currentStep === 1 ? () => history.push('/') : prevStep} disabled={loading}
-              style={{ borderRadius: '40px', padding: '10px 24px' }}>
+              style={{ borderRadius: '40px', padding: '8px 20px' }}>
               <ArrowLeft className="me-2" /> {currentStep === 1 ? 'Annuler' : 'Retour'}
             </Button>
-            {currentStep < 4 ? (
+            {currentStep < 3 ? (
               <Button variant="primary" onClick={nextStep} disabled={loading}
-                style={{ borderRadius: '40px', padding: '10px 24px', background: 'linear-gradient(135deg, #667eea, #764ba2)', border: 'none' }}>
+                style={{ borderRadius: '40px', padding: '8px 20px', background: 'linear-gradient(135deg, #667eea, #764ba2)', border: 'none' }}>
                 Suivant <ArrowRight className="ms-2" />
               </Button>
             ) : (
               <Button variant="success" onClick={handleSubmit} disabled={loading}
-                style={{ borderRadius: '40px', padding: '10px 24px', background: 'linear-gradient(135deg, #28a745, #20c997)', border: 'none' }}>
+                style={{ borderRadius: '40px', padding: '8px 20px', background: 'linear-gradient(135deg, #28a745, #20c997)', border: 'none' }}>
                 {loading ? (
                   <><Spinner size="sm" className="me-2" /> {uploadProgress > 0 ? `Upload ${uploadProgress}%...` : 'Mise à jour...'}</>
                 ) : (

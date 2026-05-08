@@ -1,14 +1,22 @@
 // components/VideoCardVertical.jsx
 import React from 'react';
 import { useHistory } from 'react-router-dom';
-import { Card, Badge } from 'react-bootstrap';
-import { Eye, Heart, Coin } from 'react-bootstrap-icons';
 
 const VideoCardVertical = ({ video }) => {
   const history = useHistory();
 
   const handleClick = () => {
-    history.push(`/video/${video._id}`);
+    sessionStorage.setItem('returnToFeed', window.location.pathname);
+    sessionStorage.setItem('scrollPosition', window.scrollY);
+    
+    // Redirigir a la categoría del video (modo reels)
+    const categorySlug = video.category?.slug;
+    if (categorySlug) {
+      history.push(`/${categorySlug}/1`);
+    } else {
+      // Fallback: si no tiene categoría (no debería ocurrir), ir al video individual
+      history.push(`/video/${video._id}`);
+    }
   };
 
   const formatPrice = (price) => {
@@ -16,76 +24,134 @@ const VideoCardVertical = ({ video }) => {
     return new Intl.NumberFormat('fr-DZ').format(price) + ' DA';
   };
 
+  const categoryName = video.category?.name || (video.category && typeof video.category === 'object' ? video.category.name : null);
+
   return (
-    <Card 
-      className="video-card-vertical h-100 border-0 shadow-sm rounded-4 overflow-hidden"
+    <div
+      className="video-card-vertical"
       onClick={handleClick}
-      style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
+      style={{ cursor: 'pointer' }}
     >
-      <div className="position-relative">
-        <div className="video-thumbnail">
-          <img 
-            src={video.thumbnail || '/video-placeholder.jpg'} 
-            alt={video.title}
-            className="w-100"
-            style={{ aspectRatio: '4/5', objectFit: 'cover' }}
-          />
-          {video.price > 0 && (
-            <Badge 
-              bg="success" 
-              className="position-absolute top-0 end-0 m-2 px-3 py-2 rounded-pill"
-            >
-              <Coin size={12} className="me-1" /> {formatPrice(video.price)}
-            </Badge>
-          )}
-          {video.isCommercial && (
-            <Badge 
-              bg="info" 
-              className="position-absolute bottom-0 start-0 m-2 px-3 py-2 rounded-pill"
-              style={{ background: '#3b82f6' }}
-            >
-              🛒 Commercial
-            </Badge>
-          )}
-          <div className="video-stats-overlay position-absolute bottom-0 end-0 m-2">
-            <Badge bg="dark" className="opacity-75 me-1">
-              <Eye size={12} className="me-1" /> {video.views || 0}
-            </Badge>
-            <Badge bg="dark" className="opacity-75">
-              <Heart size={12} className="me-1" /> {video.likes?.length || 0}
-            </Badge>
-          </div>
+      <div className="video-thumbnail-wrapper">
+        <img
+          src={video.thumbnail || '/video-placeholder.jpg'}
+          alt={video.title}
+          className="thumbnail-img"
+        />
+        <div className="info-overlay">
+          <div className="business-name">{video.nom_entreprise || 'Tienda'}</div>
+          <div className="activity">{video.activite || 'Actividad'}</div>
+          <div className="video-title">{video.title || 'Sin título'}</div>
+          {formatPrice(video.price) && <div className="price">{formatPrice(video.price)}</div>}
+          {categoryName && <div className="category">{categoryName}</div>}
         </div>
       </div>
-      
-      <Card.Body className="p-3">
-        <Card.Title className="fs-6 fw-bold text-truncate mb-2">
-          {video.title}
-        </Card.Title>
-        
-        <Card.Text className="small text-muted text-truncate mb-2">
-          {video.description}
-        </Card.Text>
-        
-        <div className="d-flex align-items-center gap-2 mt-2">
-          <img 
-            src={video.user?.avatar || '/default-avatar.png'} 
-            alt={video.user?.username}
-            className="rounded-circle"
-            style={{ width: 28, height: 28, objectFit: 'cover' }}
-          />
-          <small className="text-muted text-truncate" style={{ maxWidth: '100px' }}>
-            @{video.user?.username}
-          </small>
-        </div>
-        
-        {video.wilaya && (
-          <div className="mt-2 small text-muted d-flex align-items-center gap-1">
-            <p size={12} /> {video.wilaya}
-          </div>
-        )}
-      </Card.Body>
-    </Card>
+
+      <style jsx>{`
+        .video-card-vertical {
+          transition: transform 0.2s ease;
+          background: transparent;
+          border-radius: 13px;
+          overflow: hidden;
+          margin-bottom: 12px;
+        }
+        @media (max-width: 576px) {
+          .video-card-vertical {
+            margin-bottom: 10px;
+          }
+        }
+        .video-card-vertical:hover {
+          transform: translateY(-4px);
+        }
+        .video-thumbnail-wrapper {
+          position: relative;
+          width: 100%;
+          aspect-ratio: 4 / 5.09;
+          border-radius: 13px;
+          overflow: hidden;
+          background: #0f0f0f;
+        }
+        .thumbnail-img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          transition: transform 0.3s;
+        }
+        .video-card-vertical:hover .thumbnail-img {
+          transform: scale(1.02);
+        }
+        .info-overlay {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 60%, transparent 100%);
+          padding: 8px 8px 6px 8px;
+          color: white;
+          text-shadow: 0 1px 1px rgba(0,0,0,0.5);
+          pointer-events: none;
+          z-index: 1;
+        }
+        .business-name {
+          font-size: 0.85rem;
+          font-weight: 700;
+          line-height: 1.2;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          margin-bottom: 2px;
+        }
+        .activity {
+          font-size: 0.7rem;
+          font-weight: 500;
+          color: #ffd966;
+          line-height: 1.2;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          margin-bottom: 3px;
+        }
+        .video-title {
+          font-size: 0.75rem;
+          line-height: 1.3;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+          margin-bottom: 3px;
+        }
+        .price {
+          font-size: 0.85rem;
+          font-weight: 600;
+          color: #4ade80;
+          margin-bottom: 2px;
+        }
+        .category {
+          font-size: 0.6rem;
+          text-transform: uppercase;
+          letter-spacing: 0.3px;
+          opacity: 0.8;
+          line-height: 1.2;
+        }
+
+        /* Ajustes para móviles */
+        @media (max-width: 768px) {
+          .info-overlay {
+            padding: 6px 6px 4px 6px;
+          }
+          .business-name { font-size: 0.8rem; }
+          .activity { font-size: 0.65rem; }
+          .video-title { font-size: 0.7rem; }
+          .price { font-size: 0.8rem; }
+          .category { font-size: 0.55rem; }
+        }
+        @media (max-width: 480px) {
+          .business-name { font-size: 0.75rem; }
+          .activity { font-size: 0.6rem; }
+          .video-title { font-size: 0.65rem; }
+        }
+      `}</style>
+    </div>
   );
 };
 

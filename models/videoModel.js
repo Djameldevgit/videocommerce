@@ -3,13 +3,38 @@
 const mongoose = require('mongoose');
 
 const videoSchema = new mongoose.Schema({
-  // ========== INFORMACIÓN BÁSICA ==========
-  title: { 
-    type: String, 
-    required: true, 
-    trim: true, 
-    maxlength: 200 
+ 
+  nom_entreprise: {
+    type: String,
+    required: true,
+    trim: true,
+    default: ''
   },
+  activite: {
+    type: String,
+    required: true,
+    trim: true,
+    default: ''
+  },
+  
+  // Reemplazamos el campo `category` (single) por `categories` (array)
+  category: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Category', 
+    required: true 
+  },
+
+  title: {
+    type: String,
+    required: true,
+    trim: true,
+    maxlength: 200
+  },
+
+
+
+
+
   description: { 
     type: String, 
     trim: true, 
@@ -43,11 +68,6 @@ const videoSchema = new mongoose.Schema({
   },
   
   // ========== CATEGORÍA ==========
-  category: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'Category', 
-    required: true 
-  },
   
   // ========== INFORMACIÓN COMERCIAL ==========
   isCommercial: { 

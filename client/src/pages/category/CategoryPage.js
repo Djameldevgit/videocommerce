@@ -1,4 +1,4 @@
-// pages/CategoryPage.jsx - SOLO PARA VIDEOS
+// pages/CategoryPage.jsx - MODO REEL POR DEFECTO
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useParams, useHistory, useLocation } from "react-router-dom";
@@ -6,7 +6,7 @@ import { Container, Spinner, Row, Col, Button } from "react-bootstrap";
 import InfiniteScroll from "react-infinite-scroll-component";
 import { Funnel, CameraVideo, ArrowUp, Grid3x3, Film } from 'react-bootstrap-icons';
 import VideoCard from "../../components/VideoCard";
-const VideoReelItem = require('../video/Feed').default;
+import VideoReelItem from "../video/Feed"; // ✅ import correcto (sin require)
 import { getVideos } from "../../redux/actions/videoAction";
 import BreadcrumbNav from "../../components/BreadcrumbNav";
 import SliderUnificado from "../../components/SlidersCategories/SliderUnificado";
@@ -28,9 +28,8 @@ const CategoryPage = () => {
 
   const { auth, socket } = useSelector(state => state);
 
-  const [videoViewMode, setVideoViewMode] = useState(() => {
-    return slug === 'videos' && !subSlug ? VIDEO_VIEW_MODE.REEL : VIDEO_VIEW_MODE.GRID;
-  });
+  // ✅ MODO POR DEFECTO: REEL (ya no depende de slug)
+  const [videoViewMode, setVideoViewMode] = useState(VIDEO_VIEW_MODE.REEL);
   const [activeVideoIndex, setActiveVideoIndex] = useState(0);
   const [currentReelIndex, setCurrentReelIndex] = useState(0);
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -391,7 +390,7 @@ const CategoryPage = () => {
             </div>
           )}
         </>
-      );
+    );
     }
 
     return (
@@ -407,7 +406,7 @@ const CategoryPage = () => {
   };
 
   // ============================================
-  // RENDER MODO REEL PARA VIDEOS (TIKTOK STYLE)
+  // RENDER MODO REEL (por defecto)
   // ============================================
   if (videoViewMode === VIDEO_VIEW_MODE.REEL) {
     return (
@@ -521,7 +520,7 @@ const CategoryPage = () => {
   }
 
   // ============================================
-  // RENDER NORMAL PARA VIDEOS EN MODO GRID
+  // RENDER MODO GRID (secundario)
   // ============================================
   return (
     <div className="category-page">

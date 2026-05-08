@@ -13,36 +13,33 @@ const VideoCard = ({ video, compact = false }) => {
     history.push(`/video/${video._id}`);
   };
 
-  const handleUserClick = (e) => {
-    e.stopPropagation();
-    sessionStorage.setItem('returnToFeed', window.location.pathname);
-    sessionStorage.setItem('scrollPosition', window.scrollY);
-    history.push(`/video/${video._id}`); // ✅ Envía al video, no al perfil
-  };
-
-  // Formatear fecha relativa (ej: "hace 2 días")
-  const getRelativeDate = (date) => {
-    moment.locale('es'); // Español - cambiar a 'fr' para francés
-    return moment(date).fromNow();
+  // Formatear fecha relativa corta (ej: "hace 2d")
+  const getRelativeDateShort = (date) => {
+    moment.locale('es'); // Cambiar a 'fr' según idioma
+    const diff = moment().diff(moment(date), 'days');
+    if (diff === 0) return 'hoy';
+    if (diff < 7) return `hace ${diff}d`;
+    return moment(date).format('DD/MM');
   };
 
   return (
     <>
       <div className="video-card" onClick={handleVideoClick}>
-        {/* THUMBNAIL */}
+        {/* THUMBNAIL (más alto, estilo Shorts) */}
         <div className="thumbnail-container">
           <img 
             src={video.thumbnail || '/video-placeholder.jpg'} 
             alt={video.title}
             className="thumbnail-img"
+            loading="lazy"
           />
-          {/* Duración del video */}
+          {/* Duración del video (opcional) */}
           {video.duration > 0 && (
             <span className="video-duration">
               {Math.floor(video.duration / 60)}:{(video.duration % 60).toString().padStart(2, '0')}
             </span>
           )}
-          {/* Badge de precio (opcional) */}
+          {/* Badge de precio (si es comercial) */}
           {video.price > 0 && (
             <span className="price-badge">
               {video.price} DA
@@ -50,25 +47,21 @@ const VideoCard = ({ video, compact = false }) => {
           )}
         </div>
 
-        {/* INFO DEL VIDEO */}
+        {/* INFO SIMPLIFICADA (solo título y metadata mínima) */}
         <div className="video-info">
-          {/* Avatar - CLICKEABLE (envía al video) */}
-          <div className="channel-avatar" onClick={handleUserClick}>
-            <img 
-              src={video.user?.avatar || '/default-avatar.png'} 
-              alt={video.user?.username}
-            />
-          </div>
-          
-          {/* Título y metadata */}
-          <div className="video-details">
-            <h3 className="video-title">{video.title}</h3>
-            <div className="video-channel" onClick={handleUserClick}>
-              {video.user?.username}
-            </div>
-            <div className="video-date">
-              {getRelativeDate(video.createdAt)}
-            </div>
+          <h3 className="video-title">{video.title}</h3>
+          <div className="video-meta">
+            {video.duration > 0 && (
+              <span className="meta-item">
+                ⏱️ {Math.floor(video.duration / 60)}:{(video.duration % 60).toString().padStart(2, '0')}
+              </span>
+            )}
+            {video.price > 0 && (
+              <span className="meta-item price">💰 {video.price} DA</span>
+            )}
+            <span className="meta-item">
+              📅 {getRelativeDateShort(video.createdAt)}
+            </span>
           </div>
         </div>
       </div>
@@ -76,45 +69,49 @@ const VideoCard = ({ video, compact = false }) => {
       <style>{`
         .video-card {
           cursor: pointer;
-          transition: all 0.2s ease;
+          transition: transform 0.2s ease;
+          background: transparent;
         }
 
         .video-card:hover {
           transform: translateY(-2px);
         }
 
-        /* THUMBNAIL */
+        /* THUMBNAIL más alto (aspect-ratio 4:5 ≈ 0.8, más vertical) */
         .thumbnail-container {
           position: relative;
           width: 100%;
-          border-radius: 12px;
+          border-radius: 16px;
           overflow: hidden;
           background: #0f0f0f;
-          margin-bottom: 10px;
+          margin-bottom: 8px;
+          aspect-ratio: 4 / 5;  /* Cambia esto a 9/16 para más altura estilo Reels */
         }
 
         .thumbnail-img {
           width: 100%;
-          aspect-ratio: 16 / 9;
+          height: 100%;
           object-fit: cover;
           transition: transform 0.3s ease;
         }
 
         .video-card:hover .thumbnail-img {
-          transform: scale(1.05);
+          transform: scale(1.02);
         }
 
+        /* Badges sobre la thumbnail */
         .video-duration {
           position: absolute;
           bottom: 8px;
           right: 8px;
-          background: rgba(0, 0, 0, 0.8);
+          background: rgba(0, 0, 0, 0.75);
           color: white;
-          font-size: 12px;
+          font-size: 11px;
           font-weight: 500;
           padding: 2px 6px;
           border-radius: 4px;
           font-family: monospace;
+          backdrop-filter: blur(4px);
         }
 
         .price-badge {
@@ -127,43 +124,19 @@ const VideoCard = ({ video, compact = false }) => {
           font-weight: 500;
           padding: 3px 8px;
           border-radius: 20px;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.2);
         }
 
-        /* INFO DEL VIDEO */
+        /* INFO SIMPLIFICADA */
         .video-info {
-          display: flex;
-          gap: 10px;
-        }
-
-        /* AVATAR */
-        .channel-avatar {
-          flex-shrink: 0;
-          cursor: pointer;
-        }
-
-        .channel-avatar img {
-          width: 36px;
-          height: 36px;
-          border-radius: 50%;
-          object-fit: cover;
-          transition: opacity 0.2s;
-        }
-
-        .channel-avatar img:hover {
-          opacity: 0.8;
-        }
-
-        /* DETALLES */
-        .video-details {
-          flex: 1;
-          min-width: 0;
+          padding: 0 4px;
         }
 
         .video-title {
           font-size: 14px;
           font-weight: 500;
           line-height: 1.4;
-          margin: 0 0 4px 0;
+          margin: 0 0 6px 0;
           color: #0f0f0f;
           display: -webkit-box;
           -webkit-line-clamp: 2;
@@ -171,66 +144,62 @@ const VideoCard = ({ video, compact = false }) => {
           overflow: hidden;
         }
 
-        .video-channel {
-          font-size: 12px;
-          color: #606060;
-          cursor: pointer;
-          margin-bottom: 2px;
-          transition: color 0.2s;
-        }
-
-        .video-channel:hover {
-          color: #0f0f0f;
-        }
-
-        .video-date {
-          font-size: 12px;
-          color: #606060;
-        }
-
-        /* ============================================ */
-        /* COMPACT MODE (para sidebars o listas) */
-        /* ============================================ */
-        .video-card.compact {
+        .video-meta {
           display: flex;
-          gap: 10px;
+          flex-wrap: wrap;
+          gap: 12px;
+          font-size: 11px;
+          color: #606060;
         }
 
+        .meta-item {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .meta-item.price {
+          color: #16a34a;
+          font-weight: 500;
+        }
+
+        /* ========== COMPACT MODE (para sidebars, manteniendo altura pero más pequeño) ========== */
         .video-card.compact .thumbnail-container {
-          width: 168px;
-          margin-bottom: 0;
+          aspect-ratio: 16 / 9;
         }
 
-        .video-card.compact .video-info {
-          flex: 1;
+        .video-card.compact .video-title {
+          font-size: 13px;
+          -webkit-line-clamp: 1;
+        }
+
+        .video-card.compact .video-meta {
+          font-size: 10px;
+          gap: 8px;
         }
 
         /* ============================================ */
         /* RESPONSIVE */
         /* ============================================ */
         @media (max-width: 768px) {
-          .channel-avatar img {
-            width: 32px;
-            height: 32px;
-          }
           .video-title {
             font-size: 13px;
           }
-          .video-channel, .video-date {
-            font-size: 11px;
+          .video-meta {
+            font-size: 10px;
+            gap: 8px;
           }
           .thumbnail-container {
-            border-radius: 8px;
+            border-radius: 12px;
           }
         }
 
         @media (max-width: 480px) {
-          .channel-avatar img {
-            width: 28px;
-            height: 28px;
-          }
           .video-title {
             font-size: 12px;
+          }
+          .video-meta {
+            font-size: 9px;
           }
         }
       `}</style>

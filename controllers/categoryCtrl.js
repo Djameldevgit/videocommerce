@@ -131,6 +131,7 @@ const getCategoriesWithVideos = async (req, res) => {
           .sort({ createdAt: -1 })
           .limit(videosPerCategory)
           .populate('user', 'username avatar isPro')
+          .populate('category', 'slug name')   // ✅ LÍNEA CLAVE
           .lean();
         
         return { ...category, videos };
@@ -149,7 +150,6 @@ const getCategoriesWithVideos = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-
 // Asegurar que module.exports incluya esta función
  
 // ==================== 3. OBTENER CATEGORÍA POR ID O SLUG ====================

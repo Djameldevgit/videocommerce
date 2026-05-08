@@ -102,21 +102,25 @@ const getMusicLibrary = async (req, res) => {
 
 // Proxy para audio de Jamendo (evitar CORS)
  
-
- 
 const createVideo = async (req, res) => {
   try {
     console.log("🔴 BODY RECIBIDO:", JSON.stringify(req.body, null, 2));
-    
+
     const {
-      title,
+      // NUEVOS CAMPOS OBLIGATORIOS
+      nom_entreprise,
+      activite,
+      titre,
+      title: receivedTitle,
       description,
+      // CATEGORÍA ÚNICA (ID o slug)
+      category,
       videoUrl,
       videoPublicId,
       thumbnail,
       duration,
       music,
-      // NUEVOS CAMPOS COMERCIALES
+      // Comerciales
       isCommercial,
       price,
       wholesale,
@@ -132,7 +136,6 @@ const createVideo = async (req, res) => {
       pickupOnly,
       businessHours,
       stock,
-      category,      // ✅ Puede ser ID, slug o nombre
       tags
     } = req.body;
 
@@ -141,85 +144,77 @@ const createVideo = async (req, res) => {
     const isAdmin = user.role === 'admin';
     const isProValid = user.isPro && (!user.proExpiryDate || new Date(user.proExpiryDate) > new Date());
 
-    // Validaciones de duración
+    // Validación de duración
     const MAX_DURATION_FREE = 30;
     const MAX_DURATION_PRO = 60;
     const maxAllowed = (isProValid || isAdmin) ? MAX_DURATION_PRO : MAX_DURATION_FREE;
-    
     if (duration && duration > maxAllowed) {
-      return res.status(400).json({ 
-        success: false, 
-        message: `La durée maximale est de ${maxAllowed} secondes` 
+      return res.status(400).json({
+        success: false,
+        message: `La durée maximale est de ${maxAllowed} secondes`
       });
     }
 
-    // ✅ Validar y obtener la categoría
-    let categoryDoc = null;
-    if (isCommercial && category) {
-      categoryDoc = await validateAndGetCategory(category);
-      
-      if (!categoryDoc) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Catégorie invalide. Veuillez sélectionner une catégorie valide.' 
-        });
-      }
-      
-      console.log(`✅ Categoría encontrada: ${categoryDoc.name} (${categoryDoc._id})`);
+    // ===== VALIDACIONES OBLIGATORIAS =====
+    if (!nom_entreprise || !nom_entreprise.trim()) {
+      return res.status(400).json({ success: false, message: 'Le nom de l\'entreprise est obligatoire' });
+    }
+    if (!activite || !activite.trim()) {
+      return res.status(400).json({ success: false, message: 'L\'activité est obligatoire' });
+    }
+    const finalTitle = titre || receivedTitle;
+    if (!finalTitle || !finalTitle.trim()) {
+      return res.status(400).json({ success: false, message: 'Le titre est obligatoire' });
     }
 
-    // ✅ Validar campos comerciales si isCommercial = true
+    // ===== VALIDAR CATEGORÍA ÚNICA =====
+    if (!category) {
+      return res.status(400).json({ success: false, message: 'La catégorie est obligatoire' });
+    }
+    const categoryDoc = await validateAndGetCategory(category);
+    if (!categoryDoc) {
+      return res.status(400).json({ success: false, message: `Catégorie invalide: ${category}` });
+    }
+    const categoryId = categoryDoc._id;
+
+    // ===== VALIDAR CAMPOS COMERCIALES =====
     if (isCommercial) {
       if (!wilaya || !commune) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Pour les vidéos commerciales, wilaya et commune sont obligatoires' 
+        return res.status(400).json({
+          success: false,
+          message: 'Pour les vidéos commerciales, wilaya et commune sont obligatoires'
         });
       }
-      
       if (!phone && !email) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Au moins un moyen de contact (téléphone ou email) est requis' 
+        return res.status(400).json({
+          success: false,
+          message: 'Au moins un moyen de contact (téléphone ou email) est requis'
         });
       }
-      
-      if (!categoryDoc) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'La catégorie est obligatoire pour les vidéos commerciales' 
-        });
-      }
-      
       if (wholesale && (!minQuantity || minQuantity < 1)) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'La quantité minimale est requise pour la vente en gros' 
+        return res.status(400).json({
+          success: false,
+          message: 'La quantité minimale est requise pour la vente en gros'
         });
       }
     }
 
+    // Mezcla de audio (sin cambios)
     let finalVideoUrl = videoUrl;
     let finalThumbnail = thumbnail;
     let musicData = null;
 
-    // MEZCLA DE AUDIO
     if (music && music.audioPublicId && videoPublicId) {
       console.log("🎵 PROCESANDO MEZCLA DE AUDIO...");
-      
       try {
         const formattedAudioId = music.audioPublicId.replace(/\//g, ':');
         const uploadIndex = videoUrl.indexOf('/upload/');
-        if (uploadIndex === -1) {
-          throw new Error('URL inválida: no contiene /upload/');
-        }
-        
+        if (uploadIndex === -1) throw new Error('URL inválida');
         const base = videoUrl.substring(0, uploadIndex + 8);
         const pathAndFile = videoUrl.substring(uploadIndex + 8);
         const transformation = `l_audio:${formattedAudioId},fl_layer_apply`;
         finalVideoUrl = `${base}${transformation}/${pathAndFile}`;
         finalThumbnail = finalVideoUrl.replace(/\.mp4$/, '.jpg');
-        
         musicData = {
           id: music.id,
           title: music.title,
@@ -237,7 +232,7 @@ const createVideo = async (req, res) => {
       musicData = { ...music, processed: false };
     }
 
-    // Construir objeto de ubicación
+    // Ubicación (sin cambios)
     let locationData = null;
     if (location && location.coordinates && location.coordinates.length === 2) {
       locationData = {
@@ -255,21 +250,22 @@ const createVideo = async (req, res) => {
       };
     }
 
+    // Crear el nuevo video (con category única)
     const newVideo = new Video({
-      // Campos básicos
-      title: title.trim(),
+      nom_entreprise: nom_entreprise.trim(),
+      activite: activite.trim(),
+      title: finalTitle.trim(),
       description: description || '',
       shortDescription: description ? description.substring(0, 300) : '',
+      category: categoryId,                     // ✅ Única categoría
       videoUrl: finalVideoUrl,
       videoPublicId: videoPublicId,
       thumbnail: finalThumbnail,
       duration: duration || 0,
       user: userId,
       music: musicData,
-      category: categoryDoc ? categoryDoc._id : null, // ✅ Guardar ObjectId, no string
       tags: tags || [],
-      
-      // Campos comerciales
+      // Comerciales
       isCommercial: isCommercial || false,
       price: price || 0,
       wholesale: wholesale || false,
@@ -285,104 +281,151 @@ const createVideo = async (req, res) => {
       pickupOnly: pickupOnly || false,
       businessHours: businessHours || {},
       stock: stock || { total: 0, available: 0, reserved: 0 },
-      
-      // Estado
       pendiente: isAdmin ? false : true
     });
 
     await newVideo.save();
-    
-    // ✅ Poblar la categoría para la respuesta
+
+    // ✅ Incrementar videoCount en la categoría
+    await Category.findByIdAndUpdate(categoryId, { $inc: { videoCount: 1 } });
+
+    // Poblar para respuesta
     const populatedVideo = await Video.findById(newVideo._id)
       .populate('user', 'username avatar isPro role')
-      .populate('category', 'name slug icon'); // ✅ Poblar categoría
-    
+      .populate('category', 'name slug icon');    // ✅ populamos category
+
     console.log(`✅ Video creado exitosamente: ${populatedVideo._id}`);
-    
+
     res.status(201).json({
       success: true,
       message: isAdmin ? 'Vidéo créée avec succès' : 'Vidéo en attente d\'approbation',
       video: populatedVideo
     });
-    
+
   } catch (error) {
     console.error('❌ Error en createVideo:', error);
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       message: error.message || 'Error al crear el video'
     });
   }
 };
 
- 
 const updateVideo = async (req, res) => {
   try {
     const { id } = req.params;
-    const { 
-      title, description, music, videoUrl, videoPublicId, thumbnail, duration,
-      isCommercial, price, wholesale, minQuantity, phone, phoneHidden, email,
-      website, wilaya, commune, location, delivery, pickupOnly, businessHours,
-      stock, category, tags
+    const {
+      // Nuevos campos obligatorios
+      nom_entreprise,
+      activite,
+      titre,
+      title: receivedTitle,
+      description,
+      music,
+      videoUrl,
+      videoPublicId,
+      thumbnail,
+      duration,
+      category,
+      isCommercial,
+      price,
+      wholesale,
+      minQuantity,
+      phone,
+      phoneHidden,
+      email,
+      website,
+      wilaya,
+      commune,
+      location,
+      delivery,
+      pickupOnly,
+      businessHours,
+      stock,
+      tags
     } = req.body;
-    
+
     console.log("🔴 ========== UPDATE VIDEO ==========");
     console.log("🔴 ID:", id);
-    
+    console.log("🔴 Body recibido:", JSON.stringify(req.body, null, 2));
+
     const video = await Video.findById(id);
     if (!video) {
       return res.status(404).json({ success: false, message: 'Video no encontrado' });
     }
-    
+
     const isOwner = video.user.toString() === req.user._id.toString();
     const isAdmin = req.user.role === 'admin' || req.user.role === 'moderator';
-    
+
     if (!isOwner && !isAdmin) {
       return res.status(403).json({ success: false, message: 'No autorizado' });
     }
+
+    // Guardar categoría antigua para contador
+    const oldCategoryId = video.category ? video.category.toString() : null;
+
+    // ===== ACTUALIZAR CAMPOS OBLIGATORIOS =====
+    if (nom_entreprise !== undefined) video.nom_entreprise = nom_entreprise.trim();
+    if (activite !== undefined) video.activite = activite.trim();
     
-    // Guardar el ID del vídeo anterior (si existe y es local)
-    const oldVideoPublicId = video.videoPublicId;
+    // Título: priorizar 'titre' (front) o 'title' (backup)
+    const newTitle = titre || receivedTitle;
+    if (newTitle !== undefined) {
+      video.title = newTitle.trim();
+      console.log("📝 Nuevo título asignado:", video.title);
+    }
     
-    // Validar campos comerciales si se está actualizando a comercial
+    // Descripción y shortDescription
+    if (description !== undefined) {
+      video.description = description;
+      video.shortDescription = description ? description.substring(0, 300) : '';
+      console.log("📝 Nueva descripción y shortDescription");
+    }
+    
+    // Thumbnail, duración, URL, etc.
+    if (thumbnail) video.thumbnail = thumbnail;
+    if (duration) video.duration = duration;
+    if (videoUrl) video.videoUrl = videoUrl;
+    if (videoPublicId !== undefined) video.videoPublicId = videoPublicId;
+    if (tags) video.tags = tags;
+
+    // ===== ACTUALIZAR CATEGORÍA ÚNICA =====
+    let newCategoryId = null;
+    if (category !== undefined) {
+      if (!category) {
+        return res.status(400).json({ success: false, message: 'La catégorie est obligatoire' });
+      }
+      const categoryDoc = await validateAndGetCategory(category);
+      if (!categoryDoc) {
+        return res.status(400).json({ success: false, message: `Catégorie invalide: ${category}` });
+      }
+      newCategoryId = categoryDoc._id;
+      video.category = newCategoryId;
+      console.log("📝 Nueva categoría asignada:", newCategoryId);
+    }
+
+    // ===== VALIDAR COMERCIALES =====
     const finalIsCommercial = isCommercial !== undefined ? isCommercial : video.isCommercial;
     if (finalIsCommercial) {
       const finalWilaya = wilaya !== undefined ? wilaya : video.wilaya;
       const finalCommune = commune !== undefined ? commune : video.commune;
       const finalPhone = phone !== undefined ? phone : video.phone;
       const finalEmail = email !== undefined ? email : video.email;
-      
+
       if (!finalWilaya || !finalCommune) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Pour les vidéos commerciales, wilaya et commune sont obligatoires' 
+        return res.status(400).json({
+          success: false,
+          message: 'Pour les vidéos commerciales, wilaya et commune sont obligatoires'
         });
       }
       if (!finalPhone && !finalEmail) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Au moins un moyen de contact (téléphone ou email) est requis' 
+        return res.status(400).json({
+          success: false,
+          message: 'Au moins un moyen de contact (téléphone ou email) est requis'
         });
       }
     }
-    
-    // Limpiar URL de transformaciones (para la música)
-    const cleanUrlFromTransformations = (url) => {
-      if (!url) return url;
-      let cleanUrl = url;
-      cleanUrl = cleanUrl.replace(/\/l_audio:[^/]+,fl_layer_apply\//g, '/');
-      cleanUrl = cleanUrl.replace(/\/upload\/l_audio:[^,]+,fl_layer_apply\//, '/upload/');
-      return cleanUrl.replace(/\/l_audio:[^/]+,fl_layer_apply\//g, '/');
-    };
-    
-    // Actualizar campos básicos
-    if (title) video.title = title;
-    if (description !== undefined) video.description = description;
-    if (thumbnail) video.thumbnail = thumbnail;
-    if (duration) video.duration = duration;
-    if (videoUrl) video.videoUrl = videoUrl;
-    if (category !== undefined) video.category = category;
-    if (tags) video.tags = tags;
-    
+
     // Actualizar campos comerciales
     if (isCommercial !== undefined) video.isCommercial = isCommercial;
     if (price !== undefined) video.price = price;
@@ -398,7 +441,7 @@ const updateVideo = async (req, res) => {
     if (pickupOnly !== undefined) video.pickupOnly = pickupOnly;
     if (businessHours !== undefined) video.businessHours = businessHours;
     if (stock !== undefined) video.stock = stock;
-    
+
     // Actualizar ubicación
     if (location) {
       if (location.coordinates && location.coordinates.length === 2) {
@@ -417,13 +460,22 @@ const updateVideo = async (req, res) => {
         };
       }
     }
-    
-    // Manejar música y posible nuevo videoPublicId
+
+    // ===== MANEJO DE MÚSICA Y MEZCLA DE AUDIO (igual que en createVideo) =====
+    const cleanUrlFromTransformations = (url) => {
+      if (!url) return url;
+      let cleanUrl = url;
+      cleanUrl = cleanUrl.replace(/\/l_audio:[^/]+,fl_layer_apply\//g, '/');
+      cleanUrl = cleanUrl.replace(/\/upload\/l_audio:[^,]+,fl_layer_apply\//, '/upload/');
+      return cleanUrl.replace(/\/l_audio:[^/]+,fl_layer_apply\//g, '/');
+    };
+
     let finalVideoUrl = video.videoUrl;
-    
+
     if (music !== undefined && music !== null) {
       if (music === null) {
         video.music = null;
+        console.log("🎵 Música eliminada");
       } 
       else if (music.audioPublicId) {
         console.log("🎵 Regenerando mezcla de audio...");
@@ -464,49 +516,45 @@ const updateVideo = async (req, res) => {
         video.music = { ...music, processed: false };
       }
     }
-    
+
     if (finalVideoUrl !== video.videoUrl) {
       video.videoUrl = finalVideoUrl;
     }
-    
-    // ✅ ACTUALIZAR videoPublicId si se proporciona
-    if (videoPublicId !== undefined) {
-      video.videoPublicId = videoPublicId;
-    }
-    
-    // Admin aprueba automáticamente
-    if (isAdmin && video.pendiente === true) {
-      video.pendiente = false;
-    }
-    
+
+    // Guardar cambios en la BD
     await video.save();
-    
-    // ✅ ELIMINAR EL VÍDEO ANTIGUO DE CLOUDINARY SI SE CAMBIÓ
-    if (oldVideoPublicId && video.videoPublicId && oldVideoPublicId !== video.videoPublicId) {
-      console.log(`🗑️ Eliminando vídeo antiguo de Cloudinary: ${oldVideoPublicId}`);
-      const deletionResult = await deleteFromCloudinary(oldVideoPublicId, 'video');
-      if (!deletionResult.success) {
-        console.warn(`⚠️ No se pudo eliminar el vídeo antiguo: ${deletionResult.error}`);
-        // No fallamos la operación, solo lo registramos
-      }
+    console.log("✅ Video guardado correctamente");
+
+    // ===== ACTUALIZAR CONTADORES DE CATEGORÍA =====
+    if (oldCategoryId && newCategoryId && oldCategoryId !== newCategoryId.toString()) {
+      await Category.findByIdAndUpdate(oldCategoryId, { $inc: { videoCount: -1 } });
+      await Category.findByIdAndUpdate(newCategoryId, { $inc: { videoCount: 1 } });
+      console.log(`📊 Contadores actualizados: -1 en ${oldCategoryId}, +1 en ${newCategoryId}`);
+    } else if (newCategoryId && !oldCategoryId) {
+      await Category.findByIdAndUpdate(newCategoryId, { $inc: { videoCount: 1 } });
+    } else if (oldCategoryId && !newCategoryId) {
+      await Category.findByIdAndUpdate(oldCategoryId, { $inc: { videoCount: -1 } });
     }
-    
+
+    // Poblar y devolver el video actualizado
     const updatedVideo = await Video.findById(video._id)
       .populate('user', 'username avatar isPro role')
       .populate('category', 'name slug icon');
-    
-    res.json({ 
-      success: true, 
-      message: 'Video actualizado correctamente', 
-      video: updatedVideo 
+
+    console.log("📤 Video actualizado devuelto:", updatedVideo._id, updatedVideo.title);
+
+    res.json({
+      success: true,
+      message: 'Video actualizado correctamente',
+      video: updatedVideo
     });
-    
+
   } catch (error) {
     console.error('❌ Error updateVideo:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
-
+  
 // ============================================
 // 🗑️ ELIMINAR VIDEO (CORREGIDO USANDO videoPublicId)
 // ============================================

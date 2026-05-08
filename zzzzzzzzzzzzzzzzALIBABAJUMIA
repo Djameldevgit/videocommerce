@@ -6,3 +6,6 @@ src/components/CATEGORIES/
 ├── camposComun/
 │   └── camposComunField.js     # Mapeo de campos comunes
 └── specificFields/             # Campos específicos (opcional)
+
+
+muy bien maestro, con estos cuatro campos uno es un multiselect para categorias y los demas son inputs y description

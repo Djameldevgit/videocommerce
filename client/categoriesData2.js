@@ -6,7 +6,7 @@ const path = require('path');
 
 // Ruta base - /public/categories/
 const basePath = path.join(__dirname, 'public', 'categories');
-
+ 
 // 📋 ESTRUCTURA SIMPLIFICADA - Solo categorías principales para VideoCommerce
 // Cada categoría tendrá su propio icono en la carpeta correspondiente
 const mainCategories = [

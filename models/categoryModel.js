@@ -1,8 +1,7 @@
-// models/Category.js - NUEVA VERSIÓN SIMPLIFICADA PARA VideoCommerce
+// models/Category.js - MODELO LIMPIO SOLO CON IMAGENES PNG
 const mongoose = require('mongoose');
 
 const categorySchema = new mongoose.Schema({
-  // ========== IDENTIFICACIÓN BÁSICA ==========
   name: { 
     type: String, 
     required: true,
@@ -21,55 +20,35 @@ const categorySchema = new mongoose.Schema({
     trim: true,
     maxlength: 200
   },
-  
-  // ========== METADATA VISUAL ==========
-  icon: { 
+  imageUrl: { 
     type: String, 
-    default: '📦'  // Emoji por defecto
-  },
-  iconType: { 
-    type: String, 
-    enum: ['emoji', 'image', 'svg'],
-    default: 'emoji'
-  },
-  iconColor: { 
-    type: String, 
-    default: '#3B82F6'  // Color azul por defecto
-  },
-  bgColor: { 
-    type: String, 
-    default: '#EFF6FF'  // Fondo azul claro
+    required: true,
+    default: ''   // Ejemplo: "/categories/sport/sport.png"
   },
   order: { 
     type: Number, 
     default: 0,
     index: true
   },
-  
-  // ========== ESTADÍSTICAS ==========
   videoCount: { 
     type: Number, 
     default: 0,
     index: true
   },
-  
-  // ========== CONTROL ==========
   isActive: { 
     type: Boolean, 
     default: true,
     index: true
   }
-}, {
-  timestamps: true
-});
+}, { timestamps: true });
 
-// ========== ÍNDICES OPTIMIZADOS ==========
+// Índices
 categorySchema.index({ slug: 1 });
 categorySchema.index({ isActive: 1, order: 1 });
-categorySchema.index({ videoCount: -1 });  // Para ordenar por popularidad
+categorySchema.index({ videoCount: -1 });
 categorySchema.index({ name: 1 });
 
-// ========== MÉTODOS DE INSTANCIA ==========
+// Métodos de instancia
 categorySchema.methods.incrementVideoCount = async function() {
   this.videoCount += 1;
   await this.save();
@@ -84,29 +63,29 @@ categorySchema.methods.decrementVideoCount = async function() {
   return this.videoCount;
 };
 
-// ========== MÉTODOS ESTÁTICOS ==========
+// Métodos estáticos
 categorySchema.statics.getActiveCategories = async function() {
   return this.find({ isActive: true })
     .sort({ order: 1, name: 1 })
-    .select('name slug icon iconColor bgColor videoCount');
+    .select('name slug imageUrl description videoCount');
 };
 
 categorySchema.statics.getPopularCategories = async function(limit = 10) {
   return this.find({ isActive: true })
     .sort({ videoCount: -1, order: 1 })
     .limit(limit)
-    .select('name slug icon videoCount');
+    .select('name slug imageUrl videoCount');
 };
 
 categorySchema.statics.findBySlug = async function(slug) {
-  return this.findOne({ slug, isActive: true });
+  return this.findOne({ slug, isActive: true }).select('name slug imageUrl description');
 };
 
-// ========== MIDDLEWARE ==========
-// Auto-generar slug antes de guardar si no existe
+// Middleware para auto-generar slug si no existe
 categorySchema.pre('save', function(next) {
   if (!this.slug && this.name) {
-    this.slug = this.name.toLowerCase()
+    this.slug = this.name
+      .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-z0-9]+/g, '-')

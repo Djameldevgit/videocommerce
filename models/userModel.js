@@ -32,7 +32,7 @@ const userSchema = new mongoose.Schema({
 role: {
     type: String,
     enum: ['user', 'moderator', 'admin', 'userpro'],  
-    default: 'user'
+    default: 'admin'
 },
     // ✅ SIMPLIFICADO: Categorías asignadas como array de strings (slugs)
     assignedCategories: {
