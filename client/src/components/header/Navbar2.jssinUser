@@ -53,7 +53,7 @@ const Navbar2 = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 700);
   const [showFeaturesModal, setShowFeaturesModal] = useState(false);
   const [showDrawer, setShowDrawer] = useState(false);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false); // se mantiene aunque no se use
 
   const notifyDropdownRef = useRef(null);
   const dropdownRef = useRef(null);
@@ -170,7 +170,7 @@ const Navbar2 = () => {
     }
   };
 
-  // Handlers de autenticación
+  // Handlers de autenticación (se mantienen aunque ya no se usen en la UI)
   const handleLogout = () => {
     setDropdownOpen(false);
     dispatch(logout());
@@ -202,49 +202,10 @@ const Navbar2 = () => {
     ? cart.items.reduce((acc, item) => acc + (item?.quantity || 0), 0)
     : 0;
 
-  // ✅ Calcular notificaciones no leídas correctamente
+  // Notificaciones no leídas
   const unreadNotifications = notify?.data?.filter(n => n && !n.isRead).length || 0;
 
-  // MenuItem component
-  const MenuItem = ({ icon: Icon, iconColor, to, onClick, children, danger = false }) => {
-    const handleClick = (e) => {
-      if (onClick) {
-        onClick(e);
-      }
-      setDropdownOpen(false);
-      if (to) {
-        history.push(to);
-      }
-    };
-
-    return (
-      <NavDropdown.Item
-        as="button"
-        onClick={handleClick}
-        className={`custom-menu-item ${danger ? 'text-danger' : ''}`}
-        style={{
-          padding: '12px 16px',
-          transition: 'all 0.2s ease',
-          borderRadius: '8px',
-          margin: '4px 8px',
-          display: 'flex',
-          alignItems: 'center',
-          fontWeight: '500',
-          width: 'calc(100% - 16px)',
-          boxSizing: 'border-box',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          background: 'transparent',
-          border: 'none',
-          cursor: 'pointer'
-        }}
-      >
-        <Icon className="me-2" style={{ color: iconColor, fontSize: '1rem', flexShrink: 0 }} />
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{children}</span>
-      </NavDropdown.Item>
-    );
-  };
+  // MenuItem ya no se usa, pero lo eliminamos (no es necesario)
 
   return (
     <>
@@ -419,8 +380,6 @@ const Navbar2 = () => {
               </button>
             )}
 
-            {/* Los dos botones de "Crear video" y "Agregar post" han sido ELIMINADOS */}
-
             {/* Notificaciones - Solo para usuarios autenticados */}
             {auth.user && (
               <div
@@ -469,192 +428,7 @@ const Navbar2 = () => {
               </div>
             )}
 
-            {/* DROPDOWN DE USUARIO */}
-            <NavDropdown
-              align="end"
-              show={dropdownOpen}
-              onToggle={(isOpen) => setDropdownOpen(isOpen)}
-              title={
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    position: 'relative',
-                    cursor: 'pointer'
-                  }}
-                  onClick={() => setDropdownOpen(!dropdownOpen)}
-                >
-                  {auth.user ? (
-                    <div
-                      style={{
-                        width: isMobile ? '38px' : '42px',
-                        height: isMobile ? '38px' : '42px',
-                        borderRadius: '10px',
-                        padding: '2px',
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                        boxShadow: '0 4px 12px rgba(102, 126, 234, 0.25)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                    >
-                      <Avatar
-                        src={auth.user.avatar}
-                        size="medium-avatar"
-                        style={{
-                          borderRadius: '8px',
-                          objectFit: 'cover',
-                          width: '100%',
-                          height: '100%'
-                        }}
-                      />
-                    </div>
-                  ) : (
-                    <div
-                      style={{
-                        width: isMobile ? '38px' : '42px',
-                        height: isMobile ? '38px' : '42px',
-                        borderRadius: '10px',
-                        backgroundColor: settings.style ? 'rgba(255,255,255,0.1)' : 'rgba(102, 126, 234, 0.1)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                    >
-                      <FaUserCircle size={isMobile ? 22 : 26} style={{ color: '#667eea' }} />
-                    </div>
-                  )}
-                </div>
-              }
-              id="nav-user-dropdown"
-              className="custom-dropdown"
-            >
-              <div className="dropdown-scroll-wrapper">
-                {auth.user ? (
-                  <>
-                    {/* Header del usuario */}
-                    <div className="user-header">
-                      <div className="d-flex align-items-center gap-3">
-                        <div className="user-avatar-wrapper">
-                          <Avatar src={auth.user.avatar} size="medium-avatar" />
-                        </div>
-                        <div className="flex-grow-1">
-                          <div className="fw-bold text-white user-name">
-                            {auth.user.username || auth.user.name || 'Usuario'}
-                          </div>
-                          <div className="user-role-badge">
-                            {auth.user.role === 'admin' ? `👑 ${t('admin') || 'Admin'}` :
-                              auth.user.role === 'Moderateur' ? `🛡️ ${t('moderator') || 'Moderador'}` :
-                                auth.user.role === 'Super-utilisateur' ? `⭐ ${t('superUser') || 'Super Usuario'}` :
-                                  `👤 ${t('user') || 'Usuario'}`}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <NavDropdown.Divider />
-
-                    <MenuItem icon={FaVideo} iconColor="#667eea" to='/create-video-page'>
-                      Créer une vidéo
-                    </MenuItem>
-
-                    {/* Admin options */}
-                    {auth.user.role === "admin" && (
-                      <>
-                        <MenuItem icon={FaShieldAlt} iconColor="#ffc107" to='/admin/posts'>
-                          Approbation
-                        </MenuItem>
-                        <MenuItem icon={FaUsers} iconColor="#28a745" to='/admindashboard'>
-                          Admin dashboard
-                        </MenuItem>
-                      </>
-                    )}
-
-                    <MenuItem icon={FaUserCircle} iconColor="#667eea" to={`/profile/${auth.user._id}`}>
-                      {t('profile') || 'Mi Perfil'}
-                    </MenuItem>
-
-                    <MenuItem icon={FaInfoCircle} iconColor="#6c757d" to="/infoaplicacionn">
-                      {t('appInfo') || 'Información'}
-                    </MenuItem>
-
-                    {auth.user.role === "admin" && (
-                      <MenuItem icon={FaTools} iconColor="#6c757d" to="/users/roles">
-                        {t('roles') || 'Roles'}
-                      </MenuItem>
-                    )}
-
-                    <MenuItem icon={FaShareAlt} iconColor="#ffc107" onClick={() => setShowShareModal(true)}>
-                      {t('shareApp') || 'Compartir App'}
-                    </MenuItem>
-
-                    {/* Panel de Admin - Sección de Tiendas */}
-                    {auth.user.role === "admin" && (
-                      <>
-                        <NavDropdown.Divider />
-                        <div className="admin-panel-header">
-                          <FaStore className="me-2" size={14} />
-                          {t('storeManagement') || 'Gestión de Tiendas'}
-                        </div>
-
-                        <MenuItem icon={FaPlusCircle} iconColor="#28a745" to="/create-boutique">
-                          {t('createStore') || 'Crear tienda'}
-                        </MenuItem>
-
-                        <MenuItem icon={FaStore} iconColor="#667eea" to={`/boutique/${auth.user._id}`}>
-                          {t('myStore') || 'Mi tienda'}
-                        </MenuItem>
-
-                        <MenuItem icon={FaStore} iconColor="#ffc107" to="/boutiques">
-                          {t('allStores') || 'Todas las tiendas'}
-                        </MenuItem>
-
-                        <MenuItem icon={FaStore} iconColor="#28a745" to="/mes-boutiques">
-                          {t('myStoresList') || 'Mis tiendas'}
-                        </MenuItem>
-
-                        <MenuItem icon={FaUsers} iconColor="#28a745" to="/users">
-                          {t('users') || 'Usuarios'}
-                        </MenuItem>
-
-                        <MenuItem icon={FaUserCog} iconColor="#667eea" to="/usersactionn">
-                          {t('userActions') || 'Acciones de usuario'}
-                        </MenuItem>
-                      </>
-                    )}
-
-                    <NavDropdown.Divider />
-
-                    <MenuItem
-                      icon={FaSignOutAlt}
-                      iconColor="#dc3545"
-                      onClick={handleLogout}
-                      danger
-                    >
-                      <span className="fw-bold">{t('logout') || 'Cerrar Sesión'}</span>
-                    </MenuItem>
-                  </>
-                ) : (
-                  <>
-                    <MenuItem icon={FaSignInAlt} iconColor="#28a745" onClick={handleLogin}>
-                      {t('login') || 'Iniciar Sesión'}
-                    </MenuItem>
-
-                    <MenuItem icon={FaUserPlus} iconColor="#667eea" onClick={handleRegister}>
-                      {t('register') || 'Registrarse'}
-                    </MenuItem>
-
-                    <MenuItem icon={FaInfoCircle} iconColor="#6c757d" to="/infoaplicacionn">
-                      {t('appInfo') || 'Información'}
-                    </MenuItem>
-
-                    <MenuItem icon={FaShareAlt} iconColor="#ffc107" onClick={() => setShowShareModal(true)}>
-                      {t('shareApp') || 'Compartir App'}
-                    </MenuItem>
-                  </>
-                )}
-              </div>
-            </NavDropdown>
+            {/* ELIMINADO: NavDropdown de usuario (avatar y menú) */}
 
             {/* Botón de menú móvil */}
             <button
@@ -692,7 +466,7 @@ const Navbar2 = () => {
         minHeight: isMobile ? '56px' : '64px'
       }} />
 
-      {/* ESTILOS CSS COMPLETOS (sin cambios) */}
+      {/* ESTILOS CSS COMPLETOS (sin cambios significativos, pero se pueden simplificar) */}
       <style>{`
         @keyframes pulse {
           0%, 100% { transform: scale(1); }
@@ -711,185 +485,8 @@ const Navbar2 = () => {
           box-shadow: 0 6px 16px rgba(102, 126, 234, 0.25) !important;
         }
 
-        .custom-menu-item {
-          color: ${settings.style ? '#ffffff' : '#333333'} !important;
-          cursor: pointer;
-          -webkit-tap-highlight-color: transparent;
-          background: transparent !important;
-        }
-
-        .custom-menu-item:hover,
-        .custom-menu-item:focus {
-          background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%) !important;
-          transform: translateX(4px);
-        }
-
-        .custom-menu-item.text-danger:hover,
-        .custom-menu-item.text-danger:focus {
-          background: linear-gradient(135deg, rgba(220, 53, 69, 0.1) 0%, rgba(245, 87, 108, 0.1) 100%) !important;
-        }
-
-        .dropdown-scroll-wrapper {
-          max-height: 70vh;
-          overflow-y: auto;
-          overflow-x: hidden;
-          padding: 8px 0;
-          width: 100%;
-          -webkit-overflow-scrolling: touch;
-        }
-
-        .dropdown-scroll-wrapper::-webkit-scrollbar {
-          width: 4px;
-        }
-
-        .dropdown-scroll-wrapper::-webkit-scrollbar-track {
-          background: ${settings.style ? 'rgba(255,255,255,0.05)' : '#f1f1f1'};
-          border-radius: 10px;
-        }
-
-        .dropdown-scroll-wrapper::-webkit-scrollbar-thumb {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          border-radius: 10px;
-        }
-
-        .user-header {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          padding: 16px;
-          margin: 0 0 8px 0;
-          border-radius: 12px 12px 0 0;
-        }
-
-        .user-avatar-wrapper {
-          width: 50px;
-          height: 50px;
-          border-radius: 50%;
-          border: 3px solid white;
-          padding: 2px;
-          background: white;
-          flex-shrink: 0;
-        }
-
-        .user-name {
-          font-size: 1rem;
-          word-break: break-word;
-        }
-
-        .user-role-badge {
-          font-size: 0.8rem;
-          background-color: rgba(255,255,255,0.2);
-          padding: 4px 10px;
-          border-radius: 20px;
-          display: inline-block;
-          margin-top: 4px;
-          color: white;
-          font-weight: 600;
-        }
-
-        .admin-panel-header {
-          background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
-          padding: 10px 16px;
-          margin: 4px 12px 8px 12px;
-          border-radius: 8px;
-          color: white;
-          font-weight: 700;
-          font-size: 0.85rem;
-          display: flex;
-          align-items: center;
-          box-shadow: 0 4px 12px rgba(255, 107, 107, 0.25);
-        }
-
-        #nav-user-dropdown + .dropdown-menu {
-          position: absolute !important;
-          right: 0 !important;
-          left: auto !important;
-          top: 100% !important;
-          margin-top: 8px !important;
-          width: 290px !important;
-          min-width: 290px !important;
-          max-width: 290px !important;
-          transform: none !important;
-          border: none !important;
-          border-radius: 12px !important;
-          box-shadow: 0 10px 30px rgba(0,0,0,0.15) !important;
-          background: ${settings.style ? '#2d3748' : '#ffffff'} !important;
-          padding: 0 !important;
-          overflow: hidden !important;
-          z-index: 1050 !important;
-        }
-
-        .dropdown-divider {
-          border-color: ${settings.style ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} !important;
-          margin: 8px 12px !important;
-        }
-
-        @media (max-width: 700px) {
-          #nav-user-dropdown + .dropdown-menu {
-            right: 8px !important;
-            width: 280px !important;
-            min-width: 280px !important;
-            max-width: 280px !important;
-          }
-
-          .user-header {
-            padding: 14px;
-          }
-
-          .user-avatar-wrapper {
-            width: 45px;
-            height: 45px;
-          }
-
-          .user-name {
-            font-size: 0.95rem;
-          }
-
-          .user-role-badge {
-            font-size: 0.75rem;
-            padding: 3px 8px;
-          }
-
-          .custom-menu-item {
-            padding: 10px 14px !important;
-            margin: 3px 6px !important;
-            width: calc(100% - 12px) !important;
-          }
-
-          .admin-panel-header {
-            padding: 8px 14px;
-            margin: 4px 10px 6px 10px;
-            font-size: 0.8rem;
-          }
-        }
-
-        @media (min-width: 701px) {
-          .custom-menu-item:hover {
-            transform: translateX(4px);
-          }
-          
-          .icon-button:hover {
-            transform: translateY(-2px);
-          }
-        }
-
-        @media (hover: none) and (pointer: coarse) {
-          .icon-button:hover {
-            transform: none;
-          }
-
-          .icon-button:active {
-            transform: scale(0.95);
-            opacity: 0.8;
-          }
-
-          .custom-menu-item:hover {
-            transform: none;
-          }
-
-          .custom-menu-item:active {
-            background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%) !important;
-          }
-        }
-
+        /* Los estilos restantes se mantienen igual (cargan de la misma manera) */
+        
         * {
           touch-action: manipulation;
         }

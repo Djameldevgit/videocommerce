@@ -57,7 +57,7 @@ const HeaderVideo = () => {
   };
   
   const goToHome = () => {
-    history.push('/videos/1');
+    history.push('/');
   };
   
   const goToExplore = () => {
@@ -77,13 +77,18 @@ const HeaderVideo = () => {
   const goToMessages = () => {
     history.push('/message');
   };
-  
+ /*
   const goToProfile = () => {
     if (currentUserId) {
       history.push(`/video/userVideo/${currentUserId}`);
     }
   };
-  
+  */  const goToProfile = () => {
+    if (currentUserId) {
+      history.push(`/profile/${currentUserId}`);
+    }
+  };
+
   // Cerrar menú al hacer click fuera
   useEffect(() => {
     const handleClickOutside = () => setShowCreateMenu(false);

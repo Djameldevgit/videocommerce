@@ -1,4 +1,4 @@
-// pages/CategoryPage.jsx - MODO REEL POR DEFECTO (con manejo seguro de videos)
+// pages/CategoryPage.jsx - MODO REEL POR DEFECTO (con slider visible en ambos modos)
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useParams, useHistory, useLocation } from "react-router-dom";
@@ -9,15 +9,13 @@ import VideoCard from "../../components/VideoCard";
 import VideoReelItem from "../video/Feed";
 import { getVideos } from "../../redux/actions/videoAction";
 import { getSliderCategories } from "../../redux/actions/categoryAction";
-
-//import { getSliderCategories } from "../../redux/actions/categoryActions"; // ✅ ruta correcta
+ 
+//import { getSliderCategories } from "../../redux/actions/categoryActions";
 import PaginationComponent from "../../components/PaginationComponent";
 import FilterDrawer from "./FilterDrawer";
 import HeaderVideo from '../HeaderVideo';
 import CategorySlider from "../../components/CategorySlider";
 
-
- 
 const VIDEO_VIEW_MODE = {
   REEL: 'reel',
   GRID: 'grid'
@@ -32,14 +30,14 @@ const CategoryPage = () => {
   const { auth, socket } = useSelector(state => state);
   const { sliderCategories, loadingSlider } = useSelector(state => state.category || { sliderCategories: [], loadingSlider: false });
 
-  // ✅ Cargar categorías para el slider si no existen
+  // Cargar categorías para el slider si no existen
   useEffect(() => {
     if (!sliderCategories || sliderCategories.length === 0) {
       dispatch(getSliderCategories());
     }
   }, [dispatch, sliderCategories]);
 
-  // ✅ MODO POR DEFECTO: REEL
+  // Modo de vista (por defecto REEL)
   const [videoViewMode, setVideoViewMode] = useState(VIDEO_VIEW_MODE.REEL);
   const [activeVideoIndex, setActiveVideoIndex] = useState(0);
   const [currentReelIndex, setCurrentReelIndex] = useState(0);
@@ -61,10 +59,9 @@ const CategoryPage = () => {
 
   const categoryData = useSelector(state => state.category.currentCategory);
   
-  // Estados REDUX para videos
+  // Estados REDUX para videos (con filtro seguro)
   const videosState = useSelector((state) => state.video);
   const rawVideos = videosState.videos || [];
-  // ✅ Filtrar videos undefined/null para evitar errores
   const videos = rawVideos.filter(v => v && v._id);
   const videosLoading = videosState.loading || false;
   const hasMoreVideos = videosState.hasMore || false;
@@ -244,7 +241,6 @@ const CategoryPage = () => {
       activeFilters?.commune || ''));
   }, [slug, dispatch, updateUrl, activeFilters]);
 
-  // Función para manejar clic en categoría (slider)
   const handleCategoryClick = (category) => {
     history.push(`/${category.slug}/1`);
   };
@@ -356,24 +352,33 @@ const CategoryPage = () => {
     );
   };
 
-  // Función para renderizar el slider (condicional)
- 
+  const renderCategorySlider = () => {
+    if (loadingSlider) {
+      return <div className="text-center py-2">Cargando categorías...</div>;
+    }
+    if (!sliderCategories || sliderCategories.length === 0) {
+      return null;
+    }
+    return <CategorySlider categories={sliderCategories} onCategoryClick={handleCategoryClick} />;
+  };
 
   // ============================================
-  // RENDER MODO REEL (por defecto)
+  // RENDER MODO REEL (con slider visible)
   // ============================================
   if (videoViewMode === VIDEO_VIEW_MODE.REEL) {
     return (
       <>
-        {/* Si quieres mostrar slider también en modo REEL, descomenta la línea siguiente */}
-        {/* {renderCategorySlider()} */}
-        
+        {/* SLIDER VISIBLE EN MODO REEL (pegajoso arriba) */}
+        <div style={{ position: 'sticky', top: 0, zIndex: 100, backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)', padding: '8px 0' }}>
+          {renderCategorySlider()}
+        </div>
+
         <button
           onClick={() => setVideoViewMode(VIDEO_VIEW_MODE.GRID)}
           style={{
             position: 'fixed',
-            top: '9px',
-            right: '10px',
+            top: '20px',
+            right: '20px',
             zIndex: 1001,
             background: 'rgba(0,0,0,0.6)',
             border: 'none',
@@ -389,7 +394,7 @@ const CategoryPage = () => {
           }}
         >
           <Grid3x3 size={18} />
-          
+          Mode Grid
         </button>
 
         <div 
@@ -477,14 +482,14 @@ const CategoryPage = () => {
   }
 
   // ============================================
-  // RENDER MODO GRID
+  // RENDER MODO GRID (con slider visible)
   // ============================================
   return (
     <div className="category-page">
+      {renderCategorySlider()}
       
       <main className="category-content">
         <Container>
-          {/* Botones para cambiar modo de vista */}
           <div className="mb-4 d-flex justify-content-end">
             <div className="d-flex gap-2">
               <Button

@@ -1,35 +1,28 @@
-import { useEffect, useRef, useState } from 'react'
-import { BrowserRouter as Router, Switch, Route } from 'react-router-dom';
-import { useSelector, useDispatch } from 'react-redux'
-import Login from './pages/login'
-import Register from './pages/register'
-import { refreshToken } from './redux/actions/authAction'
-import io from 'socket.io-client'
-import { GLOBALTYPES } from './redux/actions/globalTypes'
-import SocketClient from './SocketClient'
+import { useEffect, useRef, useState } from 'react';
+import { BrowserRouter as Router, Switch, Route, useLocation } from 'react-router-dom';
+import { useSelector, useDispatch } from 'react-redux';
+import Login from './pages/login';
+import Register from './pages/register';
+import { refreshToken } from './redux/actions/authAction';
+import io from 'socket.io-client';
+import { GLOBALTYPES } from './redux/actions/globalTypes';
+import SocketClient from './SocketClient';
 import Home from './pages/home';
 import Bloqueos404 from './components/adminitration/Bloqueos404';
 import NotFound from './pages/NotFound';
 import CategoryPage from './pages/category/CategoryPage';
 import Navbar2 from './components/header/Navbar2';
- 
- 
 import DashboardPage from './pages/users/dashboardpage';
 import profile from './pages/users/profile';
- 
 import roles from './pages/users/roles';
- 
 import ProfileSettings from './pages/users/ProfileSettings';
- 
- 
 import AdminDashboard from './pages/administration/AdminDashborad';
- 
 import CreateVideoWizard from './pages/video/CreateVideoWizard';
 import DetailVideoPage from './pages/video/DetailVideoPage';
 import NotifyPage from './pages/notiy/NotifyPage';
 import EditVideoWizard from './pages/video/EditVideoWizard';
 import usePushNotifications from './pages/notiy/UsePushNotifications';
- import UserVideoPage from './pages/video/userVideo/[userId]';
+import UserVideoPage from './pages/video/userVideo/[userId]';
 import UserFeed from './pages/video/userVideo/UserFeed';
 import InfoUserVideo from './pages/video/userVideo/InfoUserVideo';
 import TrendingVideos from './pages/video/TrendingVideos';
@@ -38,7 +31,6 @@ import EditImageWizard from './pages/video/EditImageWizar';
 import Conversation from './pages/message/[id]';
 import Message from './pages/message/index';
 import Posts from './pages/aprobation/Posts';
-
 
 // ============================================
 // ✅ SONIDO Y VIBRACIÓN - AUTOMÁTICO (sin esperar click)
@@ -115,14 +107,15 @@ const vibratePhone = (pattern = [300, 100, 300]) => {
     console.log('📳 Vibración');
   }
 };
- 
-function App() {
+
+function AppContent() {
   const { auth, notify } = useSelector(state => state);
   const dispatch = useDispatch();
   const [isReady, setIsReady] = useState(false);
   const lastNotifyId = useRef(null);
   const { sendLocalNotification, isPWAInstalled } = usePushNotifications();
-  
+  const location = useLocation(); // 👈 Obtener la ruta actual
+
   // ✅ Inicializar audio al montar
   useEffect(() => {
     initAudio();
@@ -173,8 +166,7 @@ function App() {
     return () => socket.close();
   }, [dispatch]);
 
-  // ✅ NOTIFICACIONES: Sonido + Vibración AUTOMÁTICA (sin esperar click)
-  // ✅ NOTIFICACIONES: Versión más simple y segura
+  // ✅ NOTIFICACIONES: Sonido + Vibración AUTOMÁTICA
   useEffect(() => {
     if (!notify.data || notify.data.length === 0 || !isReady) return;
     
@@ -193,27 +185,22 @@ function App() {
         sendLocalNotification(title, body, url, icon);
       }
       
-      // ✅ SONIDO Y VIBRACIÓN - AHORA SE EJECUTAN SIEMPRE (sin esperar click)
+      // ✅ SONIDO Y VIBRACIÓN
       console.log('🔔 Notificación recibida, reproduciendo sonido...');
       playSound();
       vibratePhone([200, 100, 200]);
       
-      // ✅ Notificación del sistema (si está permitido) - CORREGIDA
+      // ✅ Notificación del sistema (si está permitido)
       if (Notification.permission === 'granted' && !isPWAInstalled) {
         try {
-          // ✅ Usar opciones sin conflicto entre silent y vibrate
           const notificationOptions = {
             body: body,
             icon: icon,
             badge: icon,
             requireInteraction: true,
             tag: `notify-${latest._id}`,
-            silent: false  // ❌ NO puede ser true si usas vibrate
+            silent: false
           };
-          
-          // ✅ Solo añadir vibrate si NO es silent
-          // NOTA: En la mayoría de navegadores, vibrate solo funciona en contexto seguro (HTTPS)
-          // y no siempre está disponible. Mejor omitirlo para evitar errores.
           
           const notification = new Notification(title, notificationOptions);
           
@@ -233,6 +220,43 @@ function App() {
     }
   }, [notify.data, isReady, isPWAInstalled, sendLocalNotification]);
   
+  // ✅ Determinar si se debe mostrar el Navbar2
+  const shouldShowNavbar = (pathname) => {
+    // Rutas fijas que NO son categorías (donde SÍ queremos navbar)
+    const explicitRoutes = [
+      '/',
+      '/register',
+      '/login',
+      '/bloqueos404',
+      '/notify',
+      '/create-video-page',
+      '/admindashboard',
+      '/admin/posts',
+      '/message',
+      '/profile/settings',
+      '/users/dashboard',
+      '/users/roles'
+    ];
+    
+    // Prefijos de rutas que también deben mostrar navbar
+    const prefixes = [
+      '/edit-video/',
+      '/video/',
+      '/videos/trending',
+      '/create-image-page',
+      '/edit-image/',
+      '/message/',
+      '/profile/'
+    ];
+    
+    // Si es ruta exacta o empieza con algún prefijo → mostrar navbar
+    if (explicitRoutes.includes(pathname)) return true;
+    if (prefixes.some(prefix => pathname.startsWith(prefix))) return true;
+    
+    // En cualquier otro caso (típicamente rutas de categoría) → ocultar navbar
+    return false;
+  };
+
   // ✅ Bloqueo de usuarios
   if (auth.token && auth.user?.isBlocked) {
     return (
@@ -244,42 +268,51 @@ function App() {
   }
 
   return (
-    <Router>
-      <div className="App">
-        <Navbar2 />
-        <div id="google_translate_element" style={{ display: 'none' }} />
-        {auth.token && <SocketClient />}
+    <div className="App">
+      {/* Renderizado condicional del navbar según la ruta actual */}
+      {shouldShowNavbar(location.pathname) && <Navbar2 />}
+      
+      <div id="google_translate_element" style={{ display: 'none' }} />
+      {auth.token && <SocketClient />}
 
-        <Switch>
-          <Route exact path="/" component={Home} />
-          <Route exact path="/register" component={Register} />
-          <Route exact path="/login" component={Login} />
-          <Route exact path="/bloqueos404" component={Bloqueos404} />
-          <Route exact path="/notify" component={NotifyPage} />
-          <Route exact path="/create-video-page" component={CreateVideoWizard} />
-          <Route path="/edit-video/:id" component={EditVideoWizard} />
-          <Route exact path="/video/:id" component={DetailVideoPage} />
-          <Route exact path="/video/userVideo/:userId" component={UserVideoPage} />
-          <Route exact path="/video/userFeed/:userId" component={UserFeed} />
-          <Route exact path="/video/userVideo/:userId/info" component={InfoUserVideo} />
-          <Route exact path="/videos/trending" component={TrendingVideos} />
-          <Route path="/create-image-page" component={CreateImageWizard} />
-          <Route path="/edit-image/:id" component={EditImageWizard} />
-          <Route exact path="/admindashboard" component={AdminDashboard} />
-          <Route path="/admin/posts" component={Posts} />
-              <Route exact path="/message" component={Message} />
-          <Route exact path="/message/:id" component={Conversation} />
-         
-              <Route exact path="/profile/settings" component={ProfileSettings} />
-             <Route exact path="/users/dashboard" component={DashboardPage} />
-          <Route exact path="/profile/:id" component={profile} />
-          <Route exact path="/users/roles" component={roles} />
-          <Route exact path="/:slug/:page?" component={CategoryPage} />
-          <Route exact path="/:slug/:subSlug/:page?" component={CategoryPage} />
-          <Route exact path="/:slug/:subSlug/:articleSlug/:page?" component={CategoryPage} />
-          <Route component={NotFound} />
-        </Switch>
-      </div>
+      <Switch>
+        <Route exact path="/" component={Home} />
+        <Route exact path="/register" component={Register} />
+        <Route exact path="/login" component={Login} />
+        <Route exact path="/bloqueos404" component={Bloqueos404} />
+        <Route exact path="/notify" component={NotifyPage} />
+        <Route exact path="/create-video-page" component={CreateVideoWizard} />
+        <Route path="/edit-video/:id" component={EditVideoWizard} />
+        <Route exact path="/video/:id" component={DetailVideoPage} />
+        <Route exact path="/video/userVideo/:userId" component={UserVideoPage} />
+        <Route exact path="/video/userFeed/:userId" component={UserFeed} />
+        <Route exact path="/video/userVideo/:userId/info" component={InfoUserVideo} />
+        <Route exact path="/videos/trending" component={TrendingVideos} />
+        <Route path="/create-image-page" component={CreateImageWizard} />
+        <Route path="/edit-image/:id" component={EditImageWizard} />
+        <Route exact path="/admindashboard" component={AdminDashboard} />
+        <Route path="/admin/posts" component={Posts} />
+        <Route exact path="/message" component={Message} />
+        <Route exact path="/message/:id" component={Conversation} />
+        <Route exact path="/profile/settings" component={ProfileSettings} />
+        <Route exact path="/users/dashboard" component={DashboardPage} />
+        <Route exact path="/profile/:id" component={profile} />
+        <Route exact path="/users/roles" component={roles} />
+        {/* Rutas de categorías: el navbar se ocultará automáticamente */}
+        <Route exact path="/:slug/:page?" component={CategoryPage} />
+        <Route exact path="/:slug/:subSlug/:page?" component={CategoryPage} />
+        <Route exact path="/:slug/:subSlug/:articleSlug/:page?" component={CategoryPage} />
+        <Route component={NotFound} />
+      </Switch>
+    </div>
+  );
+}
+
+// Componente principal App con Router
+function App() {
+  return (
+    <Router>
+      <AppContent />
     </Router>
   );
 }
