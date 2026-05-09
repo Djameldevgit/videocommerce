@@ -1,9 +1,12 @@
  const Video = require('../models/videoModel');
 const User = require('../models/userModel');
-const Category = require('../models/categoryModel'); // ✅ IMPORTANTE: Añadir esta línea
+const Category = require('../models/categoryModel');
+const Channel = require('../models/channelModel');
 const cloudinary = require('cloudinary').v2;
 const axios = require('axios');
 const mongoose = require('mongoose');
+
+
 cloudinary.config({
   cloud_name: process.env.CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -30,7 +33,401 @@ const deleteFromCloudinary = async (publicId, resourceType = 'video') => {
   }
 };
 
+const createVideo = async (req, res) => {
+  try {
+    console.log("🔴 BODY RECIBIDO:", JSON.stringify(req.body, null, 2));
 
+    const {
+      // Datos del video
+      titre,
+      title: receivedTitle,
+      description,
+      category,
+      videoUrl,
+      videoPublicId,
+      thumbnail,
+      duration,
+      music,
+      // Comerciales
+      isCommercial,
+      price,
+      wholesale,
+      minQuantity,
+      stock,
+      // Canal (nuevo)
+      channelId
+    } = req.body;
+
+    const userId = req.user._id;
+    const user = await User.findById(userId);
+    const isAdmin = user.role === 'admin';
+    const isProValid = user.isPro && (!user.proExpiryDate || new Date(user.proExpiryDate) > new Date());
+
+    // Validar duración
+    const MAX_DURATION_FREE = 30;
+    const MAX_DURATION_PRO = 60;
+    const maxAllowed = (isProValid || isAdmin) ? MAX_DURATION_PRO : MAX_DURATION_FREE;
+    if (duration && duration > maxAllowed) {
+      return res.status(400).json({
+        success: false,
+        message: `La durée maximale est de ${maxAllowed} secondes`
+      });
+    }
+
+    // Validar título
+    const finalTitle = titre || receivedTitle;
+    if (!finalTitle || !finalTitle.trim()) {
+      return res.status(400).json({ success: false, message: 'Le titre est obligatoire' });
+    }
+
+    // Validar categoría
+    if (!category) {
+      return res.status(400).json({ success: false, message: 'La catégorie est obligatoire' });
+    }
+    const categoryDoc = await validateAndGetCategory(category);
+    if (!categoryDoc) {
+      return res.status(400).json({ success: false, message: `Catégorie invalide: ${category}` });
+    }
+
+    // === OBTENER EL CANAL ===
+    let channel;
+    if (channelId) {
+      channel = await Channel.findById(channelId);
+      if (!channel) {
+        return res.status(404).json({ success: false, message: 'Canal no encontrado' });
+      }
+      if (channel.owner.toString() !== userId.toString() && !isAdmin) {
+        return res.status(403).json({ success: false, message: 'No eres dueño de este canal' });
+      }
+    } else {
+      // Si no se envía channelId, tomar el primer canal del usuario
+      channel = await Channel.findOne({ owner: userId });
+      if (!channel) {
+        return res.status(400).json({ success: false, message: 'No tienes un canal. Crea uno primero.' });
+      }
+    }
+
+    // Validar campos comerciales (si aplica)
+    if (isCommercial) {
+      if (!channel.wilaya || !channel.commune) {
+        return res.status(400).json({
+          success: false,
+          message: 'Pour les vidéos commerciales, le canal doit avoir wilaya et commune'
+        });
+      }
+      if (!channel.phone && !channel.email) {
+        return res.status(400).json({
+          success: false,
+          message: 'Le canal doit avoir au moins un moyen de contact (téléphone ou email)'
+        });
+      }
+    }
+
+    // Procesar música (mezcla de audio)
+    let finalVideoUrl = videoUrl;
+    let finalThumbnail = thumbnail;
+    let musicData = null;
+
+    if (music && music.audioPublicId && videoPublicId) {
+      console.log("🎵 PROCESANDO MEZCLA DE AUDIO...");
+      try {
+        const formattedAudioId = music.audioPublicId.replace(/\//g, ':');
+        const uploadIndex = videoUrl.indexOf('/upload/');
+        if (uploadIndex === -1) throw new Error('URL inválida');
+        const base = videoUrl.substring(0, uploadIndex + 8);
+        const pathAndFile = videoUrl.substring(uploadIndex + 8);
+        const transformation = `l_audio:${formattedAudioId},fl_layer_apply`;
+        finalVideoUrl = `${base}${transformation}/${pathAndFile}`;
+        finalThumbnail = finalVideoUrl.replace(/\.mp4$/, '.jpg');
+        musicData = {
+          id: music.id,
+          title: music.title,
+          artist: music.artist,
+          audioUrl: music.audioUrl,
+          audioPublicId: music.audioPublicId,
+          volume: music.volume || 70,
+          processed: true
+        };
+      } catch (err) {
+        console.error('❌ Error en mezcla de audio:', err);
+        musicData = { ...music, processed: false, error: err.message };
+      }
+    } else if (music && music.audioUrl) {
+      musicData = { ...music, processed: false };
+    }
+
+    // Crear el nuevo video
+    const newVideo = new Video({
+      title: finalTitle.trim(),
+      description: description || '',
+      shortDescription: description ? description.substring(0, 300) : '',
+      category: categoryDoc._id,
+      videoUrl: finalVideoUrl,
+      videoPublicId: videoPublicId,
+      thumbnail: finalThumbnail,
+      duration: duration || 0,
+      channel: channel._id,
+      user: userId,  // redundante pero útil para consultas rápidas
+      music: musicData,
+      tags: req.body.tags || [],
+      isCommercial: isCommercial || false,
+      price: price || 0,
+      wholesale: wholesale || false,
+      minQuantity: wholesale ? (minQuantity || 1) : 1,
+      stock: stock || { total: 0, available: 0, reserved: 0 },
+      pendiente: isAdmin ? false : true
+    });
+
+    await newVideo.save();
+
+    // Incrementar contadores
+    await Category.findByIdAndUpdate(categoryDoc._id, { $inc: { videoCount: 1 } });
+    // Actualizar totalVideos del canal (solo los aprobados)
+    channel.totalVideos = await Video.countDocuments({ channel: channel._id, pendiente: false, isActive: true });
+    await channel.save();
+
+    // Poblar para respuesta
+    const populatedVideo = await Video.findById(newVideo._id)
+      .populate('channel', 'name avatar')
+      .populate('category', 'name slug icon');
+
+    console.log(`✅ Video creado: ${populatedVideo._id}`);
+
+    res.status(201).json({
+      success: true,
+      message: isAdmin ? 'Vidéo créée avec succès' : 'Vidéo en attente d\'approbation',
+      video: populatedVideo
+    });
+
+  } catch (error) {
+    console.error('❌ Error en createVideo:', error);
+    res.status(500).json({ success: false, message: error.message || 'Error al crear el video' });
+  }
+};
+
+const updateVideo = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      titre,
+      title: receivedTitle,
+      description,
+      category,
+      music,
+      videoUrl,
+      videoPublicId,
+      thumbnail,
+      duration,
+      isCommercial,
+      price,
+      wholesale,
+      minQuantity,
+      stock,
+      tags
+    } = req.body;
+
+    console.log("🔴 ========== UPDATE VIDEO ==========");
+    console.log("🔴 ID:", id);
+
+    // 1. Obtener video con su canal poblado
+    const video = await Video.findById(id).populate('channel');
+    if (!video) {
+      return res.status(404).json({ success: false, message: 'Video no encontrado' });
+    }
+
+    const isOwner = video.channel.owner.toString() === req.user._id.toString();
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'moderator';
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ success: false, message: 'No autorizado' });
+    }
+
+    // Guardar categoría antigua para contador
+    const oldCategoryId = video.category ? video.category.toString() : null;
+    let newCategoryId = null;
+
+    // 2. Actualizar campos básicos
+    const newTitle = titre || receivedTitle;
+    if (newTitle !== undefined) video.title = newTitle.trim();
+    if (description !== undefined) {
+      video.description = description;
+      video.shortDescription = description ? description.substring(0, 300) : '';
+    }
+    if (thumbnail) video.thumbnail = thumbnail;
+    if (duration) video.duration = duration;
+    if (videoUrl) video.videoUrl = videoUrl;
+    if (videoPublicId !== undefined) video.videoPublicId = videoPublicId;
+    if (tags) video.tags = tags;
+
+    // 3. Actualizar categoría
+    if (category !== undefined) {
+      if (!category) {
+        return res.status(400).json({ success: false, message: 'La catégorie est obligatoire' });
+      }
+      const categoryDoc = await validateAndGetCategory(category);
+      if (!categoryDoc) {
+        return res.status(400).json({ success: false, message: `Catégorie invalide: ${category}` });
+      }
+      newCategoryId = categoryDoc._id;
+      video.category = newCategoryId;
+    }
+
+    // 4. Actualizar campos comerciales
+    if (isCommercial !== undefined) video.isCommercial = isCommercial;
+    if (price !== undefined) video.price = price;
+    if (wholesale !== undefined) video.wholesale = wholesale;
+    if (minQuantity !== undefined) video.minQuantity = minQuantity;
+    if (stock !== undefined) video.stock = stock;
+
+    // 5. Manejo de música y mezcla de audio
+    const cleanUrlFromTransformations = (url) => {
+      if (!url) return url;
+      let cleanUrl = url;
+      cleanUrl = cleanUrl.replace(/\/l_audio:[^/]+,fl_layer_apply\//g, '/');
+      cleanUrl = cleanUrl.replace(/\/upload\/l_audio:[^,]+,fl_layer_apply\//, '/upload/');
+      return cleanUrl.replace(/\/l_audio:[^/]+,fl_layer_apply\//g, '/');
+    };
+
+    let finalVideoUrl = video.videoUrl;
+
+    if (music !== undefined && music !== null) {
+      if (music === null) {
+        video.music = null;
+        console.log("🎵 Música eliminada");
+      } else if (music.audioPublicId) {
+        console.log("🎵 Regenerando mezcla de audio...");
+        let baseVideoUrl = videoUrl || video.videoUrl;
+        baseVideoUrl = cleanUrlFromTransformations(baseVideoUrl);
+        try {
+          const formattedAudioId = music.audioPublicId.replace(/\//g, ':');
+          const uploadIndex = baseVideoUrl.indexOf('/upload/');
+          if (uploadIndex !== -1) {
+            const base = baseVideoUrl.substring(0, uploadIndex + 8);
+            const pathAndFile = baseVideoUrl.substring(uploadIndex + 8);
+            const transformation = `l_audio:${formattedAudioId},fl_layer_apply`;
+            finalVideoUrl = `${base}${transformation}/${pathAndFile}`;
+            const newThumbnail = finalVideoUrl.replace(/\.(mp4|mov|webm)$/, '.jpg');
+            if (newThumbnail !== video.thumbnail && !thumbnail) {
+              video.thumbnail = newThumbnail;
+            }
+            video.music = {
+              id: music.id || null,
+              title: music.title || null,
+              artist: music.artist || null,
+              audioUrl: music.audioUrl,
+              audioPublicId: music.audioPublicId,
+              duration: music.duration || null,
+              volume: music.volume !== undefined ? music.volume : 70,
+              processed: true
+            };
+          } else {
+            throw new Error('No se encontró /upload/ en la URL');
+          }
+        } catch (err) {
+          console.error('❌ Error en mezcla de audio:', err);
+          video.music = { ...music, processed: false, error: err.message };
+          finalVideoUrl = baseVideoUrl;
+        }
+      } else if (music.audioUrl) {
+        video.music = { ...music, processed: false };
+      }
+    }
+
+    if (finalVideoUrl !== video.videoUrl) {
+      video.videoUrl = finalVideoUrl;
+    }
+
+    // 6. Guardar cambios
+    await video.save();
+    console.log("✅ Video guardado correctamente");
+
+    // 7. Actualizar contadores de categoría
+    if (oldCategoryId && newCategoryId && oldCategoryId !== newCategoryId.toString()) {
+      await Category.findByIdAndUpdate(oldCategoryId, { $inc: { videoCount: -1 } });
+      await Category.findByIdAndUpdate(newCategoryId, { $inc: { videoCount: 1 } });
+    } else if (newCategoryId && !oldCategoryId) {
+      await Category.findByIdAndUpdate(newCategoryId, { $inc: { videoCount: 1 } });
+    } else if (oldCategoryId && !newCategoryId) {
+      await Category.findByIdAndUpdate(oldCategoryId, { $inc: { videoCount: -1 } });
+    }
+
+    // 8. Poblar y devolver
+    const updatedVideo = await Video.findById(video._id)
+      .populate('channel', 'name avatar')
+      .populate('category', 'name slug icon');
+
+    console.log("📤 Video actualizado:", updatedVideo._id, updatedVideo.title);
+
+    res.json({
+      success: true,
+      message: 'Video actualizado correctamente',
+      video: updatedVideo
+    });
+
+  } catch (error) {
+    console.error('❌ Error updateVideo:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+const deleteVideo = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Obtener video con canal poblado
+    const video = await Video.findById(id).populate('channel');
+    if (!video) {
+      return res.status(404).json({ success: false, message: 'Video no encontrado' });
+    }
+
+    const isOwner = video.channel.owner.toString() === req.user._id.toString();
+    const isAdmin = req.user.role === 'admin';
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ success: false, message: 'No autorizado' });
+    }
+
+    // Eliminar de Cloudinary si existe
+    const deletionErrors = [];
+    if (video.videoPublicId) {
+      const result = await deleteFromCloudinary(video.videoPublicId, 'video');
+      if (!result.success) deletionErrors.push(`Video: ${result.error}`);
+    }
+    if (video.thumbnail && video.thumbnail.includes('cloudinary.com')) {
+      let publicId = video.thumbnail.split('/').pop().split('.')[0];
+      const match = video.thumbnail.match(/\/upload\/(?:v\d+\/)?(.+?)\.\w+$/);
+      if (match) publicId = match[1];
+      const result = await deleteFromCloudinary(publicId, 'image');
+      if (!result.success) deletionErrors.push(`Miniatura: ${result.error}`);
+    }
+
+    // Eliminar el video de la BD
+    await video.deleteOne();
+
+    // Actualizar contador de videos del canal
+    const channel = await Channel.findById(video.channel._id);
+    if (channel) {
+      channel.totalVideos = await Video.countDocuments({
+        channel: channel._id,
+        pendiente: false,
+        isActive: true
+      });
+      await channel.save();
+    }
+
+    // Actualizar contador de la categoría
+    if (video.category) {
+      await Category.findByIdAndUpdate(video.category, { $inc: { videoCount: -1 } });
+    }
+
+    const message = deletionErrors.length
+      ? `Video eliminado de BD, pero con problemas en Cloudinary: ${deletionErrors.join(', ')}`
+      : 'Video eliminado correctamente';
+
+    res.json({ success: true, message, warnings: deletionErrors.length ? deletionErrors : undefined });
+  } catch (error) {
+    console.error('❌ Error deleteVideo:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
 
 
 const validateAndGetCategory = async (categoryIdOrSlug) => {
@@ -100,504 +497,45 @@ const getMusicLibrary = async (req, res) => {
   }
 };
 
-// Proxy para audio de Jamendo (evitar CORS)
- 
-const createVideo = async (req, res) => {
+const getChannelVideos = async (req, res) => {
   try {
-    console.log("🔴 BODY RECIBIDO:", JSON.stringify(req.body, null, 2));
+    const { channelId } = req.params;
+    const { page = 1, limit = 12 } = req.query;
+    const skip = (page - 1) * limit;
 
-    const {
-      // NUEVOS CAMPOS OBLIGATORIOS
-      nom_entreprise,
-      activite,
-      titre,
-      title: receivedTitle,
-      description,
-      // CATEGORÍA ÚNICA (ID o slug)
-      category,
-      videoUrl,
-      videoPublicId,
-      thumbnail,
-      duration,
-      music,
-      // Comerciales
-      isCommercial,
-      price,
-      wholesale,
-      minQuantity,
-      phone,
-      phoneHidden,
-      email,
-      website,
-      wilaya,
-      commune,
-      location,
-      delivery,
-      pickupOnly,
-      businessHours,
-      stock,
-      tags
-    } = req.body;
+    const channel = await Channel.findById(channelId);
+    if (!channel) return res.status(404).json({ success: false, message: 'Canal no encontrado' });
 
-    const userId = req.user._id;
-    const user = await User.findById(userId);
-    const isAdmin = user.role === 'admin';
-    const isProValid = user.isPro && (!user.proExpiryDate || new Date(user.proExpiryDate) > new Date());
+    const match = { channel: channel._id, pendiente: false, isActive: true };
+    const isOwnerOrAdmin = req.user && (channel.owner.toString() === req.user._id.toString() || req.user.role === 'admin');
+    if (!isOwnerOrAdmin) match.pendiente = false;
 
-    // Validación de duración
-    const MAX_DURATION_FREE = 30;
-    const MAX_DURATION_PRO = 60;
-    const maxAllowed = (isProValid || isAdmin) ? MAX_DURATION_PRO : MAX_DURATION_FREE;
-    if (duration && duration > maxAllowed) {
-      return res.status(400).json({
-        success: false,
-        message: `La durée maximale est de ${maxAllowed} secondes`
-      });
-    }
+    const videos = await Video.find(match)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate('channel', 'name avatar')
+      .lean();
 
-    // ===== VALIDACIONES OBLIGATORIAS =====
-    if (!nom_entreprise || !nom_entreprise.trim()) {
-      return res.status(400).json({ success: false, message: 'Le nom de l\'entreprise est obligatoire' });
-    }
-    if (!activite || !activite.trim()) {
-      return res.status(400).json({ success: false, message: 'L\'activité est obligatoire' });
-    }
-    const finalTitle = titre || receivedTitle;
-    if (!finalTitle || !finalTitle.trim()) {
-      return res.status(400).json({ success: false, message: 'Le titre est obligatoire' });
-    }
-
-    // ===== VALIDAR CATEGORÍA ÚNICA =====
-    if (!category) {
-      return res.status(400).json({ success: false, message: 'La catégorie est obligatoire' });
-    }
-    const categoryDoc = await validateAndGetCategory(category);
-    if (!categoryDoc) {
-      return res.status(400).json({ success: false, message: `Catégorie invalide: ${category}` });
-    }
-    const categoryId = categoryDoc._id;
-
-    // ===== VALIDAR CAMPOS COMERCIALES =====
-    if (isCommercial) {
-      if (!wilaya || !commune) {
-        return res.status(400).json({
-          success: false,
-          message: 'Pour les vidéos commerciales, wilaya et commune sont obligatoires'
-        });
-      }
-      if (!phone && !email) {
-        return res.status(400).json({
-          success: false,
-          message: 'Au moins un moyen de contact (téléphone ou email) est requis'
-        });
-      }
-      if (wholesale && (!minQuantity || minQuantity < 1)) {
-        return res.status(400).json({
-          success: false,
-          message: 'La quantité minimale est requise pour la vente en gros'
-        });
-      }
-    }
-
-    // Mezcla de audio (sin cambios)
-    let finalVideoUrl = videoUrl;
-    let finalThumbnail = thumbnail;
-    let musicData = null;
-
-    if (music && music.audioPublicId && videoPublicId) {
-      console.log("🎵 PROCESANDO MEZCLA DE AUDIO...");
-      try {
-        const formattedAudioId = music.audioPublicId.replace(/\//g, ':');
-        const uploadIndex = videoUrl.indexOf('/upload/');
-        if (uploadIndex === -1) throw new Error('URL inválida');
-        const base = videoUrl.substring(0, uploadIndex + 8);
-        const pathAndFile = videoUrl.substring(uploadIndex + 8);
-        const transformation = `l_audio:${formattedAudioId},fl_layer_apply`;
-        finalVideoUrl = `${base}${transformation}/${pathAndFile}`;
-        finalThumbnail = finalVideoUrl.replace(/\.mp4$/, '.jpg');
-        musicData = {
-          id: music.id,
-          title: music.title,
-          artist: music.artist,
-          audioUrl: music.audioUrl,
-          audioPublicId: music.audioPublicId,
-          volume: music.volume || 70,
-          processed: true
-        };
-      } catch (err) {
-        console.error('❌ Error en mezcla de audio:', err);
-        musicData = { ...music, processed: false, error: err.message };
-      }
-    } else if (music && music.audioUrl) {
-      musicData = { ...music, processed: false };
-    }
-
-    // Ubicación (sin cambios)
-    let locationData = null;
-    if (location && location.coordinates && location.coordinates.length === 2) {
-      locationData = {
-        type: 'Point',
-        coordinates: location.coordinates,
-        address: location.address || '',
-        googleMapsUrl: location.googleMapsUrl || ''
-      };
-    } else if (wilaya && commune) {
-      locationData = {
-        type: 'Point',
-        coordinates: [0, 0],
-        address: `${commune}, ${wilaya}`,
-        googleMapsUrl: ''
-      };
-    }
-
-    // Crear el nuevo video (con category única)
-    const newVideo = new Video({
-      nom_entreprise: nom_entreprise.trim(),
-      activite: activite.trim(),
-      title: finalTitle.trim(),
-      description: description || '',
-      shortDescription: description ? description.substring(0, 300) : '',
-      category: categoryId,                     // ✅ Única categoría
-      videoUrl: finalVideoUrl,
-      videoPublicId: videoPublicId,
-      thumbnail: finalThumbnail,
-      duration: duration || 0,
-      user: userId,
-      music: musicData,
-      tags: tags || [],
-      // Comerciales
-      isCommercial: isCommercial || false,
-      price: price || 0,
-      wholesale: wholesale || false,
-      minQuantity: wholesale ? (minQuantity || 1) : 1,
-      phone: phone || '',
-      phoneHidden: phoneHidden || false,
-      email: email || '',
-      website: website || '',
-      wilaya: isCommercial ? wilaya : '',
-      commune: isCommercial ? commune : '',
-      location: locationData,
-      delivery: delivery || { available: false, cost: 0, estimatedDays: 0, zones: [] },
-      pickupOnly: pickupOnly || false,
-      businessHours: businessHours || {},
-      stock: stock || { total: 0, available: 0, reserved: 0 },
-      pendiente: isAdmin ? false : true
-    });
-
-    await newVideo.save();
-
-    // ✅ Incrementar videoCount en la categoría
-    await Category.findByIdAndUpdate(categoryId, { $inc: { videoCount: 1 } });
-
-    // Poblar para respuesta
-    const populatedVideo = await Video.findById(newVideo._id)
-      .populate('user', 'username avatar isPro role')
-      .populate('category', 'name slug icon');    // ✅ populamos category
-
-    console.log(`✅ Video creado exitosamente: ${populatedVideo._id}`);
-
-    res.status(201).json({
-      success: true,
-      message: isAdmin ? 'Vidéo créée avec succès' : 'Vidéo en attente d\'approbation',
-      video: populatedVideo
-    });
-
-  } catch (error) {
-    console.error('❌ Error en createVideo:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Error al crear el video'
-    });
-  }
-};
-
-const updateVideo = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const {
-      // Nuevos campos obligatorios
-      nom_entreprise,
-      activite,
-      titre,
-      title: receivedTitle,
-      description,
-      music,
-      videoUrl,
-      videoPublicId,
-      thumbnail,
-      duration,
-      category,
-      isCommercial,
-      price,
-      wholesale,
-      minQuantity,
-      phone,
-      phoneHidden,
-      email,
-      website,
-      wilaya,
-      commune,
-      location,
-      delivery,
-      pickupOnly,
-      businessHours,
-      stock,
-      tags
-    } = req.body;
-
-    console.log("🔴 ========== UPDATE VIDEO ==========");
-    console.log("🔴 ID:", id);
-    console.log("🔴 Body recibido:", JSON.stringify(req.body, null, 2));
-
-    const video = await Video.findById(id);
-    if (!video) {
-      return res.status(404).json({ success: false, message: 'Video no encontrado' });
-    }
-
-    const isOwner = video.user.toString() === req.user._id.toString();
-    const isAdmin = req.user.role === 'admin' || req.user.role === 'moderator';
-
-    if (!isOwner && !isAdmin) {
-      return res.status(403).json({ success: false, message: 'No autorizado' });
-    }
-
-    // Guardar categoría antigua para contador
-    const oldCategoryId = video.category ? video.category.toString() : null;
-
-    // ===== ACTUALIZAR CAMPOS OBLIGATORIOS =====
-    if (nom_entreprise !== undefined) video.nom_entreprise = nom_entreprise.trim();
-    if (activite !== undefined) video.activite = activite.trim();
-    
-    // Título: priorizar 'titre' (front) o 'title' (backup)
-    const newTitle = titre || receivedTitle;
-    if (newTitle !== undefined) {
-      video.title = newTitle.trim();
-      console.log("📝 Nuevo título asignado:", video.title);
-    }
-    
-    // Descripción y shortDescription
-    if (description !== undefined) {
-      video.description = description;
-      video.shortDescription = description ? description.substring(0, 300) : '';
-      console.log("📝 Nueva descripción y shortDescription");
-    }
-    
-    // Thumbnail, duración, URL, etc.
-    if (thumbnail) video.thumbnail = thumbnail;
-    if (duration) video.duration = duration;
-    if (videoUrl) video.videoUrl = videoUrl;
-    if (videoPublicId !== undefined) video.videoPublicId = videoPublicId;
-    if (tags) video.tags = tags;
-
-    // ===== ACTUALIZAR CATEGORÍA ÚNICA =====
-    let newCategoryId = null;
-    if (category !== undefined) {
-      if (!category) {
-        return res.status(400).json({ success: false, message: 'La catégorie est obligatoire' });
-      }
-      const categoryDoc = await validateAndGetCategory(category);
-      if (!categoryDoc) {
-        return res.status(400).json({ success: false, message: `Catégorie invalide: ${category}` });
-      }
-      newCategoryId = categoryDoc._id;
-      video.category = newCategoryId;
-      console.log("📝 Nueva categoría asignada:", newCategoryId);
-    }
-
-    // ===== VALIDAR COMERCIALES =====
-    const finalIsCommercial = isCommercial !== undefined ? isCommercial : video.isCommercial;
-    if (finalIsCommercial) {
-      const finalWilaya = wilaya !== undefined ? wilaya : video.wilaya;
-      const finalCommune = commune !== undefined ? commune : video.commune;
-      const finalPhone = phone !== undefined ? phone : video.phone;
-      const finalEmail = email !== undefined ? email : video.email;
-
-      if (!finalWilaya || !finalCommune) {
-        return res.status(400).json({
-          success: false,
-          message: 'Pour les vidéos commerciales, wilaya et commune sont obligatoires'
-        });
-      }
-      if (!finalPhone && !finalEmail) {
-        return res.status(400).json({
-          success: false,
-          message: 'Au moins un moyen de contact (téléphone ou email) est requis'
-        });
-      }
-    }
-
-    // Actualizar campos comerciales
-    if (isCommercial !== undefined) video.isCommercial = isCommercial;
-    if (price !== undefined) video.price = price;
-    if (wholesale !== undefined) video.wholesale = wholesale;
-    if (minQuantity !== undefined) video.minQuantity = minQuantity;
-    if (phone !== undefined) video.phone = phone;
-    if (phoneHidden !== undefined) video.phoneHidden = phoneHidden;
-    if (email !== undefined) video.email = email;
-    if (website !== undefined) video.website = website;
-    if (wilaya !== undefined) video.wilaya = wilaya;
-    if (commune !== undefined) video.commune = commune;
-    if (delivery !== undefined) video.delivery = delivery;
-    if (pickupOnly !== undefined) video.pickupOnly = pickupOnly;
-    if (businessHours !== undefined) video.businessHours = businessHours;
-    if (stock !== undefined) video.stock = stock;
-
-    // Actualizar ubicación
-    if (location) {
-      if (location.coordinates && location.coordinates.length === 2) {
-        video.location = {
-          type: 'Point',
-          coordinates: location.coordinates,
-          address: location.address || video.location.address || '',
-          googleMapsUrl: location.googleMapsUrl || video.location.googleMapsUrl || ''
-        };
-      } else if (wilaya && commune && !location.coordinates) {
-        video.location = {
-          type: 'Point',
-          coordinates: [0, 0],
-          address: `${commune}, ${wilaya}`,
-          googleMapsUrl: ''
-        };
-      }
-    }
-
-    // ===== MANEJO DE MÚSICA Y MEZCLA DE AUDIO (igual que en createVideo) =====
-    const cleanUrlFromTransformations = (url) => {
-      if (!url) return url;
-      let cleanUrl = url;
-      cleanUrl = cleanUrl.replace(/\/l_audio:[^/]+,fl_layer_apply\//g, '/');
-      cleanUrl = cleanUrl.replace(/\/upload\/l_audio:[^,]+,fl_layer_apply\//, '/upload/');
-      return cleanUrl.replace(/\/l_audio:[^/]+,fl_layer_apply\//g, '/');
-    };
-
-    let finalVideoUrl = video.videoUrl;
-
-    if (music !== undefined && music !== null) {
-      if (music === null) {
-        video.music = null;
-        console.log("🎵 Música eliminada");
-      } 
-      else if (music.audioPublicId) {
-        console.log("🎵 Regenerando mezcla de audio...");
-        let baseVideoUrl = videoUrl || video.videoUrl;
-        baseVideoUrl = cleanUrlFromTransformations(baseVideoUrl);
-        try {
-          const formattedAudioId = music.audioPublicId.replace(/\//g, ':');
-          const uploadIndex = baseVideoUrl.indexOf('/upload/');
-          if (uploadIndex !== -1) {
-            const base = baseVideoUrl.substring(0, uploadIndex + 8);
-            const pathAndFile = baseVideoUrl.substring(uploadIndex + 8);
-            const transformation = `l_audio:${formattedAudioId},fl_layer_apply`;
-            finalVideoUrl = `${base}${transformation}/${pathAndFile}`;
-            const newThumbnail = finalVideoUrl.replace(/\.(mp4|mov|webm)$/, '.jpg');
-            if (newThumbnail !== video.thumbnail && !thumbnail) {
-              video.thumbnail = newThumbnail;
-            }
-            video.music = {
-              id: music.id || null,
-              title: music.title || null,
-              artist: music.artist || null,
-              audioUrl: music.audioUrl,
-              audioPublicId: music.audioPublicId,
-              duration: music.duration || null,
-              volume: music.volume !== undefined ? music.volume : 70,
-              processed: true
-            };
-          } else {
-            throw new Error('No se encontró /upload/ en la URL');
-          }
-        } catch (err) {
-          console.error('❌ Error en mezcla de audio:', err);
-          video.music = { ...music, processed: false, error: err.message };
-          finalVideoUrl = baseVideoUrl;
-        }
-      } 
-      else if (music.audioUrl) {
-        video.music = { ...music, processed: false };
-      }
-    }
-
-    if (finalVideoUrl !== video.videoUrl) {
-      video.videoUrl = finalVideoUrl;
-    }
-
-    // Guardar cambios en la BD
-    await video.save();
-    console.log("✅ Video guardado correctamente");
-
-    // ===== ACTUALIZAR CONTADORES DE CATEGORÍA =====
-    if (oldCategoryId && newCategoryId && oldCategoryId !== newCategoryId.toString()) {
-      await Category.findByIdAndUpdate(oldCategoryId, { $inc: { videoCount: -1 } });
-      await Category.findByIdAndUpdate(newCategoryId, { $inc: { videoCount: 1 } });
-      console.log(`📊 Contadores actualizados: -1 en ${oldCategoryId}, +1 en ${newCategoryId}`);
-    } else if (newCategoryId && !oldCategoryId) {
-      await Category.findByIdAndUpdate(newCategoryId, { $inc: { videoCount: 1 } });
-    } else if (oldCategoryId && !newCategoryId) {
-      await Category.findByIdAndUpdate(oldCategoryId, { $inc: { videoCount: -1 } });
-    }
-
-    // Poblar y devolver el video actualizado
-    const updatedVideo = await Video.findById(video._id)
-      .populate('user', 'username avatar isPro role')
-      .populate('category', 'name slug icon');
-
-    console.log("📤 Video actualizado devuelto:", updatedVideo._id, updatedVideo.title);
+    const total = await Video.countDocuments(match);
 
     res.json({
       success: true,
-      message: 'Video actualizado correctamente',
-      video: updatedVideo
+      videos,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit)
     });
-
-  } catch (error) {
-    console.error('❌ Error updateVideo:', error);
-    res.status(500).json({ success: false, message: error.message });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
   }
 };
+ 
   
 // ============================================
 // 🗑️ ELIMINAR VIDEO (CORREGIDO USANDO videoPublicId)
 // ============================================
-const deleteVideo = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const video = await Video.findById(id);
-    if (!video) return res.status(404).json({ success: false, message: 'Video no encontrado' });
-
-    const isOwner = video.user.toString() === req.user._id.toString();
-    const isAdmin = req.user.role === 'admin' || req.user.role === 'moderator';
-    if (!isOwner && !isAdmin) {
-      return res.status(403).json({ success: false, message: 'No autorizado' });
-    }
-
-    const deletionErrors = [];
-
-    // Eliminar vídeo de Cloudinary si existe y es local (se identifica por tener videoPublicId)
-    if (video.videoPublicId) {
-      const result = await deleteFromCloudinary(video.videoPublicId, 'video');
-      if (!result.success) deletionErrors.push(`Video: ${result.error}`);
-    }
-
-    // Eliminar thumbnail de Cloudinary si es una imagen subida
-    if (video.thumbnail && video.thumbnail.includes('cloudinary.com')) {
-      let publicId = video.thumbnail.split('/').pop().split('.')[0];
-      const match = video.thumbnail.match(/\/upload\/(?:v\d+\/)?(.+?)\.\w+$/);
-      if (match) publicId = match[1];
-      const result = await deleteFromCloudinary(publicId, 'image');
-      if (!result.success) deletionErrors.push(`Miniatura: ${result.error}`);
-    }
-
-    await video.deleteOne();
-    const message = deletionErrors.length 
-      ? `Video eliminado de BD, pero con problemas en Cloudinary: ${deletionErrors.join(', ')}`
-      : 'Video eliminado correctamente';
-    res.json({ success: true, message, warnings: deletionErrors.length ? deletionErrors : undefined });
-  } catch (error) {
-    console.error('Error deleteVideo:', error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
+ 
 
 const getCategoriesForSlider = async (req, res) => {
   try {
@@ -906,67 +844,7 @@ const getVideoById = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-// ✅ Obtener videos del usuario
-const getUserVideos = async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const { page = 1, limit = 12 } = req.query;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    
-    const match = { user: new mongoose.Types.ObjectId(userId) };
-    const isOwnerOrAdmin = req.user && (req.user._id.toString() === userId || req.user.role === 'admin');
-    
-    if (!isOwnerOrAdmin) {
-      match.pendiente = false;
-      match.isActive = true;
-    }
-
-    const [videos, total] = await Promise.all([
-      Video.aggregate([
-        { $match: match },
-        { $sort: { createdAt: -1 } },
-        { $skip: skip },
-        { $limit: parseInt(limit) },
-        { $lookup: { from: 'users', localField: 'user', foreignField: '_id', as: 'user' } },
-        { $unwind: '$user' },
-        { $lookup: { from: 'boutiques', localField: 'boutique', foreignField: '_id', as: 'boutique' } },
-        { $unwind: { path: '$boutique', preserveNullAndEmptyArrays: true } },
-        { $lookup: { from: 'posts', localField: 'product', foreignField: '_id', as: 'product' } },
-        { $unwind: { path: '$product', preserveNullAndEmptyArrays: true } },
-        { $project: { 'user.password': 0, 'user.email': 0 } }
-      ]),
-      Video.countDocuments(match)
-    ]);
-
-    let stats = null;
-    if (isOwnerOrAdmin) {
-      const statsAgg = await Video.aggregate([
-        { $match: match },
-        { $group: {
-          _id: null,
-          totalViews: { $sum: '$views' },
-          totalLikes: { $sum: { $size: '$likes' } },
-          totalComments: { $sum: { $size: '$comments' } },
-          totalShares: { $sum: { $size: { $ifNull: ['$shares', []] } } }
-        }}
-      ]);
-      stats = statsAgg[0] || null;
-    }
-
-    res.json({
-      success: true,
-      videos,
-      stats,
-      total,
-      page: parseInt(page),
-      totalPages: Math.ceil(total / parseInt(limit)),
-      currentPage: parseInt(page)
-    });
-  } catch (error) {
-    console.error('Error getUserVideos:', error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
+ 
  
 
 // ✅ Videos destacados
@@ -1576,92 +1454,53 @@ const getVideo = async (req, res) => {
 
 const filterVideos = async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 12;
+    const { page = 1, limit = 12, searchTerm, sortBy = 'recent', category, wilaya } = req.query;
     const skip = (page - 1) * limit;
-    const { 
-      searchTerm, 
-      sortBy = 'recent',
-      category,        // ✅ Recibir categoría
-      subCategory,     // ✅ Recibir subcategoría
-      wilaya,
-      commune
-    } = req.query;
-
     let match = { pendiente: false, isActive: true };
-    
-    // ✅ Filtrar por categoría si se proporciona
-    if (category && category !== 'videos' && category !== 'null') {
-      // Buscar la categoría por slug
-      const categoryDoc = await Category.findOne({ slug: category, isActive: true });
-      if (categoryDoc) {
-        match.category = categoryDoc._id;
-        console.log(`🔍 Filtrando por categoría: ${categoryDoc.name} (${categoryDoc._id})`);
-      }
-    }
-    
-    // ✅ Filtrar por subcategoría
-    if (subCategory && subCategory !== 'videos' && subCategory !== 'null') {
-      // Si tienes un sistema de subcategorías
-      match.subCategory = subCategory;
-    }
-    
-    if (searchTerm && searchTerm.trim() !== '') {
-      match.$or = [
-        { title: { $regex: searchTerm, $options: 'i' } },
-        { description: { $regex: searchTerm, $options: 'i' } }
-      ];
-    }
-    
-    if (wilaya && wilaya !== '') match.wilaya = wilaya;
-    if (commune && commune !== '') match.commune = commune;
-    
-    let sort = {};
-    switch(sortBy) {
-      case 'popular': sort = { views: -1 }; break;
-      case 'liked': sort = { likesCount: -1 }; break;
-      default: sort = { createdAt: -1 };
-    }
+    if (searchTerm) match.title = { $regex: searchTerm, $options: 'i' };
+    if (category && mongoose.Types.ObjectId.isValid(category)) match.category = category;
+    if (wilaya) match.wilaya = wilaya;
 
-    const pipeline = [
+    let sort = {};
+    if (sortBy === 'popular') sort = { views: -1 };
+    else if (sortBy === 'liked') sort = { likesCount: -1 };
+    else sort = { createdAt: -1 };
+
+    const videos = await Video.aggregate([
       { $match: match },
-      { $addFields: { likesCount: { $size: '$likes' }, commentsCount: { $size: '$comments' } } },
+      { $addFields: { likesCount: { $size: '$likes' } } },
       { $sort: sort },
       { $skip: skip },
-      { $limit: limit },
-      { $lookup: { from: 'users', localField: 'user', foreignField: '_id', as: 'user' } },
-      { $unwind: '$user' },
-      { $project: { 'user.password': 0, 'user.email': 0 } }
-    ];
-
-    const [videos, total] = await Promise.all([
-      Video.aggregate(pipeline),
-      Video.countDocuments(match)
+      { $limit: parseInt(limit) },
+      {
+        $lookup: {
+          from: 'channels',
+          localField: 'channel',
+          foreignField: '_id',
+          as: 'channelInfo'
+        }
+      },
+      { $unwind: '$channelInfo' },
+      {
+        $project: {
+          title: 1,
+          thumbnail: 1,
+          videoUrl: 1,
+          views: 1,
+          likesCount: 1,
+          price: 1,
+          wilaya: 1,
+          createdAt: 1,
+          'channelInfo.name': 1,
+          'channelInfo.avatar': 1
+        }
+      }
     ]);
 
-    // ✅ Obtener hijos (subcategorías) si es necesario
-    let children = [];
-    if (category && category !== 'videos') {
-      const categoryDoc = await Category.findOne({ slug: category }).lean();
-      if (categoryDoc && categoryDoc.children) {
-        children = categoryDoc.children;
-      }
-    }
-
-    res.json({
-      success: true,
-      videos,
-      total,
-      page,
-      totalPages: Math.ceil(total / limit),
-      limit,
-      hasMore: skip + videos.length < total,
-      children,
-      filters: { category, subCategory, wilaya, commune, sortBy, searchTerm }
-    });
-  } catch (error) {
-    console.error('Error filterVideos:', error);
-    res.status(500).json({ success: false, message: error.message });
+    const total = await Video.countDocuments(match);
+    res.json({ success: true, videos, total, page, totalPages: Math.ceil(total / limit) });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 
@@ -2163,7 +2002,7 @@ module.exports = {
   getVideoById,
   getVideoByIdPublic,
   getVideoByIdPrivate,
-  getUserVideos,
+ 
   filterVideos,
   getVideosByCategory,
   getFeaturedVideos,
@@ -2201,7 +2040,7 @@ module.exports = {
   getCommercialStats,
   featureCommercialVideo,
   getAdminVideoStats,
-  
+  getChannelVideos,
   // Perfil y social
   getUserProfileStats,
   getUserSavedVideos,

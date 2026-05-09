@@ -1,160 +1,84 @@
 const mongoose = require('mongoose');
 
+ 
+
 const userSchema = new mongoose.Schema({
     // ============ INFORMACIÓN BÁSICA ============
-    fullname: {
-        type: String,
-        trim: true,
-        maxlength: 25
-    },
-    username: {
-        type: String,
-        required: true,
-        trim: true,
-        maxlength: 25,
-        unique: true
-    },
-    email: {
-        type: String,
-        required: true,
-        trim: true,
-        unique: true,
-        lowercase: true
-    },
-    password: {
-        type: String,
-        required: true
-    },
+    fullname: { type: String, trim: true, maxlength: 25 },
+    username: { type: String, required: true, trim: true, maxlength: 25, unique: true },
+    email: { type: String, required: true, trim: true, unique: true, lowercase: true },
+    password: { type: String, required: true },
     
     // ============ ROLES Y PERMISOS ============
- // 📂 models/userModel.js - Actualizar el enum de role
-
-role: {
-    type: String,
-    enum: ['user', 'moderator', 'admin', 'userpro'],  
-    default: 'admin'
-},
-    // ✅ SIMPLIFICADO: Categorías asignadas como array de strings (slugs)
-    assignedCategories: {
-        type: [String],
-        default: [],
-        index: true
+    role: {
+        type: String,
+        enum: ['user', 'moderator', 'admin'],
+        default: 'user'
     },
+    assignedCategories: { type: [String], default: [], index: true },
+    assignedSubCategories: { type: [String], default: [], index: true },
     
-    // ✅ SIMPLIFICADO: Subcategorías asignadas como array de strings
-    assignedSubCategories: {
-        type: [String],
-        default: [],
-        index: true
-    },
-    
-    // ============ PERFIL ============
+    // ============ PERFIL PERSONAL ============
     avatar: {
         type: String,
         default: 'https://res.cloudinary.com/dfjipgj2o/image/upload/v1777859039/avatar_cvr2e3.jpg'
     },
-    
-    language: {
-        type: String,
-        enum: ['fr', 'ar', 'en'],
-        default: 'fr'
-    },
-    
-    mobile: {
-        type: String,
-        default: ''
-    },
-    
-    address: {
-        type: String,
-        default: ''
-    },
-    
-    story: {
-        type: String,
-        default: '',
-        maxlength: 200
-    },
-    
-    website: {
-        type: String,
-        default: ''
-    },
+    language: { type: String, enum: ['fr', 'ar', 'en'], default: 'fr' },
+    mobile: { type: String, default: '' },
+    address: { type: String, default: '' },
+    story: { type: String, default: '', maxlength: 200 },
+    website: { type: String, default: '' },
+    bio: { type: String, default: '' },
     
     // ============ ESTADO ============
-    isVerified: {
-        type: Boolean,
-        default: false
-    },
+    isVerified: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
-  
-    // Estado de bloqueo
     isBlocked: { type: Boolean, default: false },
-    isPro: { type: Boolean, default: true },
-    proExpiryDate: {
-        type: Date,
-        default: null
-      },
-
-
-    // Detalles del bloqueo
+    isPro: { type: Boolean, default: false },
+    proExpiryDate: { type: Date, default: null },
     blockDetails: {
-      reason: { type: String, default: null },
-      description: { type: String, default: null },
-      blockDate: { type: Date, default: null },
-      blockExpiryDate: { type: Date, default: null },
-      blockedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'user', default: null }
+        reason: { type: String, default: null },
+        description: { type: String, default: null },
+        blockDate: { type: Date, default: null },
+        blockExpiryDate: { type: Date, default: null },
+        blockedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'user', default: null }
     },
+    
+    // ============ ESTADÍSTICAS DE PERFIL ============
     profileViews: [{
         user: { type: mongoose.Types.ObjectId, ref: 'user' },
         viewedAt: { type: Date, default: Date.now }
-      }],
-      profileViewsCount: { type: Number, default: 0 },
-    // ============ INTERACCIONES ============
-    // models/userModel.js - Verifica que tienes this campo
-savedVideos: [{ type: mongoose.Types.ObjectId, ref: 'Video' }],
-    
-    followers: [{type: mongoose.Types.ObjectId, ref: 'user'}],
-    following: [{type: mongoose.Types.ObjectId, ref: 'user'}],
-    
-    saved: [{
-        type: mongoose.Types.ObjectId,
-        ref: 'user'
     }],
-
-    savedVideos: [{ type: mongoose.Types.ObjectId, ref: 'video' }],
-    bio: { type: String, default: '' }
+    profileViewsCount: { type: Number, default: 0 },
     
-}, {
-    timestamps: true
-});
+    // ============ INTERACCIONES ============
+    savedVideos: [{ type: mongoose.Types.ObjectId, ref: 'Video' }],  // ✅ único campo para guardados
+    followingChannels: [{ type: mongoose.Types.ObjectId, ref: 'Channel' }],  // ✅ canales que sigue
+    followers: [{ type: mongoose.Types.ObjectId, ref: 'user' }],
+following: [{ type: mongoose.Types.ObjectId, ref: 'user' }],
+    // Opcional: si quieres red social entre usuarios (amigos)
+    followingUsers: [{ type: mongoose.Types.ObjectId, ref: 'user' }],
+    followersUsers: [{ type: mongoose.Types.ObjectId, ref: 'user' }],
+    
+}, { timestamps: true });
 
-// ============ ÍNDICES ============
+// Índices
 userSchema.index({ role: 1, isActive: 1 });
 userSchema.index({ assignedCategories: 1 });
 userSchema.index({ assignedSubCategories: 1 });
 userSchema.index({ username: 1 });
 userSchema.index({ email: 1 });
 
-// ============ MÉTODO PARA VERIFICAR PERMISOS ============
+// Métodos existentes (canModerate, getAssignedData) se mantienen igual
 userSchema.methods.canModerate = function(categorySlug, subCategorySlug = null) {
-    // Admin puede todo
     if (this.role === 'admin') return true;
-    
-    // Moderador: verificar si tiene la categoría o subcategoría asignada
     if (this.role === 'moderator') {
-        if (subCategorySlug && this.assignedSubCategories.includes(subCategorySlug)) {
-            return true;
-        }
-        if (categorySlug && this.assignedCategories.includes(categorySlug)) {
-            return true;
-        }
+        if (subCategorySlug && this.assignedSubCategories.includes(subCategorySlug)) return true;
+        if (categorySlug && this.assignedCategories.includes(categorySlug)) return true;
     }
-    
     return false;
 };
 
-// ============ MÉTODO PARA OBTENER CATEGORÍAS ASIGNADAS ============
 userSchema.methods.getAssignedData = function() {
     return {
         categories: this.assignedCategories,

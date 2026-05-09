@@ -138,7 +138,7 @@ app.use('/api', require('./routes/reportRouter'));
 
 app.use('/api', require('./routes/videoRouter'));
 app.use('/api', require('./routes/categoryRouter'));
-
+app.use('/api', require('./routes/channelRouter'));
 app.use('/api', require('./routes/imageRouter'));
 // --- Configuración y Settings ---
 app.use('/api', require('./routes/languageRouter'));

@@ -36,7 +36,9 @@ import video  from './videoReducer'
 import videoApprove from './videoApproveReducer';
 import userVideo from './userVideoReducer'; // ✅ NUEVO
 import image from './imageReducer'
-
+import channel  from './channelReducer'
+ 
+ 
 export default combineReducers({
     auth,
     alert,
@@ -69,5 +71,5 @@ export default combineReducers({
     category,
     accordionReducer,
     filter,
-    carousel,video ,videoApprove,userVideo ,image
+    carousel,video ,videoApprove,userVideo ,image, channel 
 })

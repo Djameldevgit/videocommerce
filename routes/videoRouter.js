@@ -60,7 +60,7 @@ router.post('/videos/:id/watch-time', auth, videoCtrl.trackWatchTime);
 // RUTAS DE ESTADÍSTICAS Y PERFIL
 // ============================================
 router.get('/videos/user/stats', auth, videoCtrl.getUserVideoStats);
-router.get('/users/:userId/videos', auth, videoCtrl.getUserVideos);
+router.get('/users/:userId/videos', auth, videoCtrl.getChannelVideos);
 
 // ============================================
 // RUTAS DE PERFIL DE USUARIO (ESTILO TIKTOK)

@@ -61,6 +61,13 @@ router.get('/user/:userId/following', auth, userCtrl.getFollowing);
 router.get('/user/:userId/profile-views', auth, userCtrl.getProfileViews);
 //router.post('/user/:userId/profile-view', auth, userCtrl.registerProfileView);
 router.get('/user/:userId/profile', auth, userCtrl.getUserProfile);
+ // Perfil de usuario (no canal)
+ 
+
+// Después (perfil del canal)
+router.get('/channel/:userId', auth, userCtrl.getChannelProfile);
+
+
 router.patch('/user/:userId/profile-view', auth, userCtrl.registerProfileView);
 router.get('/user/:userId/profile-stats', auth, userCtrl.getProfileStats);
 router.get('/user/:userId/profile-views', auth, userCtrl.getProfileViews); // Y

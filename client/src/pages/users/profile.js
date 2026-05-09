@@ -18,7 +18,8 @@ import {
   Heart,
   Camera,
   FileText,
-  ChevronRight
+  ChevronRight,
+  Tv
 } from 'react-bootstrap-icons';
 import Info from '../../components/profile/Info';
 import { getProfileUsers } from '../../redux/actions/profileAction';
@@ -56,7 +57,6 @@ const Profile = () => {
     loadProfile();
   }, [id, auth, dispatch, profile.ids]);
 
-  // Vérifications
   if (!auth.token) {
     return (
       <Container className="py-5">
@@ -103,19 +103,31 @@ const Profile = () => {
   const isOwnProfile = auth.user?._id === id;
   const currentUser = profile.users.find(u => u._id === id);
 
+  const handleNavigateChannels = () => {
+    history.push('/my-channels');
+  };
+
   return (
     <div className="profile-page">
       <Container className="py-4">
-        {/* En-tête avec bouton d'édition - visible seulement pour le propriétaire */}
+        {/* En-tête avec boutons d'action */}
         {isOwnProfile && (
-          <div className="d-flex justify-content-end mb-3">
+          <div className="action-buttons">
             <Button
               variant="outline-primary"
               onClick={() => history.push('/profile/settings')}
-              className="rounded-pill px-4 d-flex align-items-center gap-2"
+              className="rounded-pill action-btn"
             >
-              <Pencil size={16} />
+              <Pencil size={16} className="me-2" />
               Modifier le profil
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleNavigateChannels}
+              className="rounded-pill action-btn"
+            >
+              <Tv size={16} className="me-2" />
+              Mes chaînes
             </Button>
           </div>
         )}
@@ -123,106 +135,91 @@ const Profile = () => {
         {/* Info du profil (avatar, nom, bio, etc.) */}
         <Info auth={auth} profile={profile} dispatch={dispatch} id={id} />
 
-        {/* Statistiques du profil */}
-        <Row className="g-3 mb-4">
+        {/* Statistiques modernisées */}
+        <Row className="g-3 mb-5">
           <Col xs={6} md={4}>
-            <Card className="border-0 shadow-sm">
+            <Card className="stats-card h-100">
               <Card.Body className="d-flex align-items-center">
-                <div className="bg-primary bg-opacity-10 rounded-circle p-3 me-3">
-                  <Grid className="text-primary" size={20} />
+                <div className="stat-icon bg-primary-soft">
+                  <Grid size={22} className="text-primary" />
                 </div>
-                <div>
+                <div className="ms-3">
                   <small className="text-muted d-block">Publications</small>
-                  <h5 className="mb-0 fw-bold">
+                  <h4 className="mb-0 fw-bold">
                     {currentUser?.posts?.length || currentUser?.postCount || 0}
-                  </h5>
+                  </h4>
                 </div>
               </Card.Body>
             </Card>
           </Col>
           
           <Col xs={6} md={4}>
-            <Card className="border-0 shadow-sm">
+            <Card className="stats-card h-100">
               <Card.Body className="d-flex align-items-center">
-                <div className="bg-success bg-opacity-10 rounded-circle p-3 me-3">
-                  <Heart className="text-success" size={20} />
+                <div className="stat-icon bg-success-soft">
+                  <Heart size={22} className="text-success" />
                 </div>
-                <div>
+                <div className="ms-3">
                   <small className="text-muted d-block">Abonnés</small>
-                  <h5 className="mb-0 fw-bold">
+                  <h4 className="mb-0 fw-bold">
                     {currentUser?.followers?.length || 0}
-                  </h5>
+                  </h4>
                 </div>
               </Card.Body>
             </Card>
           </Col>
           
           <Col xs={6} md={4}>
-            <Card className="border-0 shadow-sm">
+            <Card className="stats-card h-100">
               <Card.Body className="d-flex align-items-center">
-                <div className="bg-info bg-opacity-10 rounded-circle p-3 me-3">
-                  <Camera className="text-info" size={20} />
+                <div className="stat-icon bg-info-soft">
+                  <Camera size={22} className="text-info" />
                 </div>
-                <div>
+                <div className="ms-3">
                   <small className="text-muted d-block">Abonnements</small>
-                  <h5 className="mb-0 fw-bold">
+                  <h4 className="mb-0 fw-bold">
                     {currentUser?.following?.length || 0}
-                  </h5>
+                  </h4>
                 </div>
               </Card.Body>
             </Card>
           </Col>
         </Row>
 
-        {/* Cartes de navigation vers les autres sections - visible seulement pour le propriétaire */}
+        {/* Sections propriétaire */}
         {isOwnProfile && (
           <>
-            <h5 className="mb-3">Mes sections</h5>
-            <Row className="g-3 mb-4">
-              {/* Vers Mes Annonces */}
+            <h5 className="section-title">Mes sections</h5>
+            <Row className="g-3 mb-5">
               <Col md={6}>
-                <Card 
-                  className="border-0 shadow-sm navigation-card"
-                  onClick={() => history.push('/mes-annonces')}
-                  style={{ cursor: 'pointer' }}
-                >
+                <Card className="nav-card h-100" onClick={() => history.push('/mes-annonces')}>
                   <Card.Body className="d-flex align-items-center justify-content-between">
                     <div className="d-flex align-items-center">
-                      <div className="bg-primary bg-opacity-10 rounded-circle p-3 me-3">
-                        <FileText className="text-primary" size={24} />
+                      <div className="nav-icon bg-primary-soft">
+                        <FileText size={24} className="text-primary" />
                       </div>
-                      <div>
+                      <div className="ms-3">
                         <h6 className="mb-1 fw-bold">Mes annonces</h6>
-                        <small className="text-muted">
-                          Gérer vos publications
-                        </small>
+                        <small className="text-muted">Gérer vos publications</small>
                       </div>
                     </div>
-                    <ChevronRight className="text-primary" size={20} />
+                    <ChevronRight size={20} className="text-primary" />
                   </Card.Body>
                 </Card>
               </Col>
-
-              {/* Vers Sauvegardés */}
               <Col md={6}>
-                <Card 
-                  className="border-0 shadow-sm navigation-card"
-                  onClick={() => history.push(`/profile/${id}/saved`)}
-                  style={{ cursor: 'pointer' }}
-                >
+                <Card className="nav-card h-100" onClick={() => history.push(`/profile/${id}/saved`)}>
                   <Card.Body className="d-flex align-items-center justify-content-between">
                     <div className="d-flex align-items-center">
-                      <div className="bg-success bg-opacity-10 rounded-circle p-3 me-3">
-                        <Bookmark className="text-success" size={24} />
+                      <div className="nav-icon bg-success-soft">
+                        <Bookmark size={24} className="text-success" />
                       </div>
-                      <div>
+                      <div className="ms-3">
                         <h6 className="mb-1 fw-bold">Mes favoris</h6>
-                        <small className="text-muted">
-                          Publications sauvegardées
-                        </small>
+                        <small className="text-muted">Publications sauvegardées</small>
                       </div>
                     </div>
-                    <ChevronRight className="text-success" size={20} />
+                    <ChevronRight size={20} className="text-success" />
                   </Card.Body>
                 </Card>
               </Col>
@@ -230,11 +227,10 @@ const Profile = () => {
           </>
         )}
 
-        {/* Section À propos - toujours visible */}
-        <Card className="border-0 shadow-sm mt-4">
+        {/* À propos */}
+        <Card className="about-card mt-2">
           <Card.Body className="p-4">
-            <h5 className="mb-3">À propos</h5>
-            
+            <h5 className="section-title mb-3">À propos</h5>
             <Row>
               {currentUser?.mobile && (
                 <Col md={6} className="mb-3">
@@ -242,25 +238,22 @@ const Profile = () => {
                   <p className="mb-0">{currentUser.mobile}</p>
                 </Col>
               )}
-              
               {currentUser?.address && (
                 <Col md={6} className="mb-3">
                   <small className="text-muted d-block">Adresse</small>
                   <p className="mb-0">{currentUser.address}</p>
                 </Col>
               )}
-              
               {currentUser?.website && (
                 <Col md={6} className="mb-3">
                   <small className="text-muted d-block">Site web</small>
                   <p className="mb-0">
-                    <a href={currentUser.website} target="_blank" rel="noopener noreferrer">
+                    <a href={currentUser.website} target="_blank" rel="noopener noreferrer" className="text-decoration-none">
                       {currentUser.website}
                     </a>
                   </p>
                 </Col>
               )}
-              
               {currentUser?.story && (
                 <Col xs={12} className="mb-3">
                   <small className="text-muted d-block">Bio</small>
@@ -274,7 +267,7 @@ const Profile = () => {
         {/* Membre depuis */}
         <div className="text-center mt-4">
           <small className="text-muted">
-            Membre depuis {new Date(currentUser?.createdAt).toLocaleDateString('fr-FR', {
+            Membre depuis le {new Date(currentUser?.createdAt).toLocaleDateString('fr-FR', {
               year: 'numeric',
               month: 'long',
               day: 'numeric'
@@ -283,23 +276,155 @@ const Profile = () => {
         </div>
       </Container>
 
+      {/* Styles améliorés et responsifs */}
       <style jsx="true">{`
         .profile-page {
           min-height: 100vh;
-          background: #f8f9fa;
+          background: linear-gradient(135deg, #f8f9fa 0%, #f1f3f5 100%);
+          padding-bottom: 2rem;
         }
 
-        .navigation-card {
-          transition: all 0.2s;
+        /* Boutons d'action */
+        .action-buttons {
+          display: flex;
+          justify-content: flex-end;
+          gap: 12px;
+          margin-bottom: 1.5rem;
+          flex-wrap: wrap;
         }
-
-        .navigation-card:hover {
+        .action-btn {
+          font-size: 0.9rem;
+          padding: 0.5rem 1.2rem;
+          transition: all 0.2s ease;
+          display: inline-flex;
+          align-items: center;
+        }
+        .action-btn:hover {
           transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2) !important;
+          box-shadow: 0 4px 10px rgba(0,0,0,0.08);
         }
 
-        .bg-opacity-10 {
-          --bs-bg-opacity: 0.1;
+        /* Cartes statistiques */
+        .stats-card {
+          border: none;
+          border-radius: 1.25rem;
+          box-shadow: 0 5px 15px rgba(0,0,0,0.03);
+          transition: all 0.25s ease;
+          background: white;
+        }
+        .stats-card:hover {
+          transform: translateY(-3px);
+          box-shadow: 0 12px 24px rgba(0,0,0,0.08);
+        }
+        .stat-icon {
+          width: 52px;
+          height: 52px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 1rem;
+        }
+        .bg-primary-soft { background-color: rgba(13, 110, 253, 0.12); }
+        .bg-success-soft { background-color: rgba(25, 135, 84, 0.12); }
+        .bg-info-soft { background-color: rgba(13, 202, 240, 0.12); }
+
+        /* Titres de section */
+        .section-title {
+          font-size: 1.25rem;
+          font-weight: 600;
+          margin-bottom: 1rem;
+          color: #1e293b;
+          border-left: 4px solid #0d6efd;
+          padding-left: 12px;
+        }
+
+        /* Cartes de navigation */
+        .nav-card {
+          border: none;
+          border-radius: 1rem;
+          background: white;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+        }
+        .nav-card:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 10px 20px rgba(0,0,0,0.08);
+        }
+        .nav-icon {
+          width: 48px;
+          height: 48px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 1rem;
+        }
+
+        /* Carte À propos */
+        .about-card {
+          border: none;
+          border-radius: 1.25rem;
+          background: white;
+          box-shadow: 0 5px 15px rgba(0,0,0,0.03);
+        }
+
+        /* Responsive pour mobiles (Android) */
+        @media (max-width: 576px) {
+          .action-buttons {
+            justify-content: stretch;
+          }
+          .action-btn {
+            flex: 1;
+            justify-content: center;
+            padding: 0.6rem 0.8rem;
+            font-size: 0.85rem;
+          }
+          .stat-icon {
+            width: 44px;
+            height: 44px;
+          }
+          .stat-icon svg {
+            width: 18px;
+            height: 18px;
+          }
+          .stats-card h4 {
+            font-size: 1.2rem;
+          }
+          .stats-card small {
+            font-size: 0.7rem;
+          }
+          .section-title {
+            font-size: 1.1rem;
+          }
+          .nav-icon {
+            width: 40px;
+            height: 40px;
+          }
+          .nav-icon svg {
+            width: 20px;
+            height: 20px;
+          }
+          .nav-card h6 {
+            font-size: 0.9rem;
+          }
+          .nav-card small {
+            font-size: 0.7rem;
+          }
+          .about-card .p-4 {
+            padding: 1rem !important;
+          }
+        }
+
+        /* Ajustes para tablets */
+        @media (min-width: 577px) and (max-width: 768px) {
+          .action-btn {
+            padding: 0.5rem 1rem;
+            font-size: 0.85rem;
+          }
+          .stat-icon {
+            width: 48px;
+            height: 48px;
+          }
         }
       `}</style>
     </div>

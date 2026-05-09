@@ -7,62 +7,59 @@ const sendCustomEmail = require('./sendCustomEmail')
 const { google } = require('googleapis')
 const { OAuth2 } = google.auth
 const { CLIENT_URL } = process.env
-
+const Channel = require('../models/channelModel');  // Añade esta línea con los demás imports
 const client = new OAuth2(process.env.GOOGLE_CLIENT_ID)
 
 const authCtrl = {
     register: async (req, res) => {
         try {
-            const { username, email, password } = req.body
-            
-            // Validations de base
+            const { username, email, password } = req.body;
             if (!username || !email || !password) {
-                return res.status(400).json({msg: "Veuillez remplir tous les champs."})
+                return res.status(400).json({ msg: "Veuillez remplir tous les champs." });
             }
+            let newUserName = username.toLowerCase().replace(/ /g, '');
+            const user_name = await Users.findOne({ username: newUserName });
+            if (user_name) return res.status(400).json({ msg: "Ce nom d'utilisateur existe déjà." });
+            const user_email = await Users.findOne({ email });
+            if (user_email) return res.status(400).json({ msg: "Cet email existe déjà." });
+            if (password.length < 6)
+                return res.status(400).json({ msg: "Le mot de passe doit contenir au moins 6 caractères." });
     
-            let newUserName = username.toLowerCase().replace(/ /g, '')
-    
-            const user_name = await Users.findOne({username: newUserName})
-            if(user_name) return res.status(400).json({msg: "Ce nom d'utilisateur existe déjà."})
-    
-            const user_email = await Users.findOne({email})
-            if(user_email) return res.status(400).json({msg: "Cet email existe déjà."})
-    
-            if(password.length < 6)
-            return res.status(400).json({msg: "Le mot de passe doit contenir au moins 6 caractères."})
-    
-            const passwordHash = await bcrypt.hash(password, 12)
-    
+            const passwordHash = await bcrypt.hash(password, 12);
             const newUser = new Users({
-                username: newUserName, 
-                email, 
+                username: newUserName,
+                email,
                 password: passwordHash
-            })
+            });
+            await newUser.save();
     
-            const access_token = createAccessToken({id: newUser._id})
-            const refresh_token = createRefreshToken({id: newUser._id})
+            // ✅ CREAR CANAL POR DEFECTO
+            const defaultChannel = new Channel({
+                name: `Canal de ${newUserName}`,
+                activity: 'General',
+                owner: newUser._id,
+                avatar: newUser.avatar || 'https://res.cloudinary.com/dfjipgj2o/image/upload/v1777859039/avatar_cvr2e3.jpg',
+                isActive: true,
+            });
+            await defaultChannel.save();
     
+            const access_token = createAccessToken({ id: newUser._id });
+            const refresh_token = createRefreshToken({ id: newUser._id });
             res.cookie('refreshtoken', refresh_token, {
                 httpOnly: true,
                 path: '/api/refresh_token',
-                maxAge: 30*24*60*60*1000 // 30 jours
-            })
-    
-            await newUser.save()
-    
+                maxAge: 30 * 24 * 60 * 60 * 1000
+            });
             res.json({
                 msg: 'Inscription réussie !',
                 access_token,
-                user: {
-                    ...newUser._doc,
-                    password: ''
-                }
-            })
+                user: { ...newUser._doc, password: '' },
+                channel: { _id: defaultChannel._id, name: defaultChannel.name }
+            });
         } catch (err) {
-            return res.status(500).json({msg: err.message})
+            return res.status(500).json({ msg: err.message });
         }
     },
-
     login: async (req, res) => {
         try {
             const { email, password } = req.body

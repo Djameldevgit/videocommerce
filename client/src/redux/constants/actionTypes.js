@@ -66,7 +66,7 @@ export const ADD_FAVORITE = 'ADD_FAVORITE';
 export const REMOVE_FAVORITE = 'REMOVE_FAVORITE';
 
 // ============ USERS ============
-export const GET_USER_POSTS = 'GET_USER_POSTS';
+ 
 export const GET_USER_PROFILE = 'GET_USER_PROFILE';
 export const FOLLOW_USER = 'FOLLOW_USER';
 export const UNFOLLOW_USER = 'UNFOLLOW_USER';

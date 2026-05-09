@@ -31,6 +31,10 @@ import EditImageWizard from './pages/video/EditImageWizar';
 import Conversation from './pages/message/[id]';
 import Message from './pages/message/index';
 import Posts from './pages/aprobation/Posts';
+import CreateChannel from './pages/channel/CreateChannel';
+import EditChannel from './pages/channel/EditChannel';
+import ChannelProfile from './pages/channel/ChannelProfile';
+import MisChannel from './pages/channel/MisChannel';
 
 // ============================================
 // ✅ SONIDO Y VIBRACIÓN - AUTOMÁTICO (sin esperar click)
@@ -288,6 +292,12 @@ function AppContent() {
         <Route exact path="/video/userFeed/:userId" component={UserFeed} />
         <Route exact path="/video/userVideo/:userId/info" component={InfoUserVideo} />
         <Route exact path="/videos/trending" component={TrendingVideos} />
+        <Route path="/channel/new" component={CreateChannel} />
+  <Route exact  path="/channel/:channelId/settings" component={EditChannel}  />
+  <Route exact path="/channel/:channelId" component={ChannelProfile}   />
+  <Route exact path="/my-channels" component={MisChannel} />
+
+
         <Route path="/create-image-page" component={CreateImageWizard} />
         <Route path="/edit-image/:id" component={EditImageWizard} />
         <Route exact path="/admindashboard" component={AdminDashboard} />

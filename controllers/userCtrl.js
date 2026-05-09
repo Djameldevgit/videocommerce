@@ -5,7 +5,7 @@ const Notifications = require('../models/notifyModel');
 const Video = require('../models/videoModel');
 const sendMail = require('./sendMail');
 const Report = require('../models/reportModel');
-
+const Channel = require('../models/channelModel');
 class APIfeatures {
   constructor(query, queryString) {
     this.query = query;
@@ -22,6 +22,290 @@ class APIfeatures {
 }
 
 const userCtrl = {
+
+  
+  
+  // ==================== PERFIL DEL CANAL (PÚBLICO) ====================
+   getChannelProfile : async (req, res) => {
+    try {
+      const { channelId } = req.params; // ID del canal, no del usuario
+      const currentUserId = req.user._id;
+  
+      const channel = await Channel.findById(channelId)
+        .populate('owner', 'username avatar fullname isPro role')
+        .lean();
+  
+      if (!channel || !channel.isActive) {
+        return res.status(404).json({ success: false, message: 'Canal no encontrado' });
+      }
+  
+      let isFollowing = false;
+      if (currentUserId) {
+        const currentUser = await Users.findById(currentUserId).select('followingChannels');
+        if (currentUser && currentUser.followingChannels) {
+          isFollowing = currentUser.followingChannels.some(id => id.toString() === channel._id.toString());
+        }
+      }
+  
+      // Estadísticas de videos del canal
+      const videoStats = await Video.aggregate([
+        { $match: { channel: channel._id, pendiente: false, isActive: true } },
+        {
+          $group: {
+            _id: null,
+            totalVideos: { $sum: 1 },
+            totalLikes: { $sum: { $size: { $ifNull: ['$likes', []] } } },
+            totalViews: { $sum: { $ifNull: ['$views', 0] } },
+            totalComments: { $sum: { $size: { $ifNull: ['$comments', []] } } }
+          }
+        }
+      ]);
+  
+      const profileData = {
+        _id: channel._id,
+        name: channel.name,
+        description: channel.description,
+        avatar: channel.avatar,
+        cover: channel.cover,
+        wilaya: channel.wilaya,
+        commune: channel.commune,
+        isVerified: channel.isVerified,
+        followersCount: channel.followersCount || 0,
+        totalVideos: channel.totalVideos || 0,
+        owner: {
+          _id: channel.owner._id,
+          username: channel.owner.username,
+          avatar: channel.owner.avatar,
+          fullname: channel.owner.fullname,
+          isPro: channel.owner.isPro
+        },
+        videoStats: videoStats[0] || {
+          totalVideos: 0,
+          totalLikes: 0,
+          totalViews: 0,
+          totalComments: 0
+        },
+        isFollowing
+      };
+  
+      // Si el usuario actual es el dueño, mostrar datos privados
+      if (currentUserId && channel.owner._id.toString() === currentUserId.toString()) {
+        profileData.email = channel.email;
+        profileData.phone = channel.phoneHidden ? null : channel.phone;
+        profileData.website = channel.website;
+        profileData.delivery = channel.delivery;
+      }
+  
+      res.json({ success: true, profile: profileData });
+    } catch (err) {
+      console.error('❌ getChannelProfile error:', err);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+  
+  // ==================== SEGUIR / DEJAR DE SEGUIR CANAL ====================
+    toggleFollowChannel : async (req, res) => {
+    try {
+      const { channelId } = req.params;
+      const userId = req.user._id;
+  
+      const channel = await Channel.findById(channelId);
+      if (!channel) {
+        return res.status(404).json({ success: false, message: 'Canal no encontrado' });
+      }
+  
+      const user = await Users.findById(userId);
+      let isFollowing = false;
+      const alreadyFollowing = user.followingChannels.includes(channelId);
+  
+      if (alreadyFollowing) {
+        // Dejar de seguir
+        await Users.findByIdAndUpdate(userId, { $pull: { followingChannels: channelId } });
+        await Channel.findByIdAndUpdate(channelId, { $pull: { followers: userId } });
+        isFollowing = false;
+      } else {
+        // Seguir
+        await Users.findByIdAndUpdate(userId, { $addToSet: { followingChannels: channelId } });
+        await Channel.findByIdAndUpdate(channelId, { $addToSet: { followers: userId } });
+        isFollowing = true;
+      }
+  
+      // Actualizar contador de seguidores del canal
+      const updatedChannel = await Channel.findById(channelId);
+      updatedChannel.followersCount = updatedChannel.followers.length;
+      await updatedChannel.save();
+  
+      res.json({
+        success: true,
+        isFollowing,
+        followersCount: updatedChannel.followersCount
+      });
+    } catch (err) {
+      console.error('❌ toggleFollowChannel error:', err);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+  
+  // ==================== OBTENER SEGUIDORES DE UN CANAL ====================
+  getChannelFollowers : async (req, res) => {
+    try {
+      const { channelId } = req.params;
+      const channel = await Channel.findById(channelId).populate('followers', 'username avatar fullname bio');
+      if (!channel) {
+        return res.status(404).json({ success: false, message: 'Canal no encontrado' });
+      }
+      res.json({ success: true, followers: channel.followers, count: channel.followers.length });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+  
+  // ==================== OBTENER CANALES QUE SIGUE UN USUARIO ====================
+   getUserFollowingChannels : async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const user = await Users.findById(userId).populate('followingChannels', 'name avatar followersCount');
+      if (!user) {
+        return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+      }
+      res.json({ success: true, channels: user.followingChannels });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+  
+  // ==================== REGISTRAR VISTA AL PERFIL DEL CANAL ====================
+   registerChannelView : async (req, res) => {
+    try {
+      const { channelId } = req.params;
+      const viewerId = req.user._id;
+  
+      const channel = await Channel.findById(channelId);
+      if (!channel) return res.status(404).json({ success: false, message: 'Canal no encontrado' });
+  
+      // Evitar auto-visitas
+      if (channel.owner.toString() === viewerId.toString()) {
+        return res.json({ success: true, message: 'Vista propia no registrada' });
+      }
+  
+      // Registrar vista (puedes crear un array profileViews en Channel)
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const existingView = (channel.profileViews || []).find(
+        view => view.user.toString() === viewerId.toString() && new Date(view.viewedAt) > oneDayAgo
+      );
+      if (!existingView) {
+        channel.profileViews = channel.profileViews || [];
+        channel.profileViews.push({ user: viewerId, viewedAt: new Date() });
+        channel.profileViewsCount = (channel.profileViewsCount || 0) + 1;
+        await channel.save();
+      }
+      res.json({ success: true, count: channel.profileViewsCount });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+  
+  // ==================== OBTENER ESTADÍSTICAS DEL CANAL (PARA EL DUEÑO) ====================
+  getChannelStats : async (req, res) => {
+    try {
+      const { channelId } = req.params;
+      const userId = req.user._id;
+  
+      const channel = await Channel.findById(channelId);
+      if (!channel) return res.status(404).json({ success: false, message: 'Canal no encontrado' });
+      if (channel.owner.toString() !== userId.toString() && req.user.role !== 'admin') {
+        return res.status(403).json({ success: false, message: 'No autorizado' });
+      }
+  
+      const weeklyViews = [];
+      for (let i = 6; i >= 0; i--) {
+        const day = new Date();
+        day.setDate(day.getDate() - i);
+        day.setHours(0, 0, 0, 0);
+        const nextDay = new Date(day);
+        nextDay.setDate(nextDay.getDate() + 1);
+        const count = (channel.profileViews || []).filter(view =>
+          new Date(view.viewedAt) >= day && new Date(view.viewedAt) < nextDay
+        ).length;
+        weeklyViews.push({ date: day.toLocaleDateString('fr-FR', { weekday: 'short' }), count });
+      }
+  
+      const videoStats = await Video.aggregate([
+        { $match: { channel: channel._id, pendiente: false } },
+        { $group: {
+            _id: null,
+            totalVideos: { $sum: 1 },
+            totalViews: { $sum: '$views' },
+            totalLikes: { $sum: { $size: '$likes' } },
+            totalComments: { $sum: { $size: '$comments' } }
+          }
+        }
+      ]);
+  
+      res.json({
+        success: true,
+        stats: {
+          followersCount: channel.followersCount,
+          profileViews: channel.profileViewsCount || 0,
+          weeklyViews,
+          ...videoStats[0]
+        }
+      });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+  
+  // ==================== GUARDAR / QUITAR VIDEO DE FAVORITOS ====================
+   toggleSaveVideo : async (req, res) => {
+    try {
+      const { videoId } = req.params;
+      const userId = req.user._id;
+      const user = await Users.findById(userId);
+      const isSaved = user.savedVideos.includes(videoId);
+      if (isSaved) {
+        await Users.findByIdAndUpdate(userId, { $pull: { savedVideos: videoId } });
+      } else {
+        await Users.findByIdAndUpdate(userId, { $addToSet: { savedVideos: videoId } });
+      }
+      res.json({ success: true, saved: !isSaved });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+  
+    getSavedVideos : async (req, res) => {
+    try {
+      const userId = req.user._id;
+      const user = await Users.findById(userId).populate({
+        path: 'savedVideos',
+        populate: { path: 'channel', select: 'name avatar' }
+      });
+      res.json({ success: true, videos: user.savedVideos || [] });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+  
+   checkSavedVideo : async (req, res) => {
+    try {
+      const { videoId } = req.params;
+      const user = await Users.findById(req.user._id);
+      const saved = user.savedVideos.includes(videoId);
+      res.json({ success: true, saved });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+  
+  // ==================== MANTENER FUNCIONES ANTIGUAS DE USUARIO (OPCIONAL) ====================
+  // (getUser, updateUser, deleteUser, etc. se mantienen sin cambios)
+ 
+
+
+
+
+
   assignCategoriesToModerator: async (req, res) => {
     try {
       const { id } = req.params;
@@ -390,6 +674,77 @@ Fecha de solicitud: ${new Date().toLocaleString(lang || 'es')}
       res.status(500).json({ success: false, msg: 'Error al eliminar usuario', error: err.message });
     }
   },
+  getChannelProfile : async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const channels = await Channel.find({ owner: userId });
+        res.json({ success: true, channels });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+},
+  getUserProfile : async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const currentUserId = req.user._id;
+
+    const user = await Users.findById(userId)
+      .select('-password')
+      .populate('followers following', 'username avatar')
+      .lean();
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
+    }
+
+    // Estadísticas de videos (opcional)
+    const videoStats = await Video.aggregate([
+      { $match: { user: new mongoose.Types.ObjectId(userId), pendiente: false, isActive: true } },
+      { $group: {
+          _id: null,
+          totalVideos: { $sum: 1 },
+          totalLikes: { $sum: { $size: { $ifNull: ['$likes', []] } } },
+          totalViews: { $sum: '$views' },
+          totalComments: { $sum: { $size: { $ifNull: ['$comments', []] } } }
+        }
+      }
+    ]);
+
+    let isFollowing = false;
+    if (currentUserId && currentUserId.toString() !== userId) {
+      const currentUser = await Users.findById(currentUserId).select('following');
+      if (currentUser && currentUser.following) {
+        isFollowing = currentUser.following.some(id => id.toString() === userId);
+      }
+    }
+
+    res.json({
+      success: true,
+      user: {
+        _id: user._id,
+        username: user.username,
+        avatar: user.avatar,
+        fullname: user.fullname,
+        bio: user.bio || '',
+        story: user.story,
+        mobile: user.mobile,
+        address: user.address,
+        website: user.website,
+        followers: user.followers || [],
+        following: user.following || [],
+        createdAt: user.createdAt,
+        role: user.role,
+        isPro: user.isPro,
+        isVerified: user.isVerified,
+        videoStats: videoStats[0] || { totalVideos: 0, totalLikes: 0, totalViews: 0, totalComments: 0 },
+        isFollowing
+      }
+    });
+  } catch (err) {
+    console.error('❌ getUserProfile error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+},
 
   getUsersAction: async (req, res) => {
     try {
@@ -828,7 +1183,90 @@ Fecha de solicitud: ${new Date().toLocaleString(lang || 'es')}
       res.status(500).json({ success: false, message: err.message });
     }
   },
-
+// Actualizado para trabajar con el modelo Channel
+  getChannelProfile : async (req, res) => {
+  try {
+    const { userId } = req.params;  // Recibe el ID del usuario dueño del canal
+    const currentUserId = req.user._id;
+    
+    // Buscar el canal principal del usuario (o el primero, si tiene varios)
+    // Puedes modificar la lógica para que el usuario seleccione qué canal mostrar
+    const channel = await Channel.findOne({ owner: userId, isActive: true })
+      .populate('owner', 'username avatar fullname isPro role'); // Dueño para info extra
+    
+    if (!channel) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'El usuario no tiene un canal activo' 
+      });
+    }
+    
+    // Verificar si el usuario actual sigue este canal
+    let isFollowing = false;
+    if (currentUserId && currentUserId.toString() !== userId) {
+      const currentUser = await Users.findById(currentUserId).select('followingChannels');
+      isFollowing = currentUser.followingChannels.some(
+        cId => cId.toString() === channel._id.toString()
+      );
+    }
+    
+    // Estadísticas de videos del canal
+    const videoStats = await Video.aggregate([
+      { $match: { channel: channel._id, pendiente: false, isActive: true } },
+      {
+        $group: {
+          _id: null,
+          totalVideos: { $sum: 1 },
+          totalLikes: { $sum: { $size: '$likes' } },
+          totalViews: { $sum: '$views' },
+          totalComments: { $sum: { $size: '$comments' } },
+          totalShares: { $sum: { $size: { $ifNull: ['$shares', []] } } }
+        }
+      }
+    ]);
+    
+    // Respuesta con datos del canal
+    res.json({
+      success: true,
+      profile: {
+        // Datos del canal
+        _id: channel._id,
+        name: channel.name,
+        description: channel.description,
+        avatar: channel.avatar,
+        cover: channel.cover,
+        phone: channel.phoneHidden ? null : channel.phone, // Opcional
+        website: channel.website,
+        wilaya: channel.wilaya,
+        commune: channel.commune,
+        isVerified: channel.isVerified,
+        followersCount: channel.followersCount || 0,
+        totalVideos: channel.totalVideos || 0,
+        // Datos del dueño (para mostrar username, etc.)
+        owner: {
+          _id: channel.owner._id,
+          username: channel.owner.username,
+          avatar: channel.owner.avatar,
+          isPro: channel.owner.isPro,
+          role: channel.owner.role
+        },
+        // Estadísticas de videos
+        videoStats: videoStats[0] || {
+          totalVideos: 0,
+          totalLikes: 0,
+          totalViews: 0,
+          totalComments: 0,
+          totalShares: 0
+        },
+        isFollowing
+      }
+    });
+    
+  } catch (err) {
+    console.error('Error en getChannelProfile:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+},
   getFollowers: async (req, res) => {
     try {
       const { userId } = req.params;
@@ -1119,7 +1557,29 @@ Fecha de solicitud: ${new Date().toLocaleString(lang || 'es')}
       console.error('❌ Error checkSavedVideo:', err);
       res.status(500).json({ success: false, message: err.message });
     }
+  },
+
+
+// En userCtrl.js - agregar esta función
+  getMyFollowedChannels : async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const user = await Users.findById(userId).populate('followingChannels', 'name avatar description followersCount');
+    res.json({ success: true, channels: user.followingChannels || [] });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
   }
+},
+
+
+
+
+
+
+
+
+
+
 };
 
 module.exports = userCtrl;

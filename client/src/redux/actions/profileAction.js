@@ -137,7 +137,7 @@ export const getProfileWithViews = ({ id, auth }) => async (dispatch) => {
         
         const [usersRes, postsRes] = await Promise.all([
             getDataAPI(`user/${id}`, auth.token),
-            getDataAPI(`user_posts/${id}`, auth.token)
+           
         ]);
 
         if (!usersRes.data || !usersRes.data.user) {
@@ -188,44 +188,59 @@ export const getProfileWithViews = ({ id, auth }) => async (dispatch) => {
 // 🟢 GET PROFILE USERS - VERSIÓN ORIGINAL MEJORADA
 // ============================================
 export const getProfileUsers = ({ id, auth }) => async (dispatch) => {
-    dispatch({ type: PROFILE_TYPES.GET_ID, payload: id })
+    dispatch({ type: PROFILE_TYPES.GET_ID, payload: id });
 
     try {
-        dispatch({ type: PROFILE_TYPES.LOADING, payload: true })
+        dispatch({ type: PROFILE_TYPES.LOADING, payload: true });
         
-        // Usar el endpoint mejorado que incluye profileViewsCount
-        const usersRes = await getDataAPI(`user/${id}`, auth.token);
-        
-        // También cargar posts
-        const postsRes = await getDataAPI(`user_posts/${id}`, auth.token);
-
-        if (!usersRes.data || !usersRes.data.user) {
-            throw new Error('Usuario no encontrado');
+        // Endpoint para obtener el perfil del usuario
+        const res = await getDataAPI(`user/${id}/profile`, auth.token);
+       
+        // ✅ Verificar la respuesta (backend devuelve { success, profile })
+        if (!res.data || !res.data.success || !res.data.profile) {
+            throw new Error('Usuario no encontrado en la respuesta');
         }
 
+        const profileData = res.data.profile;
+
+        // Construir objeto usuario con todos los campos necesarios
         const userData = {
-            ...usersRes.data.user,
-            _id: id,
-            profileViewsCount: usersRes.data.user.profileViewsCount || 0,
-            followersCount: usersRes.data.user.followers?.length || 0,
-            followingCount: usersRes.data.user.following?.length || 0
+            _id: profileData._id,
+            username: profileData.username,
+            avatar: profileData.avatar,
+            fullname: profileData.fullname || profileData.username,
+            bio: profileData.bio || '',
+            story: profileData.story || '',
+            mobile: profileData.mobile || '',
+            address: profileData.address || '',
+            website: profileData.website || '',
+            followers: profileData.followers || [],
+            following: profileData.following || [],
+            createdAt: profileData.createdAt,
+            role: profileData.role,
+            isPro: profileData.isPro,
+            isVerified: profileData.isVerified,
+            profileViewsCount: profileData.profileViewsCount || 0,
+            videoStats: profileData.videoStats || { totalVideos: 0, totalLikes: 0, totalViews: 0, totalComments: 0 },
+            isFollowing: profileData.isFollowing || false
         };
 
-        const postsData = {
-            _id: id,
-            posts: postsRes.data.posts || [],
-            result: postsRes.data.pagination?.totalPosts || postsRes.data.result || 0,
-            page: 1
-        };
-
+        // Guardar en el estado de perfil (sin posts por ahora, si no tienes ese endpoint)
         dispatch({
             type: PROFILE_TYPES.GET_USER,
             payload: userData
         });
 
+        // Si tienes un endpoint separado para posts, llámalo aquí. 
+        // Por ahora, despachamos un array vacío o lo omitimos si no es necesario.
         dispatch({
             type: PROFILE_TYPES.GET_POSTS,
-            payload: postsData
+            payload: {
+                _id: id,
+                posts: [],
+                result: 0,
+                page: 1
+            }
         });
 
         dispatch({ type: PROFILE_TYPES.LOADING, payload: false });
@@ -234,11 +249,11 @@ export const getProfileUsers = ({ id, auth }) => async (dispatch) => {
         console.error('❌ Error en getProfileUsers:', err);
         dispatch({
             type: GLOBALTYPES.ALERT, 
-            payload: { error: err.response?.data?.msg || 'Error al cargar perfil' }
+            payload: { error: err.response?.data?.message || err.message || 'Error al cargar perfil' }
         });
         dispatch({ type: PROFILE_TYPES.LOADING, payload: false });
     }
-}
+};
 
 // ============================================
 // 🟢 UPDATE PROFILE USER
@@ -540,8 +555,7 @@ export const getProfileWithSavedVideos = ({ id, auth }) => async (dispatch) => {
         
         const [usersRes, postsRes, savedRes] = await Promise.all([
             getDataAPI(`user/${id}`, auth.token),
-            getDataAPI(`user_posts/${id}`, auth.token),
-            getDataAPI(`user/${id}/saved-videos?page=1&limit=12`, auth.token)
+               getDataAPI(`user/${id}/saved-videos?page=1&limit=12`, auth.token)
         ]);
 
         if (!usersRes.data || !usersRes.data.user) {
