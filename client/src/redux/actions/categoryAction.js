@@ -34,36 +34,52 @@ export const getSliderCategories = () => async (dispatch) => {
 // ============================================
 // 🆕 OBTENER CATEGORÍAS CON VIDEOS (para Home)
 // ============================================
+// redux/actions/categoryActions.js - Versión con debug
 export const getCategoriesWithVideos = (page = 1, limit = 2) => async (dispatch) => {
   try {
     dispatch({ type: types.GET_CATEGORIES_WITH_VIDEOS });
     
-    console.log(`📡 getCategoriesWithVideos - page: ${page}, limit: ${limit}`);
+    console.log(`📡 [ACTION] getCategoriesWithVideos - page: ${page}, limit: ${limit}`);
     
-    const { data } = await axios.get(`${BASE_URL}/api/categories/with-videos`, {
+    const response = await axios.get(`${BASE_URL}/api/categories/with-videos`, {
       params: { page, limit, videosPerCategory: 6 }
     });
     
-    console.log(`✅ Categorías recibidas: ${data.categories?.length || 0}, hasMore: ${data.hasMore}`);
+    console.log('📦 [ACTION] Respuesta completa:', response.data);
+    console.log('📦 [ACTION] categories:', response.data.categories);
+    console.log('📦 [ACTION] hasMore:', response.data.hasMore);
+    console.log('📦 [ACTION] currentPage:', response.data.currentPage);
+    
+    // ✅ Verificar estructura de datos
+    const categoriesData = response.data.categories || [];
+    console.log(`📦 [ACTION] Número de categorías recibidas: ${categoriesData.length}`);
+    
+    // Verificar cada categoría tiene videos
+    categoriesData.forEach((cat, idx) => {
+      const videoCount = cat.videos?.length || 0;
+      console.log(`   Categoría ${idx + 1}: ${cat.name} - ${videoCount} videos`);
+      if (videoCount > 0) {
+        console.log(`      Primer video: ${cat.videos[0]?.title || 'sin título'}`);
+      }
+    });
     
     dispatch({
       type: types.GET_CATEGORIES_WITH_VIDEOS_SUCCESS,
       payload: {
-        categories: data.categories || [],
-        currentPage: data.currentPage || page,
-        hasMoreCategories: data.hasMore || false,
-        totalCategories: data.total || 0
+        categories: categoriesData,
+        currentPage: response.data.currentPage || page,
+        hasMoreCategories: response.data.hasMore || false,
+        totalCategories: response.data.total || categoriesData.length
       }
     });
     
-    return data;
+    return response.data;
   } catch (error) {
-    console.error('❌ Error getCategoriesWithVideos:', error);
+    console.error('❌ [ACTION] Error getCategoriesWithVideos:', error);
     dispatch({
       type: types.GET_CATEGORIES_WITH_VIDEOS_FAIL,
       payload: error.response?.data?.message || error.message
     });
-    return { success: false };
   }
 };
 // redux/actions/categoryAction.js - CORREGIR loadMoreCategories

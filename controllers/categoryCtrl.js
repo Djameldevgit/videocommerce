@@ -112,17 +112,27 @@ const getCategoriesWithVideos = async (req, res) => {
     const videosPerCategory = parseInt(req.query.videosPerCategory) || 6;
     const skip = (page - 1) * limit;
     
+    console.log(`📡 getCategoriesWithVideos - page: ${page}, limit: ${limit}, videosPerCategory: ${videosPerCategory}`);
+    
+    // Obtener total de categorías activas
     const total = await Category.countDocuments({ isActive: true });
+    console.log(`📊 Total categorías activas: ${total}`);
+    
     const hasMore = skip + limit < total;
     
+    // Obtener categorías paginadas
     const categories = await Category.find({ isActive: true })
       .sort({ order: 1 })
       .skip(skip)
       .limit(limit)
       .lean();
     
+    console.log(`📦 Categorías encontradas: ${categories.length}`);
+    
+    // Para cada categoría, obtener sus videos
     const categoriesWithVideos = await Promise.all(
       categories.map(async (category) => {
+        // Buscar videos de esta categoría
         const videos = await Video.find({
           category: category._id,
           pendiente: false,
@@ -131,8 +141,15 @@ const getCategoriesWithVideos = async (req, res) => {
           .sort({ createdAt: -1 })
           .limit(videosPerCategory)
           .populate('user', 'username avatar isPro')
-          .populate('category', 'slug name')   // ✅ LÍNEA CLAVE
+          .populate('category', 'slug name')
           .lean();
+        
+        console.log(`   📹 ${category.name}: ${videos.length} videos encontrados`);
+        
+        // Si hay videos, mostrar el primero como ejemplo
+        if (videos.length > 0) {
+          console.log(`      Ejemplo: ${videos[0].title}`);
+        }
         
         return { ...category, videos };
       })
@@ -142,12 +159,19 @@ const getCategoriesWithVideos = async (req, res) => {
       success: true,
       categories: categoriesWithVideos,
       currentPage: page,
-      hasMore,
-      total
+      hasMore: hasMore,
+      total: total,
+      limit: limit,
+      videosPerCategory: videosPerCategory
     });
+    
   } catch (error) {
-    console.error('❌ Error getCategoriesWithVideos:', error);
-    res.status(500).json({ success: false, message: error.message });
+    console.error('❌ Error en getCategoriesWithVideos:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al obtener categorías con videos',
+      error: error.message
+    });
   }
 };
 // Asegurar que module.exports incluya esta función
@@ -521,6 +545,5 @@ module.exports = {
   searchCategories,
   getCategoryFilters,
   updateVideoCounts,
-  getCategoriesWithVideos, // ✅ IMPORTANTE: Exportar esta función
+  getCategoriesWithVideos, // ✅ AHORA SÍ está exportada correctamente
 };
- 

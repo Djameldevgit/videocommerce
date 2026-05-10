@@ -33,6 +33,10 @@ const deleteFromCloudinary = async (publicId, resourceType = 'video') => {
   }
 };
 
+// backend/controllers/videoController.js
+// ============================================
+// CREATE VIDEO - VERSIÓN ACTUALIZADA
+// ============================================
 const createVideo = async (req, res) => {
   try {
     console.log("🔴 BODY RECIBIDO:", JSON.stringify(req.body, null, 2));
@@ -54,7 +58,7 @@ const createVideo = async (req, res) => {
       wholesale,
       minQuantity,
       stock,
-      // Canal (nuevo)
+      // Canal
       channelId
     } = req.body;
 
@@ -107,6 +111,12 @@ const createVideo = async (req, res) => {
       }
     }
 
+    console.log('📺 Canal seleccionado:', {
+      id: channel._id,
+      name: channel.name,
+      owner: channel.owner
+    });
+
     // Validar campos comerciales (si aplica)
     if (isCommercial) {
       if (!channel.wilaya || !channel.commune) {
@@ -156,7 +166,7 @@ const createVideo = async (req, res) => {
       musicData = { ...music, processed: false };
     }
 
-    // Crear el nuevo video
+    // ✅ Crear el nuevo video con el channel correctamente asignado
     const newVideo = new Video({
       title: finalTitle.trim(),
       description: description || '',
@@ -166,8 +176,8 @@ const createVideo = async (req, res) => {
       videoPublicId: videoPublicId,
       thumbnail: finalThumbnail,
       duration: duration || 0,
-      channel: channel._id,
-      user: userId,  // redundante pero útil para consultas rápidas
+      channel: channel._id,  // ← ¡CRUCIAL! Guardar el ID del canal
+      user: userId,
       music: musicData,
       tags: req.body.tags || [],
       isCommercial: isCommercial || false,
@@ -179,19 +189,23 @@ const createVideo = async (req, res) => {
     });
 
     await newVideo.save();
+    console.log('✅ Video guardado con channel:', newVideo.channel);
 
     // Incrementar contadores
     await Category.findByIdAndUpdate(categoryDoc._id, { $inc: { videoCount: 1 } });
+    
     // Actualizar totalVideos del canal (solo los aprobados)
     channel.totalVideos = await Video.countDocuments({ channel: channel._id, pendiente: false, isActive: true });
     await channel.save();
 
-    // Poblar para respuesta
+    // ✅ POBLAR COMPLETAMENTE para la respuesta
     const populatedVideo = await Video.findById(newVideo._id)
-      .populate('channel', 'name avatar')
-      .populate('category', 'name slug icon');
+      .populate('channel', 'name avatar isVerified _id owner')
+      .populate('category', 'name slug icon')
+      .populate('user', 'username avatar');
 
     console.log(`✅ Video creado: ${populatedVideo._id}`);
+    console.log(`   Canal: ${populatedVideo.channel.name || 'NO CHANNEL'}`);
 
     res.status(201).json({
       success: true,
@@ -205,6 +219,9 @@ const createVideo = async (req, res) => {
   }
 };
 
+// ============================================
+// UPDATE VIDEO - VERSIÓN ACTUALIZADA
+// ============================================
 const updateVideo = async (req, res) => {
   try {
     const { id } = req.params;
@@ -223,23 +240,44 @@ const updateVideo = async (req, res) => {
       wholesale,
       minQuantity,
       stock,
-      tags
+      tags,
+      channelId  // ← Permitir actualizar el canal también
     } = req.body;
 
     console.log("🔴 ========== UPDATE VIDEO ==========");
     console.log("🔴 ID:", id);
 
-    // 1. Obtener video con su canal poblado
-    const video = await Video.findById(id).populate('channel');
+    // 1. Obtener video
+    const video = await Video.findById(id);
     if (!video) {
       return res.status(404).json({ success: false, message: 'Video no encontrado' });
     }
 
-    const isOwner = video.channel.owner.toString() === req.user._id.toString();
+    // Obtener canal actual o nuevo
+    let currentChannel = await Channel.findById(video.channel);
+    if (!currentChannel) {
+      return res.status(404).json({ success: false, message: 'Canal original no encontrado' });
+    }
+
+    const isOwner = currentChannel.owner.toString() === req.user._id.toString();
     const isAdmin = req.user.role === 'admin' || req.user.role === 'moderator';
 
     if (!isOwner && !isAdmin) {
       return res.status(403).json({ success: false, message: 'No autorizado' });
+    }
+
+    // ✅ Si se envía un nuevo channelId, cambiar de canal
+    let newChannel = null;
+    if (channelId && channelId !== video.channel.toString()) {
+      newChannel = await Channel.findById(channelId);
+      if (!newChannel) {
+        return res.status(404).json({ success: false, message: 'Nuevo canal no encontrado' });
+      }
+      if (newChannel.owner.toString() !== req.user._id.toString() && !isAdmin) {
+        return res.status(403).json({ success: false, message: 'No eres dueño del nuevo canal' });
+      }
+      video.channel = newChannel._id;
+      console.log(`🔄 Canal cambiado: ${currentChannel.name} → ${newChannel.name}`);
     }
 
     // Guardar categoría antigua para contador
@@ -351,12 +389,24 @@ const updateVideo = async (req, res) => {
       await Category.findByIdAndUpdate(oldCategoryId, { $inc: { videoCount: -1 } });
     }
 
-    // 8. Poblar y devolver
+    // 8. Actualizar estadísticas de los canales (viejo y nuevo)
+    if (currentChannel) {
+      await currentChannel.updateStats();
+    }
+    if (newChannel) {
+      await newChannel.updateStats();
+    } else {
+      await currentChannel.updateStats();
+    }
+
+    // 9. ✅ POBLAR COMPLETAMENTE para la respuesta
     const updatedVideo = await Video.findById(video._id)
-      .populate('channel', 'name avatar')
-      .populate('category', 'name slug icon');
+      .populate('channel', 'name avatar isVerified _id owner')
+      .populate('category', 'name slug icon')
+      .populate('user', 'username avatar');
 
     console.log("📤 Video actualizado:", updatedVideo._id, updatedVideo.title);
+    console.log(`   Canal: ${updatedVideo.channel.name || 'NO CHANNEL'}`);
 
     res.json({
       success: true,
@@ -497,24 +547,29 @@ const getMusicLibrary = async (req, res) => {
   }
 };
 
+// backend/controllers/videoController.js
 const getChannelVideos = async (req, res) => {
   try {
     const { channelId } = req.params;
     const { page = 1, limit = 12 } = req.query;
-    const skip = (page - 1) * limit;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const channel = await Channel.findById(channelId);
-    if (!channel) return res.status(404).json({ success: false, message: 'Canal no encontrado' });
+    if (!channel) {
+      return res.status(404).json({ success: false, message: 'Canal no encontrado' });
+    }
 
     const match = { channel: channel._id, pendiente: false, isActive: true };
     const isOwnerOrAdmin = req.user && (channel.owner.toString() === req.user._id.toString() || req.user.role === 'admin');
     if (!isOwnerOrAdmin) match.pendiente = false;
 
+    // ✅ CORREGIDO: Añadir populate('channel')
     const videos = await Video.find(match)
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(limit)
-      .populate('channel', 'name avatar')
+      .limit(parseInt(limit))
+      .populate('user', 'username avatar')
+      .populate('channel', 'name avatar isVerified _id')  // ← Poblar canal
       .lean();
 
     const total = await Video.countDocuments(match);
@@ -523,14 +578,13 @@ const getChannelVideos = async (req, res) => {
       success: true,
       videos,
       total,
-      page,
-      totalPages: Math.ceil(total / limit)
+      page: parseInt(page),
+      totalPages: Math.ceil(total / parseInt(limit))
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
- 
   
 // ============================================
 // 🗑️ ELIMINAR VIDEO (CORREGIDO USANDO videoPublicId)
@@ -810,42 +864,32 @@ const getVideoByIdPrivate = async (req, res) => {
 // ============================================
 // 👁️ OBTENER VIDEO POR ID (SIN DEPENDER DE req.user)
 // ============================================
+// backend/controllers/videoController.js
 const getVideoById = async (req, res) => {
   try {
     const { id } = req.params;
     
-    console.log(`📹 Buscando video con ID: ${id}`);
-    
-    // Validar ID
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ success: false, message: 'ID de video inválido' });
+      return res.status(400).json({ success: false, message: 'ID inválido' });
     }
     
+    // ✅ CORREGIDO: Poblar channel
     const video = await Video.findById(id)
-      .populate('user', 'username avatar isPro role bio')
-      .populate('comments.user', 'username avatar');
+      .populate('user', 'username avatar isPro')
+      .populate('channel', 'name avatar isVerified _id owner')  // ← Poblar canal
+      .populate('comments.user', 'username avatar')
+      .lean();
     
     if (!video) {
       return res.status(404).json({ success: false, message: 'Video no encontrado' });
     }
     
-    // ✅ NO verificar role - permitir ver cualquier video (aprobado o pendiente)
-    // Si el video está pendiente, igual se muestra (para administración)
-    
-    // Incrementar vista
-    video.views = (video.views || 0) + 1;
-    await video.save();
-    
-    console.log(`✅ Video enviado: ${video.title}`);
-    
     res.json({ success: true, video });
   } catch (error) {
-    console.error('❌ Error en getVideoById:', error);
+    console.error('Error getVideoById:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
- 
- 
 
 // ✅ Videos destacados
 const getFeaturedVideos = async (req, res) => {
@@ -1452,10 +1496,13 @@ const getVideo = async (req, res) => {
 // ✅ Filtrar videos - SIN categorías obligatorias
 // controllers/videoCtrl.js
 
+// backend/controllers/videoController.js
+// backend/controllers/videoController.js - filterVideos
 const filterVideos = async (req, res) => {
   try {
     const { page = 1, limit = 12, searchTerm, sortBy = 'recent', category, wilaya } = req.query;
-    const skip = (page - 1) * limit;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
     let match = { pendiente: false, isActive: true };
     if (searchTerm) match.title = { $regex: searchTerm, $options: 'i' };
     if (category && mongoose.Types.ObjectId.isValid(category)) match.category = category;
@@ -1466,12 +1513,23 @@ const filterVideos = async (req, res) => {
     else if (sortBy === 'liked') sort = { likesCount: -1 };
     else sort = { createdAt: -1 };
 
+    // ✅ CORREGIDO: Usar aggregate con $lookup
     const videos = await Video.aggregate([
       { $match: match },
       { $addFields: { likesCount: { $size: '$likes' } } },
       { $sort: sort },
       { $skip: skip },
       { $limit: parseInt(limit) },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'user',
+          foreignField: '_id',
+          as: 'userData'
+        }
+      },
+      { $unwind: { path: '$userData', preserveNullAndEmptyArrays: true } },
+      // ✅ Lookup para channel
       {
         $lookup: {
           from: 'channels',
@@ -1483,6 +1541,11 @@ const filterVideos = async (req, res) => {
       { $unwind: { path: '$channelData', preserveNullAndEmptyArrays: true } },
       {
         $addFields: {
+          user: {
+            _id: '$userData._id',
+            username: '$userData.username',
+            avatar: '$userData.avatar'
+          },
           channel: {
             _id: '$channelData._id',
             name: '$channelData.name',
@@ -1493,26 +1556,20 @@ const filterVideos = async (req, res) => {
       },
       {
         $project: {
-          title: 1,
-          thumbnail: 1,
-          videoUrl: 1,
-          views: 1,
-          likesCount: 1,
-          price: 1,
-          wilaya: 1,
-          createdAt: 1,
-          channel: 1
+          userData: 0,
+          channelData: 0
         }
       }
     ]);
 
     const total = await Video.countDocuments(match);
+    
     res.json({ 
       success: true, 
       videos, 
       total, 
-      page, 
-      totalPages: Math.ceil(total / limit),
+      page: parseInt(page), 
+      totalPages: Math.ceil(total / parseInt(limit)),
       hasMore: skip + videos.length < total
     });
   } catch (err) {
@@ -1520,138 +1577,109 @@ const filterVideos = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
-// ✅ Obtener videos por categoría (simplificado - devuelve todos)
+// backend/controllers/categoryController.js (o donde tengas esta función)
+// Asegúrate que ESTA es la función que se está llamando
+
+// backend/controllers/categoryCtrl.js
+// BUSCA Y CORRIGE esta función:
+
 const getVideosByCategory = async (req, res) => {
   try {
-    const { page = 1, limit = 12, sortBy = 'recent' } = req.query;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    let match = { pendiente: false, isActive: true };
-
-    let sortOptions = {};
-    switch(sortBy) {
-      case 'popular': sortOptions = { views: -1 }; break;
-      case 'liked': sortOptions = { likesCount: -1 }; break;
-      default: sortOptions = { createdAt: -1 };
+    const { slug } = req.params;
+    const { page = 1, limit = 12, sortBy = 'recent', wilaya, minPrice, maxPrice } = req.query;
+    
+    console.log('🔍 [getVideosByCategory] slug:', slug);
+    console.log('🔍 [getVideosByCategory] page:', page, 'limit:', limit);
+    
+    // 1. Buscar la categoría por slug
+    const category = await Category.findOne({ slug: slug, isActive: true });
+    
+    if (!category) {
+      console.log('❌ Categoría no encontrada:', slug);
+      return res.json({
+        success: true,
+        videos: [],
+        total: 0,
+        categoryInfo: null
+      });
     }
-
-    const pipeline = [
-      { $match: match },
-      { $addFields: { likesCount: { $size: '$likes' } } },
-      { $sort: sortOptions },
-      { $skip: skip },
-      { $limit: parseInt(limit) },
-      { $lookup: { from: 'users', localField: 'user', foreignField: '_id', as: 'user' } },
-      { $unwind: '$user' },
-      { $project: { 'user.password': 0, 'user.email': 0 } }
-    ];
-
-    const [videos, total] = await Promise.all([
-      Video.aggregate(pipeline),
-      Video.countDocuments(match)
-    ]);
-
+    
+    console.log('✅ Categoría encontrada:', category.name, category._id);
+    
+    // 2. Construir filtro
+    let filter = {
+      category: category._id,
+      pendiente: false,
+      isActive: true
+    };
+    
+    if (wilaya && wilaya !== '') filter.wilaya = wilaya;
+    if (minPrice) filter.price = { ...filter.price, $gte: Number(minPrice) };
+    if (maxPrice) filter.price = { ...filter.price, $lte: Number(maxPrice) };
+    
+    // 3. Ordenamiento
+    let sort = {};
+    switch (sortBy) {
+      case 'views': sort = { views: -1 }; break;
+      case 'likes': sort = { likes: -1 }; break;
+      case 'price_asc': sort = { price: 1 }; break;
+      case 'price_desc': sort = { price: -1 }; break;
+      case 'oldest': sort = { createdAt: 1 }; break;
+      default: sort = { createdAt: -1 };
+    }
+    
+    // 4. Paginación
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    // 5. ✅ OBTENER VIDEOS CON POPULATE DE CHANNEL
+    const videos = await Video.find(filter)
+      .sort(sort)
+      .skip(skip)
+      .limit(parseInt(limit))
+      .populate('user', 'username avatar')
+      .populate({
+        path: 'channel',
+        select: '_id name avatar isVerified owner',
+        model: 'Channel'
+      })
+      .lean();
+    
+    console.log(`📹 Videos encontrados: ${videos.length}`);
+    
+    // ✅ VERIFICAR QUE CHANNEL ESTÁ POBLADO
+    videos.forEach((video, index) => {
+      const hasChannel = video.channel ? '✅' : '❌';
+      const channelName = video.channel.name || 'SIN CANAL';
+      const channelId = video.channel._id || 'NULO';
+      console.log(`   ${hasChannel} Video ${index + 1}: "${video.title}" - Canal: ${channelName} (${channelId})`);
+    });
+    
+    const total = await Video.countDocuments(filter);
+    
     res.json({
       success: true,
       videos,
       total,
       page: parseInt(page),
       totalPages: Math.ceil(total / parseInt(limit)),
-      limit: parseInt(limit),
       hasMore: skip + videos.length < total,
-      children: []
+      categoryInfo: {
+        _id: category._id,
+        name: category.name,
+        slug: category.slug,
+        icon: category.icon,
+        iconColor: category.iconColor
+      }
     });
+    
   } catch (error) {
-    console.error('Error getVideosByCategory:', error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-// ✅ Obtener videos tendencia - CORREGIDO
-const getTrendingVideos = async (req, res) => {
-  try {
-    const { limit = 10, timeRange = 'week' } = req.query;
-    
-    const matchCondition = { pendiente: false };
-    
-    if (timeRange === 'day') {
-      matchCondition.createdAt = { $gte: new Date(Date.now() - 24*60*60*1000) };
-    } else if (timeRange === 'week') {
-      matchCondition.createdAt = { $gte: new Date(Date.now() - 7*24*60*60*1000) };
-    }
-    
-    const videos = await Video.aggregate([
-      { $match: matchCondition },
-      { 
-        $addFields: {
-          likesCount: { $size: '$likes' },
-          commentsCount: { $size: '$comments' },
-          dynamicScore: {
-            $min: [
-              {
-                $multiply: [
-                  {
-                    $divide: [
-                      { $add: [
-                        { $multiply: ['$likesCount', 2] },
-                        { $multiply: ['$commentsCount', 3] }
-                      ] },
-                      { $ifNull: ['$views', 1] }
-                    ]
-                  },
-                  100
-                ]
-              },
-              100
-            ]
-          }
-        }
-      },
-      { $sort: { dynamicScore: -1, views: -1, createdAt: -1 } },
-      { $limit: parseInt(limit) },
-      { $lookup: { from: 'users', localField: 'user', foreignField: '_id', as: 'user' } },
-      { $unwind: '$user' },
-      { $project: { 'user.password': 0, 'user.email': 0 } }
-    ]);
-    
-    res.json({ success: true, videos });
-  } catch (error) {
-    console.error('Error getTrendingVideos:', error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-// ✅ Obtener videos relacionados (simplificado)
-const getRelatedVideos = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { limit = 6 } = req.query;
-
-    const currentVideo = await Video.findById(id);
-    if (!currentVideo) {
-      return res.status(404).json({ success: false, message: 'Video no encontrado' });
-    }
-
-    const relatedVideos = await Video.aggregate([
-      {
-        $match: {
-          _id: { $ne: currentVideo._id },
-          pendiente: false,
-          isActive: true
-        }
-      },
-      { $addFields: { likesCount: { $size: '$likes' } } },
-      { $sort: { views: -1, likesCount: -1, createdAt: -1 } },
-      { $limit: parseInt(limit) },
-      { $lookup: { from: 'users', localField: 'user', foreignField: '_id', as: 'user' } },
-      { $unwind: '$user' },
-      { $project: { 'user.password': 0, 'user.email': 0 } }
-    ]);
-
-    res.json({ success: true, videos: relatedVideos });
-  } catch (error) {
-    console.error('Error getRelatedVideos:', error);
-    res.status(500).json({ success: false, message: error.message });
+    console.error('❌ Error en getVideosByCategory:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+      videos: [],
+      total: 0
+    });
   }
 };
 
@@ -2013,24 +2041,25 @@ const getAdminVideoStats = async (req, res) => {
 // controllers/categoryController.js
 
  
+// ============================================
+// 📤 EXPORTACIÓN CORREGIDA
+// ============================================
 module.exports = {
+  // ✅ PÚBLICAS
   getCategoriesForSlider,
   getVideoById,
   getVideoByIdPublic,
   getVideoByIdPrivate,
- 
   filterVideos,
-  getVideosByCategory,
+  getVideosByCategory,        // ← ¡ESTA ES LA QUE FALTA! ✅
   getFeaturedVideos,
   getPopularVideos,
-  getRelatedVideos,
-  getTrendingVideos,
+   
   
-  // Comerciales públicas
   filterCommercialVideos,
   getVideosNearby,
   
-  // Protegidas
+  // ✅ PROTEGIDAS
   createVideo,
   updateVideo,
   deleteVideo,
@@ -2039,17 +2068,16 @@ module.exports = {
   trackWatchTime,
   getUserVideoStats,
   
-  // Comerciales protegidas
+  // ✅ COMERCIALES PROTEGIDAS
   getMyCommercialVideos,
   toggleWholesale,
   updateStock,
   updateVideoLocation,
   
-  // Música
+  // ✅ MÚSICA
   getMusicLibrary,
   
-  
-  // Admin
+  // ✅ ADMIN
   getVideosPendientesAdmin,
   aprobarVideoAdmin,
   eliminarVideoAdmin,
@@ -2057,12 +2085,12 @@ module.exports = {
   featureCommercialVideo,
   getAdminVideoStats,
   getChannelVideos,
-  // Perfil y social
+  
+  // ✅ PERFIL DE USUARIO
   getUserProfileStats,
   getUserSavedVideos,
   getUserLikedVideos,
   toggleFollowUser,
   toggleSaveVideo
 };
-
  

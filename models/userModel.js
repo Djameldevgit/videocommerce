@@ -1,6 +1,5 @@
+// models/userModel.js - VERSIÓN CORREGIDA
 const mongoose = require('mongoose');
-
- 
 
 const userSchema = new mongoose.Schema({
     // ============ INFORMACIÓN BÁSICA ============
@@ -50,15 +49,19 @@ const userSchema = new mongoose.Schema({
         viewedAt: { type: Date, default: Date.now }
     }],
     profileViewsCount: { type: Number, default: 0 },
-    
+ 
     // ============ INTERACCIONES ============
-    savedVideos: [{ type: mongoose.Types.ObjectId, ref: 'Video' }],  // ✅ único campo para guardados
-    followingChannels: [{ type: mongoose.Types.ObjectId, ref: 'Channel' }],  // ✅ canales que sigue
+    savedVideos: [{ type: mongoose.Types.ObjectId, ref: 'Video' }],
+    followingChannels: [{ type: mongoose.Types.ObjectId, ref: 'Channel' }],
     followers: [{ type: mongoose.Types.ObjectId, ref: 'user' }],
-following: [{ type: mongoose.Types.ObjectId, ref: 'user' }],
-    // Opcional: si quieres red social entre usuarios (amigos)
+    following: [{ type: mongoose.Types.ObjectId, ref: 'user' }],
     followingUsers: [{ type: mongoose.Types.ObjectId, ref: 'user' }],
     followersUsers: [{ type: mongoose.Types.ObjectId, ref: 'user' }],
+    
+    // ============================================
+    // ✅ NUEVO: REFERENCIA A LOS CANALES DEL USUARIO
+    // ============================================
+    channels: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Channel' }],  // ← ¡CRUCIAL! Canales que posee
     
 }, { timestamps: true });
 
@@ -69,7 +72,7 @@ userSchema.index({ assignedSubCategories: 1 });
 userSchema.index({ username: 1 });
 userSchema.index({ email: 1 });
 
-// Métodos existentes (canModerate, getAssignedData) se mantienen igual
+// Métodos existentes
 userSchema.methods.canModerate = function(categorySlug, subCategorySlug = null) {
     if (this.role === 'admin') return true;
     if (this.role === 'moderator') {
@@ -84,6 +87,29 @@ userSchema.methods.getAssignedData = function() {
         categories: this.assignedCategories,
         subCategories: this.assignedSubCategories
     };
+};
+
+// ✅ NUEVO MÉTODO: Obtener canales del usuario
+userSchema.methods.getUserChannels = async function() {
+    const Channel = mongoose.model('Channel');
+    return await Channel.find({ owner: this._id });
+};
+
+// ✅ NUEVO MÉTODO: Verificar si el usuario sigue un canal
+userSchema.methods.isFollowingChannel = function(channelId) {
+    return this.followingChannels.includes(channelId);
+};
+
+// ✅ NUEVO MÉTODO: Seguir/Dejar de seguir canal
+userSchema.methods.toggleFollowChannel = async function(channelId) {
+    const index = this.followingChannels.indexOf(channelId);
+    if (index === -1) {
+        this.followingChannels.push(channelId);
+    } else {
+        this.followingChannels.splice(index, 1);
+    }
+    await this.save();
+    return index === -1; // true = siguiendo, false = dejó de seguir
 };
 
 module.exports = mongoose.model('user', userSchema);

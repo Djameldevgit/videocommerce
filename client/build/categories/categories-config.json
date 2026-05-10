@@ -1,117 +1,168 @@
 {
-  "version": "1.0.0",
-  "lastUpdated": "2026-05-07T16:54:13.574Z",
+  "version": "2.0.0",
+  "lastUpdated": "2026-05-10T18:18:39.736Z",
+  "totalCategories": 18,
   "categories": [
     {
-      "slug": "vehicules",
-      "name": "Vehicules",
-      "iconPath": "/categories/vehicules/vehicules.png",
-      "iconType": "png",
+      "order": 1,
+      "slug": "agence",
+      "name": "Agence",
+      "iconUrl": "/categories/agence/agence.png",
+      "iconColor": "#4A90E2",
+      "bgColor": "#4A90E215",
       "isActive": true
     },
     {
+      "order": 2,
       "slug": "immobilier",
       "name": "Immobilier",
-      "iconPath": "/categories/immobilier/immobilier.png",
-      "iconType": "png",
+      "iconUrl": "/categories/immobilier/immobilier.png",
+      "iconColor": "#50B5A9",
+      "bgColor": "#50B5A915",
       "isActive": true
     },
     {
-      "slug": "electromenager",
-      "name": "Electromenager",
-      "iconPath": "/categories/electromenager/electromenager.png",
-      "iconType": "png",
+      "order": 3,
+      "slug": "vehicules",
+      "name": "Automobiles & Véhicules",
+      "iconUrl": "/categories/vehicules/vehicules.png",
+      "iconColor": "#E67E22",
+      "bgColor": "#E67E2215",
       "isActive": true
     },
     {
-      "slug": "electronique",
-      "name": "Electronique",
-      "iconPath": "/categories/electronique/electronique.png",
-      "iconType": "png",
-      "isActive": true
-    },
-    {
-      "slug": "vetements",
-      "name": "Vetements",
-      "iconPath": "/categories/vetements/vetements.png",
-      "iconType": "png",
-      "isActive": true
-    },
-    {
-      "slug": "meubles",
-      "name": "Meubles",
-      "iconPath": "/categories/meubles/meubles.png",
-      "iconType": "png",
-      "isActive": true
-    },
-    {
-      "slug": "sport",
-      "name": "Sport",
-      "iconPath": "/categories/sport/sport.png",
-      "iconType": "png",
-      "isActive": true
-    },
-    {
-      "slug": "sante-beaute",
-      "name": "Sante beaute",
-      "iconPath": "/categories/sante-beaute/sante-beaute.png",
-      "iconType": "png",
-      "isActive": true
-    },
-    {
-      "slug": "alimentaires",
-      "name": "Alimentaires",
-      "iconPath": "/categories/alimentaires/alimentaires.png",
-      "iconType": "png",
-      "isActive": true
-    },
-    {
-      "slug": "services",
-      "name": "Services",
-      "iconPath": "/categories/services/services.png",
-      "iconType": "png",
-      "isActive": true
-    },
-    {
-      "slug": "loisirs",
-      "name": "Loisirs",
-      "iconPath": "/categories/loisirs/loisirs.png",
-      "iconType": "png",
-      "isActive": true
-    },
-    {
+      "order": 4,
       "slug": "pieces-detachees",
-      "name": "Pieces detachees",
-      "iconPath": "/categories/pieces-detachees/pieces-detachees.png",
-      "iconType": "png",
+      "name": "Pièces détachées",
+      "iconUrl": "/categories/pieces-detachees/pieces-detachees.png",
+      "iconColor": "#95A5A6",
+      "bgColor": "#95A5A615",
       "isActive": true
     },
     {
+      "order": 5,
+      "slug": "telephones",
+      "name": "Téléphones & Accessoires",
+      "iconUrl": "/categories/telephones/telephones.png",
+      "iconColor": "#2ECC71",
+      "bgColor": "#2ECC7115",
+      "isActive": true
+    },
+    {
+      "order": 6,
       "slug": "informatique",
       "name": "Informatique",
-      "iconPath": "/categories/informatique/informatique.png",
-      "iconType": "png",
+      "iconUrl": "/categories/informatique/informatique.png",
+      "iconColor": "#3498DB",
+      "bgColor": "#3498DB15",
       "isActive": true
     },
     {
-      "slug": "materiaux",
-      "name": "Materiaux",
-      "iconPath": "/categories/materiaux/materiaux.png",
-      "iconType": "png",
+      "order": 7,
+      "slug": "electromenager",
+      "name": "Électroménager & Électronique",
+      "iconUrl": "/categories/electromenager/electromenager.png",
+      "iconColor": "#E74C3C",
+      "bgColor": "#E74C3C15",
       "isActive": true
     },
     {
+      "order": 8,
+      "slug": "vetements-mode",
+      "name": "Vêtements & Mode",
+      "iconUrl": "/categories/vetements-mode/vetements-mode.png",
+      "iconColor": "#9B59B6",
+      "bgColor": "#9B59B615",
+      "isActive": true
+    },
+    {
+      "order": 9,
+      "slug": "sante-beaute",
+      "name": "Santé & Beauté",
+      "iconUrl": "/categories/sante-beaute/sante-beaute.png",
+      "iconColor": "#FF6B9D",
+      "bgColor": "#FF6B9D15",
+      "isActive": true
+    },
+    {
+      "order": 10,
+      "slug": "meubles-maison",
+      "name": "Meubles & Maison",
+      "iconUrl": "/categories/meubles-maison/meubles-maison.png",
+      "iconColor": "#D35400",
+      "bgColor": "#D3540015",
+      "isActive": true
+    },
+    {
+      "order": 11,
+      "slug": "loisirs-divertissements",
+      "name": "Loisirs & Divertissements",
+      "iconUrl": "/categories/loisirs-divertissements/loisirs-divertissements.png",
+      "iconColor": "#F39C12",
+      "bgColor": "#F39C1215",
+      "isActive": true
+    },
+    {
+      "order": 12,
+      "slug": "sport",
+      "name": "Sport",
+      "iconUrl": "/categories/sport/sport.png",
+      "iconColor": "#1ABC9C",
+      "bgColor": "#1ABC9C15",
+      "isActive": true
+    },
+    {
+      "order": 13,
+      "slug": "emploi",
+      "name": "Emploi",
+      "iconUrl": "/categories/emploi/emploi.png",
+      "iconColor": "#34495E",
+      "bgColor": "#34495E15",
+      "isActive": true
+    },
+    {
+      "order": 14,
+      "slug": "materiaux-equipement",
+      "name": "Matériaux & Équipement",
+      "iconUrl": "/categories/materiaux-equipement/materiaux-equipement.png",
+      "iconColor": "#7F8C8D",
+      "bgColor": "#7F8C8D15",
+      "isActive": true
+    },
+    {
+      "order": 15,
+      "slug": "alimentaires",
+      "name": "Alimentaires",
+      "iconUrl": "/categories/alimentaires/alimentaires.png",
+      "iconColor": "#27AE60",
+      "bgColor": "#27AE6015",
+      "isActive": true
+    },
+    {
+      "order": 16,
       "slug": "voyages",
       "name": "Voyages",
-      "iconPath": "/categories/voyages/voyages.png",
-      "iconType": "png",
+      "iconUrl": "/categories/voyages/voyages.png",
+      "iconColor": "#2980B9",
+      "bgColor": "#2980B915",
       "isActive": true
     },
     {
-      "slug": "art",
-      "name": "Art",
-      "iconPath": "/categories/art/art.png",
-      "iconType": "png",
+      "order": 17,
+      "slug": "services",
+      "name": "Services",
+      "iconUrl": "/categories/services/services.png",
+      "iconColor": "#16A085",
+      "bgColor": "#16A08515",
+      "isActive": true
+    },
+    {
+      "order": 18,
+      "slug": "publicite",
+      "name": "Publicité",
+      "iconUrl": "/categories/publicite/publicite.png",
+      "iconColor": "#FF9800",
+      "bgColor": "#FF980015",
       "isActive": true
     }
   ]

@@ -15,7 +15,7 @@ router.get('/music', videoCtrl.getMusicLibrary);
 router.get('/videos/filter', videoCtrl.filterVideos);
 router.get('/videos/featured', videoCtrl.getFeaturedVideos);
 router.get('/videos/popular', videoCtrl.getPopularVideos);
-router.get('/videos/trending', videoCtrl.getTrendingVideos);
+//router.get('/videos/trending', videoCtrl.getTrendingVideos);
 router.get('/videos/category/:categorySlug', videoCtrl.getVideosByCategory);
 
 // 🆕 RUTAS COMERCIALES PÚBLICAS (ESPECÍFICAS, ANTES DE :id)
@@ -35,7 +35,7 @@ router.patch('/videos/commercial/update-stock/:id', auth, videoCtrl.updateStock)
 router.patch('/videos/commercial/update-location/:id', auth, videoCtrl.updateVideoLocation);
 
 // Rutas con :id (van después de las específicas)
-router.get('/videos/:id/related', videoCtrl.getRelatedVideos);
+//router.get('/videos/:id/related', videoCtrl.getRelatedVideos);
 
 // ⚠️ ESTA RUTA CAPTURA CUALQUIER /videos/:id - DEBE IR AL FINAL
 router.get('/videos/:id', videoCtrl.getVideoById);
@@ -81,10 +81,7 @@ router.delete('/admin/videos/:id', auth,  videoCtrl.eliminarVideoAdmin);
 
 // 🆕 RUTAS COMERCIALES PARA ADMIN
 router.get('/admin/videos/commercial/stats', auth,  videoCtrl.getCommercialStats);
-router.get('/admin/videos/commercial/pending', auth,  (req, res, next) => {
-  req.query.commercialOnly = 'true';
-  next();
-}, videoCtrl.getVideosPendientesAdmin);
+router.get('/admin/videos/commercial/pending', auth,  videoCtrl.getVideosPendientesAdmin);
 router.patch('/admin/videos/commercial/:id/feature', auth,  videoCtrl.featureCommercialVideo);
 router.get('/admin/videos/stats/overview', auth,  videoCtrl.getAdminVideoStats);
 

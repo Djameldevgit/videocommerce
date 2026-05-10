@@ -12,13 +12,32 @@ const createChannel = async (req, res) => {
     const { name, activity, description, avatar, cover, phone, email, website, wilaya, commune } = req.body;
     const userId = req.user._id;
 
+    console.log('📺 [createChannel] Creando canal para usuario:', userId);
+    console.log('📺 Datos recibidos:', { name, activity, description, wilaya, commune });
+
+    // Verificar si ya existe un canal con el mismo nombre para este usuario
     const existingChannel = await Channel.findOne({ owner: userId, name });
     if (existingChannel) {
       return res.status(400).json({ success: false, message: 'Ya tienes un canal con ese nombre' });
     }
 
+    // Crear slug único basado en el nombre
+    const slug = name.toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+
+    // Verificar slug único
+    let finalSlug = slug;
+    let counter = 1;
+    while (await Channel.findOne({ slug: finalSlug })) {
+      finalSlug = `${slug}-${counter}`;
+      counter++;
+    }
+
+    // Crear el canal
     const channel = new Channel({
       name,
+      slug: finalSlug,
       activity,
       description: description || '',
       avatar: avatar || req.user.avatar,
@@ -34,9 +53,28 @@ const createChannel = async (req, res) => {
     });
 
     await channel.save();
-    await User.findByIdAndUpdate(userId, { $push: { channels: channel._id } });
+    console.log('✅ Canal creado:', channel._id, channel.name);
 
-    res.status(201).json({ success: true, channel });
+    // ✅ IMPORTANTE: Actualizar el usuario con la referencia al canal
+    const updatedUser = await User.findByIdAndUpdate(
+      userId, 
+      { $push: { channels: channel._id } },
+      { new: true }
+    );
+    
+    console.log('✅ Usuario actualizado:', userId);
+    console.log('   Canales del usuario:', updatedUser.channels);
+
+    res.status(201).json({ 
+      success: true, 
+      channel: {
+        _id: channel._id,
+        name: channel.name,
+        slug: channel.slug,
+        activity: channel.activity
+      }
+    });
+    
   } catch (error) {
     console.error('❌ Error createChannel:', error);
     res.status(500).json({ success: false, message: error.message });

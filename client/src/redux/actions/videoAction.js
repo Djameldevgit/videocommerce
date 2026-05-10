@@ -584,98 +584,49 @@ export const shareVideo = (id, token, auth, socket, videoData) => async (dispatc
  
  // redux/actions/videoAction.js
 
-export const getVideos = (
-  categorySlug = null,  // Este es el slug que viene de la URL
-  subCategory = null, 
-  page = 1, 
-  limit = 12, 
-  sortBy = 'recent', 
-  searchTerm = null,
-  wilaya = null,
-  commune = null
-) => async (dispatch) => {
+ // redux/actions/videoAction.js - SIMPLIFICADO
+export const getVideos = (categorySlug, subSlug, page = 1, limit = 12, sortBy = 'recent', searchTerm = null, wilaya = '', commune = '') => async (dispatch) => {
   try {
-    dispatch({ type: VIDEO_TYPES.LOADING, payload: true });
+    dispatch({ type: VIDEO_TYPES.GET_VIDEOS_REQUEST });
     
-    const params = new URLSearchParams();
-    params.append('page', page);
-    params.append('limit', limit);
-    if (sortBy) params.append('sortBy', sortBy);
-    if (searchTerm && searchTerm.trim() !== '') params.append('searchTerm', searchTerm);
+    // ✅ La URL debe ser: /api/videos/category/:slug
+    const url = `${BASE_URL}/api/videos/category/${categorySlug}`;
+    
+    const params = new URLSearchParams({
+      page,
+      limit,
+      sortBy: sortBy || 'recent'
+    });
+    
+    if (searchTerm) params.append('search', searchTerm);
     if (wilaya) params.append('wilaya', wilaya);
     if (commune) params.append('commune', commune);
     
-    // ✅ IMPORTANTE: El parámetro debe llamarse 'category' para la API
-    if (categorySlug && categorySlug !== 'videos') {
-      params.append('category', categorySlug);
-    }
+    console.log('📡 Llamando a:', `${url}?${params.toString()}`);
     
-    if (subCategory && subCategory !== 'videos') {
-      params.append('subCategory', subCategory);
-    }
-    
-    console.log('🎬 getVideos llamado:', {
-      categorySlug,
-      subCategory,
-      page,
-      url: `videos/filter?${params.toString()}`
-    });
-    
-    const res = await getDataAPI(`videos/filter?${params.toString()}`);
-    
-    // ✅ Extraer correctamente los datos de la respuesta
-    const videos = res.data.videos || [];
-    const children = res.data.children || [];
-    
-    // ✅ Extraer metadatos de filtros si la API los devuelve
-    let filterMetadata = {};
-    if (res.data.filters) {
-      filterMetadata = {
-        wilayas: res.data.filters.wilayas || [],
-        priceRange: res.data.filters.priceRange || { min: 0, max: 1000000 }
-      };
-    }
+    const { data } = await axios.get(`${url}?${params.toString()}`);
     
     dispatch({
-      type: VIDEO_TYPES.GET_VIDEOS,
+      type: VIDEO_TYPES.GET_VIDEOS_SUCCESS,
       payload: {
-        videos: videos,
-        total: res.data.total || 0,
-        page: res.data.page || page,
-        totalPages: res.data.totalPages || 1,
-        hasMore: res.data.hasMore || false,
-        children: children,
-        filterMetadata: filterMetadata
+        videos: data.videos || [],
+        total: data.total || 0,
+        page: data.page || page,
+        hasMore: data.hasMore || false,
+        totalPages: data.totalPages || 1
       }
     });
     
-    return {
-      success: true,
-      videos,
-      children,
-      filterMetadata,
-      total: res.data.total || 0
-    };
-    
-  } catch (err) {
-    console.error('Error getVideos:', err);
+    return data;
+  } catch (error) {
+    console.error('❌ Error en getVideos:', error);
     dispatch({
-      type: VIDEO_TYPES.GET_VIDEOS,
-      payload: {
-        videos: [],
-        total: 0,
-        page: 1,
-        totalPages: 1,
-        hasMore: false,
-        children: []
-      }
+      type: VIDEO_TYPES.GET_VIDEOS_FAIL,
+      payload: error.response?.data?.message || error.message
     });
-    return { success: false, videos: [], children: [] };
-  } finally {
-    dispatch({ type: VIDEO_TYPES.LOADING, payload: false });
+    return { videos: [], total: 0 };
   }
 };
- 
 export const getFeaturedVideos = (limit = 10) => async (dispatch) => {
   try {
     const res = await getDataAPI(`videos/featured?limit=${limit}`);

@@ -47,6 +47,8 @@ export const createChannel = (channelData, token) => async (dispatch) => {
     dispatch({ type: GLOBALTYPES.ALERT, payload: { loading: false } });
   }
 };
+
+
 // ==================== OBTENER PERFIL DE UN CANAL (público) ====================
 export const getChannelProfile = (channelId, token = null) => async (dispatch) => {
   try {

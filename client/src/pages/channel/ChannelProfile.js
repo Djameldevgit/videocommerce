@@ -1,24 +1,81 @@
-// src/pages/channel/ChannelProfile.jsx
-import React, { useEffect, useState, useCallback } from 'react';
+// src/pages/channel/ChannelProfile.jsx (versión corregida)
+import React, { useState, useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useParams, useHistory } from 'react-router-dom';
-import { Container, Row, Col, Card, Button, Spinner, Alert, Badge, Tabs, Tab } from 'react-bootstrap';
-import { 
-  Tv, Heart, Eye, Calendar, Telephone, Envelope, Globe, 
-  Pencil, CheckCircle, CameraVideo, InfoCircle, PeopleFill,
-  Bookmark, ArrowLeft, Share, Play
-} from 'react-bootstrap-icons';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faFilm, faBookmark, faHeart, faArrowLeft,
+  faUserPlus, faCheck, faEnvelope, faShare,
+  faEllipsisH, faSpinner, faUserCircle,
+  faPlay, faUserCog, faCommentDots, faEye,
+  faInfoCircle, faPhone, faEnvelope as faEnvelopeSolid,
+  faGlobe, faMapMarkerAlt
+} from '@fortawesome/free-solid-svg-icons';
+
 import { getChannelProfile, toggleFollowChannel, getChannelVideos } from '../../redux/actions/channelAction';
 import { toggleSaveVideo, getSavedVideos, getLikedVideos } from '../../redux/actions/userVideoAction';
-import { formatNumber } from '../../utils/format';
 import LoadMoreBtn from '../../components/LoadMoreBtn';
 import './ChannelProfile.css';
 
-/* ---------- MiniVideoCard (adaptado de UserVideoPage) ---------- */
-const MiniVideoCard = ({ video, onClick, onSave, isOwnChannel, isSavedInitial = false }) => {
+/* ────────────────────────────────────────────
+   LOADING SPINNER
+   ──────────────────────────────────────────── */
+const LoadingSpinner = () => (
+  <div className="channel-loading">
+    <div className="loading-spinner">
+      <FontAwesomeIcon icon={faSpinner} spin />
+    </div>
+    <p>Cargando canal...</p>
+  </div>
+);
+
+/* ────────────────────────────────────────────
+   AVATAR CON FALLBACK
+   ──────────────────────────────────────────── */
+const AvatarWithFallback = ({ src, alt, className, name, onClick }) => {
+  const [imgError, setImgError] = useState(false);
+
+  if (imgError || !src) {
+    const colors = ['#fe2c55', '#ff9800', '#4caf50', '#2196f3', '#9c27b0'];
+    const bg = colors[(name?.length || 0) % colors.length];
+    return (
+      <div
+        className={`${className} ${onClick ? 'clickable' : ''}`}
+        onClick={onClick}
+        style={{
+          background: bg,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '36px',
+          fontWeight: 'bold',
+          color: '#fff',
+          cursor: onClick ? 'pointer' : 'default'
+        }}
+      >
+        {name ? name[0].toUpperCase() : <FontAwesomeIcon icon={faUserCircle} />}
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={`${className} ${onClick ? 'clickable' : ''}`}
+      onError={() => setImgError(true)}
+      onClick={onClick}
+      style={{ cursor: onClick ? 'pointer' : 'default' }}
+    />
+  );
+};
+
+/* ────────────────────────────────────────────
+   MINI VIDEO CARD
+   ──────────────────────────────────────────── */
+const MiniVideoCard = ({ video, onClick, isOwner, onSave, isSavedInitial = false }) => {
   const [isSaved, setIsSaved] = useState(isSavedInitial);
   const [saving, setSaving] = useState(false);
-  const { token } = useSelector(state => state.auth);
 
   const fmt = (n) => {
     if (!n) return '0';
@@ -29,13 +86,11 @@ const MiniVideoCard = ({ video, onClick, onSave, isOwnChannel, isSavedInitial = 
 
   const handleSave = async (e) => {
     e.stopPropagation();
-    if (!token || saving) return;
+    if (saving) return;
     setSaving(true);
-    try {
-      await onSave?.(video._id);
-      setIsSaved(!isSaved);
-    } catch (error) {
-      console.error('Error toggling save:', error);
+    if (onSave) {
+      const success = await onSave(video._id);
+      if (success) setIsSaved(!isSaved);
     }
     setSaving(false);
   };
@@ -49,140 +104,148 @@ const MiniVideoCard = ({ video, onClick, onSave, isOwnChannel, isSavedInitial = 
           className="channel-mini-thumbnail"
           loading="lazy"
         />
+
         <div className="channel-mini-overlay">
           <div className="channel-mini-stats">
             <span className="channel-stat-play">
-              <Play size={12} className="channel-stat-icon" />
+              <FontAwesomeIcon icon={faPlay} className="channel-stat-icon" />
               {fmt(video.views)}
             </span>
           </div>
         </div>
-        {!isOwnChannel && (
+
+        {!isOwner && onSave && (
           <button
             className={`channel-mini-save-btn ${isSaved ? 'saved' : ''}`}
             onClick={handleSave}
             disabled={saving}
           >
-            <Bookmark size={14} />
+            <FontAwesomeIcon icon={faBookmark} spin={saving} />
           </button>
         )}
+
         {video.duration > 0 && (
           <div className="channel-mini-duration">
             {Math.floor(video.duration / 60)}:{String(video.duration % 60).padStart(2, '0')}
           </div>
         )}
       </div>
+
       <p className="channel-mini-title">{video.title?.substring(0, 40)}</p>
     </div>
   );
 };
 
-/* ---------- Componente principal ChannelProfile ---------- */
+/* ────────────────────────────────────────────
+   COMPONENTE PRINCIPAL - ChannelProfile
+   ──────────────────────────────────────────── */
 const ChannelProfile = () => {
   const { channelId } = useParams();
   const history = useHistory();
   const dispatch = useDispatch();
-  const { token, user } = useSelector(state => state.auth);
+  const { auth } = useSelector(state => state);
   
-  // Selectores con fallback a arrays vacíos para evitar errores de undefined
-  const { channel, loading, videos = [], hasMore, currentPage } = useSelector(state => state.channel);
+  // ✅ SELECTORES CORREGIDOS - Usando los nombres de tu reducer
+  const { 
+    channel, 
+    loading,           // ← CORREGIDO
+    videos = [],       // ← CORREGIDO: antes era channelVideos
+    hasMore = false,   // ← CORREGIDO: antes era channelVideosHasMore
+    totalVideos = 0,   // ← CORREGIDO: antes era channelVideosTotal
+  } = useSelector(state => state.channel);
+  
   const { savedVideos = [], likedVideos = [] } = useSelector(state => state.userVideo);
-  
+
   const [activeTab, setActiveTab] = useState('videos');
-  const [following, setFollowing] = useState(false);
-  const [followersCount, setFollowersCount] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [savedVideosMap, setSavedVideosMap] = useState({});
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showContactInfo, setShowContactInfo] = useState(false);
 
-  const isOwner = user?._id === channel?.owner?._id;
+  const isOwner = auth.user?._id === channel?.owner?._id;
 
-  // Cargar perfil del canal
+  const fmt = (n) => {
+    if (!n) return '0';
+    if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+    if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
+    return n.toString();
+  };
+
+  /* ── CARGA INICIAL ── */
   useEffect(() => {
     if (channelId) {
-      dispatch(getChannelProfile(channelId, token));
+      console.log('📺 Cargando canal:', channelId);
+      dispatch(getChannelProfile(channelId));
+      dispatch(getChannelVideos(channelId, 1, 12));
     }
-    // Nota: no se usa clearChannelVideos porque no existe. Si quieres limpiar, crea la acción.
-  }, [channelId, dispatch, token]);
+    return () => {
+      dispatch({ type: 'CLEAR_CHANNEL' });
+    };
+  }, [dispatch, channelId]);
 
-  // Cargar videos del canal cuando cambia el tab o el canal
+  /* Mostrar videos en consola para debug */
   useEffect(() => {
-    if (channelId && activeTab === 'videos') {
-      dispatch(getChannelVideos(channelId, 1, 12, token)); // limit = 12
-    }
-  }, [channelId, activeTab, token, dispatch]);
+    console.log('🎬 Videos en estado:', videos);
+    console.log('📊 Total videos:', totalVideos);
+    console.log('🔄 HasMore:', hasMore);
+  }, [videos, totalVideos, hasMore]);
 
-  // Cargar saved/liked si es dueño y tabs activos
-  useEffect(() => {
-    if (isOwner && token && user?._id) {
-      if (activeTab === 'saved') {
-        dispatch(getSavedVideos(user._id, 1, token));
-      } else if (activeTab === 'liked') {
-        dispatch(getLikedVideos(user._id, 1, token));
-      }
-    }
-  }, [activeTab, isOwner, token, user?._id, dispatch]);
+  /* ── HANDLERS ── */
+  const handleTabChange = useCallback((tab) => {
+    setActiveTab(tab);
+    setCurrentPage(1);
+  }, []);
 
-  // Mapa de videos guardados para miniaturas
-  useEffect(() => {
-    if (savedVideos.length > 0) {
-      const map = {};
-      savedVideos.forEach(v => { map[v._id] = true; });
-      setSavedVideosMap(map);
+  const loadMoreVideos = useCallback(async () => {
+    if (loadingMore || !hasMore) {
+      console.log('No se puede cargar más:', { loadingMore, hasMore });
+      return;
     }
-  }, [savedVideos]);
+    setLoadingMore(true);
+    const nextPage = currentPage + 1;
+    console.log('📥 Cargando página:', nextPage);
+    await dispatch(getChannelVideos(channelId, nextPage, 12));
+    setCurrentPage(nextPage);
+    setLoadingMore(false);
+  }, [loadingMore, hasMore, currentPage, dispatch, channelId]);
 
-  useEffect(() => {
-    if (channel) {
-      setFollowing(channel.isFollowing || false);
-      setFollowersCount(channel.followersCount || 0);
-    }
-  }, [channel]);
-
-  const handleFollow = async () => {
-    if (!token) {
+  const handleFollow = useCallback(async () => {
+    if (!auth.token) {
       history.push('/login');
       return;
     }
-    const res = await dispatch(toggleFollowChannel(channelId, token));
-    if (res?.success) {
-      setFollowing(res.isFollowing);
-      setFollowersCount(res.followersCount);
+    await dispatch(toggleFollowChannel(channelId, auth.token));
+  }, [channelId, auth.token, history, dispatch]);
+
+  const handleSaveVideo = useCallback(async (videoId) => {
+    if (!auth.token) {
+      history.push('/login');
+      return false;
     }
-  };
+    const result = await dispatch(toggleSaveVideo(videoId, auth.token));
+    return result?.success || false;
+  }, [auth.token, history, dispatch]);
 
-  // Usa toggleSaveVideo (única acción para guardar/quitar)
-  const handleSaveToggle = async (videoId) => {
-    if (!token) return;
-    await dispatch(toggleSaveVideo(videoId, token));
-    // Si estamos en la pestaña "Guardados" y somos dueños, refrescamos la lista
-    if (isOwner && activeTab === 'saved') {
-      dispatch(getSavedVideos(user._id, 1, token));
+  const handleMessage = useCallback(() => {
+    if (!auth.token) {
+      history.push('/login');
+      return;
     }
-  };
+    history.push(`/message/${channel?.owner?._id}`);
+  }, [auth.token, history, channel?.owner?._id]);
 
-  const loadMoreVideos = useCallback(async () => {
-    if (loadingMore || !hasMore) return;
-    setLoadingMore(true);
-    const nextPage = currentPage + 1;
-    await dispatch(getChannelVideos(channelId, nextPage, 12, token));
-    setLoadingMore(false);
-  }, [loadingMore, hasMore, currentPage, channelId, token, dispatch]);
+  const handleViewConversations = useCallback(() => {
+    history.push('/message');
+  }, [history]);
 
-  const loadMoreSaved = useCallback(async () => {
-    if (loadingMore) return;
-    setLoadingMore(true);
-    const nextPage = Math.floor(savedVideos.length / 12) + 1;
-    await dispatch(getSavedVideos(user._id, nextPage, token));
-    setLoadingMore(false);
-  }, [loadingMore, savedVideos.length, user?._id, token, dispatch]);
-
-  const loadMoreLiked = useCallback(async () => {
-    if (loadingMore) return;
-    setLoadingMore(true);
-    const nextPage = Math.floor(likedVideos.length / 12) + 1;
-    await dispatch(getLikedVideos(user._id, nextPage, token));
-    setLoadingMore(false);
-  }, [loadingMore, likedVideos.length, user?._id, token, dispatch]);
+  const handleShareProfile = useCallback(() => {
+    const url = `${window.location.origin}/channel/${channelId}`;
+    if (navigator.share) {
+      navigator.share({ title: `Canal de ${channel?.name}`, url }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(url);
+    }
+  }, [channel?.name, channelId]);
 
   const handleVideoClick = (videoId) => {
     sessionStorage.setItem('returnToChannel', 'true');
@@ -190,7 +253,18 @@ const ChannelProfile = () => {
     history.push(`/video/channelFeed/${channelId}?startVideo=${videoId}`);
   };
 
-  // Funciones seguras para obtener la lista actual y si tiene más elementos
+  const handleEditProfile = () => {
+    setShowProfileMenu(false);
+    history.push(`/channel/${channelId}/settings`);
+  };
+
+  const handleAvatarClick = () => {
+    if (isOwner) {
+      history.push(`/channel/${channelId}/settings`);
+    }
+  };
+
+  /* ── OBTENER VIDEOS SEGÚN TAB ── */
   const getCurrentVideos = () => {
     if (activeTab === 'videos') return videos;
     if (activeTab === 'saved') return savedVideos;
@@ -200,299 +274,273 @@ const ChannelProfile = () => {
 
   const getCurrentHasMore = () => {
     if (activeTab === 'videos') return hasMore;
-    // Para saved y liked, la paginación se maneja con el estado de userVideo; 
-    // asumimos que se puede seguir cargando mientras haya al menos 12 videos por página.
-    // Si tu reducer tiene savedHasMore / likedHasMore, úsalos. Por ahora simple:
-    if (activeTab === 'saved') return savedVideos.length % 12 === 0 && savedVideos.length > 0;
-    if (activeTab === 'liked') return likedVideos.length % 12 === 0 && likedVideos.length > 0;
     return false;
   };
 
-  const loadMoreFn = () => {
-    if (activeTab === 'videos') loadMoreVideos();
-    else if (activeTab === 'saved') loadMoreSaved();
-    else if (activeTab === 'liked') loadMoreLiked();
+  const getCurrentTotal = () => {
+    if (activeTab === 'videos') return totalVideos;
+    if (activeTab === 'saved') return savedVideos.length;
+    if (activeTab === 'liked') return likedVideos.length;
+    return 0;
   };
 
+  /* ── RENDER ── */
   if (loading && !channel) {
-    return (
-      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '60vh' }}>
-        <Spinner animation="border" variant="primary" />
-        <span className="ms-3">Chargement de la chaîne...</span>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   if (!channel) {
     return (
-      <Container className="py-5 text-center">
-        <Alert variant="danger">Chaîne introuvable</Alert>
-      </Container>
+      <div className="channel-error">
+        <h2>Canal no encontrado</h2>
+        <button onClick={() => history.push('/')}>Volver al inicio</button>
+      </div>
     );
   }
 
   return (
-    <div className="channel-profile">
-      {/* Banner */}
-      <div 
-        className="channel-banner"
-        style={{ 
-          backgroundImage: channel.cover 
-            ? `url(${channel.cover})` 
-            : 'linear-gradient(135deg, #0d6efd, #0a58ca)'
-        }}
-      >
-        <div className="channel-avatar-wrapper">
-          <img 
-            src={channel.avatar || 'https://res.cloudinary.com/dfjipgj2o/image/upload/v1777859039/avatar_cvr2e3.jpg'} 
-            alt={channel.name}
-            className="channel-avatar"
-          />
+    <div className="channel-profile-page">
+
+      {/* ── HEADER ── */}
+      <div className="channel-header">
+        <button className="channel-back-btn" onClick={() => history.goBack()}>
+          <FontAwesomeIcon icon={faArrowLeft} />
+        </button>
+
+        <h2 className="channel-header-title">{channel.name}</h2>
+
+        <div className="channel-header-actions">
+          {isOwner && (
+            <button className="channel-conversations-btn" onClick={handleViewConversations}>
+              <FontAwesomeIcon icon={faCommentDots} />
+            </button>
+          )}
+          
+          <button className="channel-share-btn" onClick={handleShareProfile}>
+            <FontAwesomeIcon icon={faShare} />
+          </button>
         </div>
       </div>
 
-      <Container className="pt-5 mt-4">
-        {/* Cabecera con botón volver */}
-        <div className="d-flex align-items-center mb-3">
-          <Button variant="link" className="text-decoration-none p-0 me-3" onClick={() => history.goBack()}>
-            <ArrowLeft size={24} />
-          </Button>
+      {/* ── BANNER ── */}
+      {channel.cover && (
+        <div className="channel-banner-container">
+          <img src={channel.cover} alt="Banner" className="channel-banner" />
         </div>
+      )}
 
-        <Row className="align-items-center mb-5">
-          <Col xs={12} md={8} className="text-center text-md-start">
-            <h1 className="channel-title">{channel.name}</h1>
-            <div className="d-flex flex-wrap gap-3 justify-content-center justify-content-md-start mt-2">
-              <Badge bg="light" text="dark" className="channel-badge">
-                <Tv size={14} className="me-1" /> {channel.activity || 'Secteur inconnu'}
-              </Badge>
-              {channel.isVerified && (
-                <Badge bg="info" className="channel-badge">
-                  <CheckCircle size={14} className="me-1" /> Vérifié
-                </Badge>
-              )}
-              <span className="text-muted small">
-                <Calendar size={14} className="me-1" /> 
-                Membre depuis {new Date(channel.createdAt).toLocaleDateString('fr-FR')}
-              </span>
+      {/* ── AVATAR ── */}
+      <div className="channel-avatar-container">
+        <AvatarWithFallback
+          src={channel.avatar}
+          alt={channel.name}
+          name={channel.name}
+          className="channel-avatar"
+          onClick={handleAvatarClick}
+        />
+      </div>
+
+      {/* ── BOTÓN DE 3 PUNTOS ── */}
+      {isOwner && (
+        <div className="channel-three-dots-wrapper">
+          <button 
+            className="channel-three-dots-btn"
+            onClick={() => setShowProfileMenu(!showProfileMenu)}
+          >
+            <FontAwesomeIcon icon={faEllipsisH} />
+          </button>
+          
+          {showProfileMenu && (
+            <div className="channel-profile-menu">
+              <button onClick={handleEditProfile}>
+                <FontAwesomeIcon icon={faUserCog} />
+                <span>Editar canal</span>
+              </button>
+              <button onClick={() => setShowContactInfo(!showContactInfo)}>
+                <FontAwesomeIcon icon={faInfoCircle} />
+                <span>Info contacto</span>
+              </button>
             </div>
-            {channel.description && (
-              <p className="text-secondary mt-3 mx-auto mx-md-0" style={{ maxWidth: '600px' }}>
-                {channel.description}
-              </p>
-            )}
-          </Col>
-          <Col xs={12} md={4} className="text-center text-md-end mt-4 mt-md-0">
-            {isOwner ? (
-              <Button 
-                variant="outline-primary" 
-                onClick={() => history.push(`/channel/${channelId}/settings`)}
-                className="rounded-pill px-4"
-              >
-                <Pencil size={16} className="me-2" /> Modifier
-              </Button>
-            ) : (
-              <div className="d-flex gap-2 justify-content-center justify-content-md-end">
-                <Button 
-                  variant={following ? "secondary" : "primary"}
-                  onClick={handleFollow}
-                  className={`btn-subscribe ${following ? 'btn-subscribed' : ''}`}
-                >
-                  <Heart size={16} className="me-2" />
-                  {following ? `Abonné (${formatNumber(followersCount)})` : `S'abonner (${formatNumber(followersCount)})`}
-                </Button>
-                <Button variant="outline-secondary" className="rounded-pill px-3">
-                  <Share size={16} />
-                </Button>
+          )}
+        </div>
+      )}
+
+      {/* ── NOMBRE ── */}
+      <h2 className="channel-name">{channel.name}</h2>
+
+      {/* ── VERIFICACIÓN ── */}
+      {channel.isVerified && (
+        <div className="channel-verified-badge">
+          <FontAwesomeIcon icon={faCheck} />
+          <span>Canal verificado</span>
+        </div>
+      )}
+
+      {/* ── DESCRIPCIÓN ── */}
+      {channel.description && <p className="channel-bio">{channel.description}</p>}
+
+      {/* ── INFO CONTACTO ── */}
+      {showContactInfo && (channel.phone || channel.email || channel.website || channel.wilaya) && (
+        <div className="channel-contact-info">
+          <div className="channel-contact-header">
+            <FontAwesomeIcon icon={faInfoCircle} />
+            <span>Información de contacto</span>
+          </div>
+          <div className="channel-contact-grid">
+            {channel.wilaya && (
+              <div className="channel-contact-item">
+                <FontAwesomeIcon icon={faMapMarkerAlt} />
+                <span>{channel.wilaya}{channel.commune ? `, ${channel.commune}` : ''}</span>
               </div>
             )}
-          </Col>
-        </Row>
-
-        {/* Métricas */}
-        <Row className="g-4 mb-5 justify-content-center">
-          <Col xs={6} sm={4} md={3} lg={2}>
-            <Card className="stats-card text-center p-3">
-              <Eye size={32} className="stats-icon text-primary" />
-              <h3 className="mt-2 mb-0 fw-bold">{formatNumber(channel.totalViews || 0)}</h3>
-              <small className="text-muted">vues</small>
-            </Card>
-          </Col>
-          <Col xs={6} sm={4} md={3} lg={2}>
-            <Card className="stats-card text-center p-3">
-              <Heart size={32} className="stats-icon text-danger" />
-              <h3 className="mt-2 mb-0 fw-bold">{formatNumber(channel.totalLikes || 0)}</h3>
-              <small className="text-muted">likes</small>
-            </Card>
-          </Col>
-          <Col xs={6} sm={4} md={3} lg={2}>
-            <Card className="stats-card text-center p-3">
-              <Tv size={32} className="stats-icon text-success" />
-              <h3 className="mt-2 mb-0 fw-bold">{formatNumber(channel.totalVideos || 0)}</h3>
-              <small className="text-muted">vidéos</small>
-            </Card>
-          </Col>
-          <Col xs={6} sm={4} md={3} lg={2}>
-            <Card className="stats-card text-center p-3">
-              <PeopleFill size={32} className="stats-icon text-info" />
-              <h3 className="mt-2 mb-0 fw-bold">{formatNumber(followersCount)}</h3>
-              <small className="text-muted">abonnés</small>
-            </Card>
-          </Col>
-        </Row>
-
-        {/* Contacto */}
-        {(channel.phone || channel.email || channel.website || channel.wilaya) && (
-          <Card className="contact-card mb-5">
-            <Card.Body className="p-4">
-              <h5 className="mb-4 fw-semibold d-flex align-items-center gap-2">
-                <InfoCircle size={20} /> Contact et localisation
-              </h5>
-              <Row>
-                {channel.wilaya && (
-                  <Col md={6} className="contact-item">
-                    <div className="contact-icon"><Globe size={18} /></div>
-                    <span>{channel.wilaya}{channel.commune ? `, ${channel.commune}` : ''}</span>
-                  </Col>
-                )}
-                {channel.phone && (
-                  <Col md={6} className="contact-item">
-                    <div className="contact-icon"><Telephone size={18} /></div>
-                    <a href={`tel:${channel.phone}`}>{channel.phone}</a>
-                  </Col>
-                )}
-                {channel.email && (
-                  <Col md={6} className="contact-item">
-                    <div className="contact-icon"><Envelope size={18} /></div>
-                    <a href={`mailto:${channel.email}`}>{channel.email}</a>
-                  </Col>
-                )}
-                {channel.website && (
-                  <Col md={6} className="contact-item">
-                    <div className="contact-icon"><Globe size={18} /></div>
-                    <a href={channel.website} target="_blank" rel="noopener noreferrer">{channel.website}</a>
-                  </Col>
-                )}
-              </Row>
-            </Card.Body>
-          </Card>
-        )}
-
-        {/* Tabs mejorados */}
-        <div className="channel-tabs">
-          <Tabs activeKey={activeTab} onSelect={(k) => setActiveTab(k)} className="mb-4" fill>
-            <Tab eventKey="videos" title={<span><CameraVideo size={16} className="me-2" />Vidéos</span>}>
-              {getCurrentVideos().length > 0 ? (
-                <>
-                  <div className="videos-grid">
-                    {getCurrentVideos().map(video => (
-                      <MiniVideoCard
-                        key={video._id}
-                        video={video}
-                        onClick={handleVideoClick}
-                        onSave={handleSaveToggle}
-                        isOwnChannel={isOwner}
-                        isSavedInitial={!!savedVideosMap[video._id]}
-                      />
-                    ))}
-                  </div>
-                  {getCurrentHasMore() && (
-                    <LoadMoreBtn loading={loadingMore} loadMore={loadMoreFn} />
-                  )}
-                </>
-              ) : (
-                <Alert variant="info" className="text-center">
-                  <CameraVideo size={40} className="mb-2 text-muted" />
-                  <p className="mb-0">Aucune vidéo publiée pour le moment.</p>
-                  {isOwner && (
-                    <Button variant="primary" className="mt-3" onClick={() => history.push('/create-video-page')}>
-                      <CameraVideo size={16} className="me-2" /> Publier une vidéo
-                    </Button>
-                  )}
-                </Alert>
-              )}
-            </Tab>
-
-            <Tab eventKey="about" title={<span><InfoCircle size={16} className="me-2" />À propos</span>}>
-              <Card className="about-card">
-                <Card.Body className="p-4">
-                  <div className="about-section">
-                    <div className="about-label">Description</div>
-                    <div className="about-value">{channel.description || 'Aucune description fournie.'}</div>
-                  </div>
-                  <div className="about-section">
-                    <div className="about-label">Secteur d'activité</div>
-                    <div className="about-value">{channel.activity || 'Non spécifié'}</div>
-                  </div>
-                  <div className="about-section">
-                    <div className="about-label">Membre depuis</div>
-                    <div className="about-value">
-                      {new Date(channel.createdAt).toLocaleDateString('fr-FR', {
-                        year: 'numeric', month: 'long', day: 'numeric'
-                      })}
-                    </div>
-                  </div>
-                </Card.Body>
-              </Card>
-            </Tab>
-
-            {/* Tabs adicionales solo para el dueño del canal */}
-            {isOwner && (
-              <Tab eventKey="saved" title={<span><Bookmark size={16} className="me-2" />Sauvegardés</span>}>
-                {savedVideos.length > 0 ? (
-                  <>
-                    <div className="videos-grid">
-                      {savedVideos.map(video => (
-                        <MiniVideoCard
-                          key={video._id}
-                          video={video}
-                          onClick={handleVideoClick}
-                          onSave={handleSaveToggle}
-                          isOwnChannel={true}
-                          isSavedInitial={true}
-                        />
-                      ))}
-                    </div>
-                    {getCurrentHasMore() && <LoadMoreBtn loading={loadingMore} loadMore={loadMoreFn} />}
-                  </>
-                ) : (
-                  <Alert variant="info" className="text-center">
-                    <Bookmark size={40} className="mb-2 text-muted" />
-                    <p className="mb-0">Aucune vidéo sauvegardée.</p>
-                  </Alert>
-                )}
-              </Tab>
+            {channel.phone && (
+              <div className="channel-contact-item">
+                <FontAwesomeIcon icon={faPhone} />
+                <a href={`tel:${channel.phone}`}>{channel.phone}</a>
+              </div>
             )}
-
-            {isOwner && (
-              <Tab eventKey="liked" title={<span><Heart size={16} className="me-2" />Aimés</span>}>
-                {likedVideos.length > 0 ? (
-                  <>
-                    <div className="videos-grid">
-                      {likedVideos.map(video => (
-                        <MiniVideoCard
-                          key={video._id}
-                          video={video}
-                          onClick={handleVideoClick}
-                          onSave={handleSaveToggle}
-                          isOwnChannel={true}
-                          isSavedInitial={!!savedVideosMap[video._id]}
-                        />
-                      ))}
-                    </div>
-                    {getCurrentHasMore() && <LoadMoreBtn loading={loadingMore} loadMore={loadMoreFn} />}
-                  </>
-                ) : (
-                  <Alert variant="info" className="text-center">
-                    <Heart size={40} className="mb-2 text-muted" />
-                    <p className="mb-0">Aucune vidéo aimée.</p>
-                  </Alert>
-                )}
-              </Tab>
+            {channel.email && (
+              <div className="channel-contact-item">
+                <FontAwesomeIcon icon={faEnvelopeSolid} />
+                <a href={`mailto:${channel.email}`}>{channel.email}</a>
+              </div>
             )}
-          </Tabs>
+            {channel.website && (
+              <div className="channel-contact-item">
+                <FontAwesomeIcon icon={faGlobe} />
+                <a href={channel.website} target="_blank" rel="noopener noreferrer">{channel.website}</a>
+              </div>
+            )}
+          </div>
         </div>
-      </Container>
+      )}
+
+      {/* ── STATS ── */}
+      <div className="channel-stats-row">
+        <div className="channel-stat">
+          <div className="channel-stat-number">{fmt(channel.totalVideos || 0)}</div>
+          <div className="channel-stat-label">Videos</div>
+        </div>
+
+        <div className="channel-stat">
+          <div className="channel-stat-number">{fmt(channel.totalViews || 0)}</div>
+          <div className="channel-stat-label">Vistas</div>
+        </div>
+
+        <div className="channel-stat">
+          <div className="channel-stat-number">{fmt(channel.totalLikes || 0)}</div>
+          <div className="channel-stat-label">Likes</div>
+        </div>
+
+        <div className="channel-stat">
+          <div className="channel-stat-number">{fmt(channel.followersCount || 0)}</div>
+          <div className="channel-stat-label">Seguidores</div>
+        </div>
+      </div>
+
+      {/* ── BOTONES ACCIÓN ── */}
+      {!isOwner && (
+        <div className="channel-action-buttons">
+          <button
+            className={`channel-follow-btn ${channel.isFollowing ? 'following' : ''}`}
+            onClick={handleFollow}
+          >
+            <FontAwesomeIcon icon={channel.isFollowing ? faCheck : faUserPlus} />
+            <span>{channel.isFollowing ? 'Siguiendo' : 'Seguir'}</span>
+          </button>
+
+          <button className="channel-message-btn" onClick={handleMessage}>
+            <FontAwesomeIcon icon={faEnvelope} />
+            <span>Mensaje</span>
+          </button>
+        </div>
+      )}
+
+      <div className="channel-separator" />
+
+      {/* ── TABS ── */}
+      <div className="channel-tabs">
+        <button
+          className={`channel-tab ${activeTab === 'videos' ? 'active' : ''}`}
+          onClick={() => handleTabChange('videos')}
+        >
+          <FontAwesomeIcon icon={faFilm} />
+          <span>Videos</span>
+          {getCurrentTotal() > 0 && (
+            <span className="channel-tab-count">{fmt(getCurrentTotal())}</span>
+          )}
+        </button>
+
+        {isOwner && auth.token && (
+          <>
+            <button
+              className={`channel-tab ${activeTab === 'saved' ? 'active' : ''}`}
+              onClick={() => handleTabChange('saved')}
+            >
+              <FontAwesomeIcon icon={faBookmark} />
+              <span>Guardados</span>
+            </button>
+
+            <button
+              className={`channel-tab ${activeTab === 'liked' ? 'active' : ''}`}
+              onClick={() => handleTabChange('liked')}
+            >
+              <FontAwesomeIcon icon={faHeart} />
+              <span>Me gusta</span>
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* ── GRID DE VIDEOS ── */}
+      <div className="channel-videos-grid">
+        {getCurrentVideos().map(video => (
+          <MiniVideoCard
+            key={video._id}
+            video={video}
+            onClick={handleVideoClick}
+            isOwner={isOwner}
+            onSave={activeTab === 'videos' ? handleSaveVideo : undefined}
+            isSavedInitial={savedVideos.some(v => v._id === video._id)}
+          />
+        ))}
+      </div>
+
+      {/* ── EMPTY STATE ── */}
+      {getCurrentVideos().length === 0 && !loading && (
+        <div className="channel-empty-state">
+          <div className="channel-empty-icon-container">
+            <FontAwesomeIcon
+              icon={activeTab === 'videos' ? faFilm : activeTab === 'saved' ? faBookmark : faHeart}
+              className="channel-empty-icon"
+            />
+          </div>
+          <h3 className="channel-empty-title">
+            {activeTab === 'videos' ? 'Sin videos' : activeTab === 'saved' ? 'Sin guardados' : 'Sin me gusta'}
+          </h3>
+          <p className="channel-empty-description">
+            {activeTab === 'videos' && isOwner
+              ? '¡Comienza a compartir tus primeros videos comerciales!'
+              : activeTab === 'videos'
+                ? 'Este canal aún no ha publicado videos.'
+                : activeTab === 'saved'
+                  ? 'Los videos que guardes aparecerán aquí.'
+                  : 'Los videos que te gusten aparecerán aquí.'}
+          </p>
+          {activeTab === 'videos' && isOwner && (
+            <button className="channel-upload-btn" onClick={() => history.push('/upload-video')}>
+              <FontAwesomeIcon icon={faFilm} />
+              Subir video
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── LOAD MORE ── */}
+      {getCurrentHasMore() && getCurrentVideos().length > 0 && (
+        <LoadMoreBtn loading={loadingMore} loadMore={loadMoreVideos} />
+      )}
+
     </div>
   );
 };
