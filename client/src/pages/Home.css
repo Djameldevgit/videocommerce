@@ -1,0 +1,107 @@
+/* =====================================================
+   Home.css  — Marketplace Home · Dark Theme
+   ===================================================== */
+
+/* ── Variables ─────────────────────────────────────── */
+:root {
+    --home-bg:      #0D0D0F;
+    --home-s1:      #131316;
+    --home-s2:      #1A1A1F;
+    --home-s3:      #232329;
+    --home-brd:     rgba(255,255,255,0.07);
+    --home-brd2:    rgba(255,255,255,0.12);
+    --home-txt:     #F0EFE8;
+    --home-muted:   #7A7A86;
+    --home-accent:  #FF4F1A;
+    --home-info:    #0A84FF;
+  }
+  
+  /* ── Root container ────────────────────────────────── */
+  .home-root {
+    min-height: 100vh;
+    background: var(--home-bg);
+    color: var(--home-txt);
+  }
+  
+  .home-root.light {
+    --home-bg:    #F5F5F7;
+    --home-s1:    #FFFFFF;
+    --home-s2:    #F0F0F5;
+    --home-s3:    #E8E8EF;
+    --home-brd:   rgba(0,0,0,0.07);
+    --home-brd2:  rgba(0,0,0,0.14);
+    --home-txt:   #1A1A1F;
+    --home-muted: #6B6B78;
+    color: var(--home-txt);
+  }
+  
+  /* ── Full-screen loading ───────────────────────────── */
+  .home-loading {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    background: var(--home-bg);
+  }
+  
+  .home-loading.light { background: #F5F5F7; }
+  
+  .home-loading p {
+    font-size: 14px;
+    color: var(--home-muted);
+    margin: 0;
+  }
+  
+  /* ── Sticky header ─────────────────────────────────── */
+  .home-header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(13,13,15,0.92);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-bottom: 0.5px solid var(--home-brd);
+    padding: 12px 0;
+  }
+  
+  .home-root.light .home-header {
+    background: rgba(245,245,247,0.92);
+  }
+  
+  /* ── Infinite scroll helpers ───────────────────────── */
+  .home-loader {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 24px;
+    color: var(--home-muted);
+    font-size: 13px;
+  }
+  
+  .home-end-msg {
+    text-align: center;
+    padding: 48px 20px 56px;
+    color: var(--home-muted);
+  }
+  
+  .home-end-msg i {
+    font-size: 30px;
+    display: block;
+    margin-bottom: 10px;
+    opacity: 0.4;
+  }
+  
+  .home-end-msg p {
+    font-size: 13px;
+    margin: 0;
+  }
+  
+  /* ── Section divider ───────────────────────────────── */
+  .home-divider {
+    height: 0.5px;
+    background: var(--home-brd);
+    margin: 28px 20px 0;
+  }

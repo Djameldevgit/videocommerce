@@ -1,51 +1,67 @@
 import { GLOBALTYPES, EditData, DeleteData } from './globalTypes'
- 
 import { postDataAPI, patchDataAPI, deleteDataAPI } from '../../utils/fetchData'
 import { createNotify, removeNotify } from '../actions/notifyAction'
+import { VIDEO_TYPES } from './videoAction'
 
 // Helper para obtener el tipo de acción según el modelo
 const getActionType = (targetType) => {
     const types = {
-        'post': POST_TYPES,
-        'video': POST_TYPES,  // Temporal, luego crear VIDEO_TYPES
-        'boutique': POST_TYPES // Temporal, luego crear BOUTIQUE_TYPES
+        'video': VIDEO_TYPES,
+        'post': VIDEO_TYPES,
+        'boutique': VIDEO_TYPES
     }
-    return types[targetType] || POST_TYPES
+    return types[targetType] || VIDEO_TYPES
 }
 
 export const createComment = ({target, newComment, auth, socket, targetType}) => async (dispatch) => {
+    console.log('🎬 createComment action - targetType:', targetType);
+    console.log('🎬 createComment action - target._id:', target?._id);
+    console.log('🎬 createComment action - auth.token existe:', !!auth.token);
+    
+    // ✅ Verificar que el token existe
+    if (!auth.token) {
+        console.error('❌ No hay token en createComment');
+        return;
+    }
+    
     const newTarget = {...target, comments: [...(target.comments || []), newComment]}
     const TYPES = getActionType(targetType)
     
-    dispatch({ type: TYPES.UPDATE_POST, payload: newTarget })
+    dispatch({ type: TYPES.UPDATE_VIDEO, payload: newTarget })
 
     try {
         const data = {
             ...newComment, 
             targetId: target._id, 
-            targetModel: targetType,
-            targetUserId: target.user._id
+            targetModel: targetType || 'video',  // ✅ Por defecto 'video'
+            targetUserId: target.user?._id
         }
+        
+        console.log('📤 Enviando a API:', { url: 'comment', data });
+        
         const res = await postDataAPI('comment', data, auth.token)
+        
+        console.log('📥 Respuesta API:', res.data);
 
         const newData = {...res.data.newComment, user: auth.user}
         const updatedTarget = {...target, comments: [...(target.comments || []), newData]}
-        dispatch({ type: TYPES.UPDATE_POST, payload: updatedTarget })
+        dispatch({ type: TYPES.UPDATE_VIDEO, payload: updatedTarget })
 
-        if(socket) socket.emit('createComment', updatedTarget)
+        if(socket) socket.emit('createCommentVideo', updatedTarget)
 
         const msg = {
             id: res.data.newComment._id,
-            text: newComment.reply ? 'mentioned you in a comment.' : 'has commented on your post.',
-            recipients: newComment.reply ? [newComment.tag._id] : [target.user._id],
-            url: `/${targetType}/${target._id}`,
-            content: target.content || target.title || target.nom_boutique || '', 
-            image: target.images?.[0]?.url || target.logopordefecto || ''
+            text: newComment.reply ? 'vous a mentionné dans un commentaire.' : 'a commenté votre vidéo.',
+            recipients: newComment.reply ? [newComment.tag._id] : [target.user?._id],
+            url: `/video/${target._id}`,
+            content: target.title || target.content || '', 
+            image: target.thumbnail || target.images?.[0]?.url || ''
         }
 
         dispatch(createNotify({msg, auth, socket}))
         
     } catch (err) {
+        console.error('❌ Error en createComment:', err.response?.data || err.message);
         dispatch({ type: GLOBALTYPES.ALERT, payload: {error: err.response?.data?.msg || err.message} })
     }
 }
@@ -55,7 +71,9 @@ export const updateComment = ({comment, target, content, auth, targetType}) => a
     const newTarget = {...target, comments: newComments}
     const TYPES = getActionType(targetType)
     
-    dispatch({ type: TYPES.UPDATE_POST, payload: newTarget })
+    // ✅ Usar UPDATE_VIDEO en lugar de UPDATE_POST
+    dispatch({ type: TYPES.UPDATE_VIDEO, payload: newTarget })
+    
     try {
         await patchDataAPI(`comment/${comment._id}`, { content }, auth.token)
     } catch (err) {
@@ -69,7 +87,8 @@ export const likeComment = ({comment, target, auth, targetType}) => async (dispa
     const newTarget = {...target, comments: newComments}
     const TYPES = getActionType(targetType)
     
-    dispatch({ type: TYPES.UPDATE_POST, payload: newTarget })
+    // ✅ Usar UPDATE_VIDEO en lugar de UPDATE_POST
+    dispatch({ type: TYPES.UPDATE_VIDEO, payload: newTarget })
 
     try {
         await patchDataAPI(`comment/${comment._id}/like`, null, auth.token)
@@ -84,7 +103,8 @@ export const unLikeComment = ({comment, target, auth, targetType}) => async (dis
     const newTarget = {...target, comments: newComments}
     const TYPES = getActionType(targetType)
     
-    dispatch({ type: TYPES.UPDATE_POST, payload: newTarget })
+    // ✅ Usar UPDATE_VIDEO en lugar de UPDATE_POST
+    dispatch({ type: TYPES.UPDATE_VIDEO, payload: newTarget })
 
     try {
         await patchDataAPI(`comment/${comment._id}/unlike`, null, auth.token)
@@ -93,12 +113,9 @@ export const unLikeComment = ({comment, target, auth, targetType}) => async (dis
     }
 }
 
-// 📂 redux/actions/commentAction.js
-
 export const deleteComment = ({target, comment, auth, socket, targetType}) => async (dispatch) => {
     try {
-        // ✅ Verificar que tenemos los datos necesarios
-        console.log('🗑️ deleteComment llamado:', { 
+        console.log('🗑️ deleteComment appelé:', { 
             commentId: comment._id, 
             targetId: target?._id,
             targetType,
@@ -106,18 +123,15 @@ export const deleteComment = ({target, comment, auth, socket, targetType}) => as
         });
 
         if (!comment || !comment._id) {
-            console.error('❌ deleteComment: commentId no válido');
+            console.error('❌ deleteComment: ID de commentaire invalide');
             return;
         }
 
-        // ✅ Llamar a la API para eliminar el comentario
         const res = await deleteDataAPI(`comment/${comment._id}`, auth.token);
         
-        console.log('✅ deleteComment respuesta:', res.data);
+        console.log('✅ deleteComment réponse:', res.data);
 
-        // ✅ Si la eliminación fue exitosa, actualizar el estado local
-        if (res.data.msg === 'Deleted Comment!') {
-            // Eliminar el comentario del array de comentarios del target
+        if (res.data.msg === 'Commentaire supprimé avec succès!') {
             const deleteArr = [...(target.comments || []).filter(cm => cm.reply === comment._id), comment];
             
             const newTarget = {
@@ -125,22 +139,23 @@ export const deleteComment = ({target, comment, auth, socket, targetType}) => as
                 comments: (target.comments || []).filter(cm => !deleteArr.find(da => cm._id === da._id))
             };
             
-            const TYPES = getTargetType(targetType);
+            const TYPES = getActionType(targetType);
             
-            if (TYPES && TYPES.UPDATE_POST) {
-                dispatch({ type: TYPES.UPDATE_POST, payload: newTarget });
+            // ✅ Usar UPDATE_VIDEO en lugar de UPDATE_POST
+            if (TYPES && TYPES.UPDATE_VIDEO) {
+                dispatch({ type: TYPES.UPDATE_VIDEO, payload: newTarget });
             }
             
             if (socket) {
-                socket.emit('deleteComment', newTarget);
+                socket.emit('deleteCommentVideo', newTarget);
             }
         }
         
     } catch (err) {
-        console.error('❌ Error en deleteComment:', err);
+        console.error('❌ Erreur dans deleteComment:', err);
         dispatch({ 
             type: GLOBALTYPES.ALERT, 
-            payload: { error: err.response?.data?.msg || 'Error al eliminar comentario' } 
+            payload: { error: err.response?.data?.msg || 'Erreur lors de la suppression du commentaire' } 
         });
     }
 }

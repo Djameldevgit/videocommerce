@@ -158,7 +158,17 @@ export const getUserFollowingChannels = (userId, token) => async (dispatch) => {
     return null;
   }
 };
-
+export const toggleLikeVideo = (videoId, token) => async (dispatch) => {
+  try {
+    const res = await patchDataAPI(`video/${videoId}/like`, {}, token);
+    if (res.data.success) {
+      dispatch({ type: USER_VIDEO_TYPES.TOGGLE_LIKE_VIDEO, payload: { videoId, liked: res.data.liked } });
+    }
+    return res.data;
+  } catch (err) {
+    console.error(err);
+  }
+};
 // ==================== REGISTRAR VISTA AL PERFIL DEL CANAL ====================
 export const registerChannelView = (channelId, token) => async (dispatch) => {
   try {
@@ -190,7 +200,34 @@ export const getChannelStats = (channelId, token) => async (dispatch) => {
     return null;
   }
 };
+// Obtener videos del canal para feed (con paginación acumulativa)
+export const getChannelFeedVideos = (channelId, page = 1, limit = 10, token = null) => async (dispatch) => {
+  try {
+    dispatch({ type: CHANNEL_TYPES.CHANNEL_FEED_LOADING, payload: true });
+    const res = await getDataAPI(`channels/${channelId}/videos?page=${page}&limit=${limit}`, token);
+    dispatch({
+      type: CHANNEL_TYPES.GET_CHANNEL_FEED_VIDEOS,
+      payload: {
+        videos: res.data.videos,
+        total: res.data.total,
+        page: res.data.page,
+        hasMore: res.data.hasMore,
+        channelId
+      }
+    });
+    return res.data;
+  } catch (err) {
+    console.error(err);
+    return null;
+  } finally {
+    dispatch({ type: CHANNEL_TYPES.CHANNEL_FEED_LOADING, payload: false });
+  }
+};
 
+// Limpiar el feed al salir
+export const clearChannelFeed = () => ({
+  type: CHANNEL_TYPES.CLEAR_CHANNEL_FEED
+});
 // ==================== OBTENER VIDEOS DE UN CANAL ====================
 export const getChannelVideos = (channelId, page = 1, limit = 12, token = null) => async (dispatch) => {
   try {

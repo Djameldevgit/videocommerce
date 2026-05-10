@@ -1,19 +1,34 @@
 import React, { useState } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
 import { createComment } from '../redux/actions/commentAction'
-import Icons from './Icons'
 
- 
-
-const InputComment = ({ children, target, onReply, setOnReply, targetType, onCommentAdded }) => {
+const InputComment = ({ target, onReply, setOnReply, targetType, onCommentAdded }) => {
     const [content, setContent] = useState('')
-    const { auth, socket, theme } = useSelector(state => state)
+    const { auth, socket } = useSelector(state => state)
     const dispatch = useDispatch()
+
+    console.log('📝 InputComment - auth:', auth);
+    console.log('📝 InputComment - auth.token:', auth?.token);
+    console.log('📝 InputComment - auth.user:', auth?.user);
 
     const handleSubmit = async (e) => {
         e.preventDefault()
+        
         if (!content.trim()) {
             if (setOnReply) setOnReply(false)
+            return
+        }
+
+        // ✅ Si no hay token, redirigir al login
+        if (!auth?.token) {
+            console.error('❌ Utilisateur non connecté');
+            // Redirigir al login o mostrar mensaje
+            window.location.href = '/login';
+            return
+        }
+
+        if (!target || !target._id) {
+            console.error('❌ Target invalide');
             return
         }
 
@@ -26,34 +41,102 @@ const InputComment = ({ children, target, onReply, setOnReply, targetType, onCom
             tag: onReply?.user || null
         }
         
+        console.log('📤 Envoi commentaire:', newComment);
+        
         setContent('')
         
-        await dispatch(createComment({ target, newComment, auth, socket, targetType }))
+        await dispatch(createComment({ 
+            target, 
+            newComment, 
+            auth, 
+            socket, 
+            targetType: targetType || 'video' 
+        }))
         
-        // ✅ Notificar que se agregó un comentario para refrescar la lista
-        if (onCommentAdded) onCommentAdded()
+        if (onCommentAdded) {
+            console.log('🔄 Appel onCommentAdded');
+            onCommentAdded()
+        }
         
         if (setOnReply) setOnReply(false)
     }
 
-    if (!target || !target._id) return null
+    // ✅ Mostrar input deshabilitado si no está logueado
+    if (!auth?.token) {
+        return (
+            <form onSubmit={handleSubmit} style={{ 
+                display: 'flex', 
+                padding: '10px', 
+                gap: '10px',
+                borderBottom: '1px solid rgba(255,255,255,0.1)'
+            }}>
+                <input 
+                    type="text" 
+                    placeholder="Connectez-vous pour commenter..."
+                    disabled
+                    style={{
+                        flex: 1,
+                        padding: '10px',
+                        borderRadius: '20px',
+                        border: '1px solid #ccc',
+                        background: '#f0f0f0',
+                        color: '#999'
+                    }}
+                />
+                <button 
+                    type="button" 
+                    style={{ 
+                        padding: '10px 20px', 
+                        borderRadius: '20px', 
+                        background: '#ccc', 
+                        color: 'white', 
+                        border: 'none',
+                        cursor: 'not-allowed'
+                    }}
+                    disabled
+                >
+                    Poster
+                </button>
+            </form>
+        )
+    }
 
     return (
-        <form className="card-footer comment_input" onSubmit={handleSubmit}>
-            {children}
+        <form onSubmit={handleSubmit} style={{ 
+            display: 'flex', 
+            padding: '10px', 
+            gap: '10px',
+            borderBottom: '1px solid rgba(255,255,255,0.1)'
+        }}>
             <input 
                 type="text" 
-                placeholder="Add your comments..."
+                placeholder="Ajouter un commentaire..."
                 value={content} 
                 onChange={e => setContent(e.target.value)}
                 style={{
-                    filter: theme ? 'invert(1)' : 'invert(0)',
-                    color: theme ? 'white' : '#111',
-                    background: theme ? 'rgba(0,0,0,.03)' : '',
+                    flex: 1,
+                    padding: '10px',
+                    borderRadius: '20px',
+                    border: '1px solid #ccc',
+                    background: 'white',
+                    color: 'black'
                 }}
+                autoFocus
             />
-            <Icons setContent={setContent} content={content} theme={theme} />
-            <button type="submit" className="postBtn">Post</button>
+            <button 
+                type="submit" 
+                style={{ 
+                    padding: '10px 20px', 
+                    borderRadius: '20px', 
+                    background: content.trim() ? '#0a84ff' : '#ccc', 
+                    color: 'white', 
+                    border: 'none',
+                    cursor: content.trim() ? 'pointer' : 'not-allowed'
+                }}
+                disabled={!content.trim()}
+            >
+                Poster
+            </button>
         </form>
     )
 }

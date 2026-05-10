@@ -12,7 +12,7 @@ const commentSchema = new mongoose.Schema({
     likes: [{ type: mongoose.Types.ObjectId, ref: 'user' }],
     user: { type: mongoose.Types.ObjectId, ref: 'user', required: true },
     
-    // ✅ Estos son los campos que debe tener
+    // ✅ Campos para el target (video)
     targetId: {
         type: mongoose.Types.ObjectId,
         required: true
@@ -20,7 +20,7 @@ const commentSchema = new mongoose.Schema({
     targetModel: {
         type: String,
         required: true,
-        enum: ['post', 'boutique', 'video']  // ✅ Debe ser 'post' no 'Post'
+        enum: ['video']  // ✅ SOLO VIDEO - Eliminado post y boutique
     },
     targetUserId: {
         type: mongoose.Types.ObjectId,

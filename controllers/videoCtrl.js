@@ -1477,10 +1477,20 @@ const filterVideos = async (req, res) => {
           from: 'channels',
           localField: 'channel',
           foreignField: '_id',
-          as: 'channelInfo'
+          as: 'channelData'
         }
       },
-      { $unwind: '$channelInfo' },
+      { $unwind: { path: '$channelData', preserveNullAndEmptyArrays: true } },
+      {
+        $addFields: {
+          channel: {
+            _id: '$channelData._id',
+            name: '$channelData.name',
+            avatar: '$channelData.avatar',
+            isVerified: '$channelData.isVerified'
+          }
+        }
+      },
       {
         $project: {
           title: 1,
@@ -1491,19 +1501,25 @@ const filterVideos = async (req, res) => {
           price: 1,
           wilaya: 1,
           createdAt: 1,
-          'channelInfo.name': 1,
-          'channelInfo.avatar': 1
+          channel: 1
         }
       }
     ]);
 
     const total = await Video.countDocuments(match);
-    res.json({ success: true, videos, total, page, totalPages: Math.ceil(total / limit) });
+    res.json({ 
+      success: true, 
+      videos, 
+      total, 
+      page, 
+      totalPages: Math.ceil(total / limit),
+      hasMore: skip + videos.length < total
+    });
   } catch (err) {
+    console.error('Error en filterVideos:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
-
 // ✅ Obtener videos por categoría (simplificado - devuelve todos)
 const getVideosByCategory = async (req, res) => {
   try {

@@ -22,8 +22,9 @@ import DetailVideoPage from './pages/video/DetailVideoPage';
 import NotifyPage from './pages/notiy/NotifyPage';
 import EditVideoWizard from './pages/video/EditVideoWizard';
 import usePushNotifications from './pages/notiy/UsePushNotifications';
-import UserVideoPage from './pages/video/userVideo/[userId]';
-import UserFeed from './pages/video/userVideo/UserFeed';
+//import UserVideoPage from './pages/video/userVideo/[userId]';     
+//import UserFeed from './pages/video/userVideo/UserFeed';  <Route exact path="/video/userFeed/:userId" component={UserFeed} />
+ 
 import InfoUserVideo from './pages/video/userVideo/InfoUserVideo';
 import TrendingVideos from './pages/video/TrendingVideos';
 import CreateImageWizard from './pages/video/CreateImageWizard';
@@ -35,6 +36,7 @@ import CreateChannel from './pages/channel/CreateChannel';
 import EditChannel from './pages/channel/EditChannel';
 import ChannelProfile from './pages/channel/ChannelProfile';
 import MisChannel from './pages/channel/MisChannel';
+import ChannelFeed from './pages/channel/ChannelFeed';
 
 // ============================================
 // ✅ SONIDO Y VIBRACIÓN - AUTOMÁTICO (sin esperar click)
@@ -288,15 +290,14 @@ function AppContent() {
         <Route exact path="/create-video-page" component={CreateVideoWizard} />
         <Route path="/edit-video/:id" component={EditVideoWizard} />
         <Route exact path="/video/:id" component={DetailVideoPage} />
-        <Route exact path="/video/userVideo/:userId" component={UserVideoPage} />
-        <Route exact path="/video/userFeed/:userId" component={UserFeed} />
+         
         <Route exact path="/video/userVideo/:userId/info" component={InfoUserVideo} />
         <Route exact path="/videos/trending" component={TrendingVideos} />
         <Route path="/channel/new" component={CreateChannel} />
   <Route exact  path="/channel/:channelId/settings" component={EditChannel}  />
   <Route exact path="/channel/:channelId" component={ChannelProfile}   />
   <Route exact path="/my-channels" component={MisChannel} />
-
+  <Route path="/video/channelFeed/:channelId" component={ChannelFeed} />
 
         <Route path="/create-image-page" component={CreateImageWizard} />
         <Route path="/edit-image/:id" component={EditImageWizard} />

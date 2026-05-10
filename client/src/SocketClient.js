@@ -52,21 +52,24 @@ const SocketClient = () => {
     // ============================================
     // COMENTARIOS EN VIDEOS (cambiado de comentarios en posts)
     // ============================================
-    useEffect(() => {
-        socket.on('createCommentVideoToClient', newVideo =>{
-            dispatch({type: VIDEO_TYPES.UPDATE_VIDEO, payload: newVideo})
-        })
+ // ✅ Los eventos en SocketClient.js ya están correctos:
+// - 'createCommentVideoToClient'
+// - 'deleteCommentVideoToClient'
 
-        return () => socket.off('createCommentVideoToClient')
-    },[socket, dispatch])
+// Verificar que estos useEffect existen:
+useEffect(() => {
+    socket.on('createCommentVideoToClient', newVideo =>{
+        dispatch({type: VIDEO_TYPES.UPDATE_VIDEO, payload: newVideo})
+    })
+    return () => socket.off('createCommentVideoToClient')
+},[socket, dispatch])
 
-    useEffect(() => {
-        socket.on('deleteCommentVideoToClient', newVideo =>{
-            dispatch({type: VIDEO_TYPES.UPDATE_VIDEO, payload: newVideo})
-        })
-
-        return () => socket.off('deleteCommentVideoToClient')
-    },[socket, dispatch])
+useEffect(() => {
+    socket.on('deleteCommentVideoToClient', newVideo =>{
+        dispatch({type: VIDEO_TYPES.UPDATE_VIDEO, payload: newVideo})
+    })
+    return () => socket.off('deleteCommentVideoToClient')
+},[socket, dispatch])
 
     // ============================================
     // VISTAS DE VIDEOS (nuevo)

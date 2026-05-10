@@ -5,17 +5,26 @@ import { useHistory } from 'react-router-dom';
 const VideoCardVertical = ({ video }) => {
   const history = useHistory();
 
+  // Ir a la categoría o al video (comportamiento original)
   const handleClick = () => {
     sessionStorage.setItem('returnToFeed', window.location.pathname);
     sessionStorage.setItem('scrollPosition', window.scrollY);
     
-    // Redirigir a la categoría del video (modo reels)
     const categorySlug = video.category?.slug;
     if (categorySlug) {
       history.push(`/${categorySlug}/1`);
     } else {
-      // Fallback: si no tiene categoría (no debería ocurrir), ir al video individual
       history.push(`/video/${video._id}`);
+    }
+  };
+
+  // Ir al perfil del canal (sin propagar)
+  const goToChannel = (e) => {
+    e.stopPropagation();
+    if (video.channel?._id) {
+      sessionStorage.setItem('returnToFeed', window.location.pathname);
+      sessionStorage.setItem('scrollPosition', window.scrollY);
+      history.push(`/channel/${video.channel._id}`);
     }
   };
 
@@ -25,6 +34,10 @@ const VideoCardVertical = ({ video }) => {
   };
 
   const categoryName = video.category?.name || (video.category && typeof video.category === 'object' ? video.category.name : null);
+
+  // Usar datos del canal si existen, si no, fallback a los antiguos campos
+  const channelName = video.channel?.name || video.nom_entreprise || 'Tienda';
+  const channelActivity = video.channel?.activity || video.activite || 'Activité';
 
   return (
     <div
@@ -39,8 +52,11 @@ const VideoCardVertical = ({ video }) => {
           className="thumbnail-img"
         />
         <div className="info-overlay">
-          <div className="business-name">{video.nom_entreprise || 'Tienda'}</div>
-          <div className="activity">{video.activite || 'Actividad'}</div>
+          {/* Área cliqueable para el canal (anula el pointer-events: none del overlay) */}
+          <div className="channel-info" onClick={goToChannel}>
+            <div className="business-name">{channelName}</div>
+            <div className="activity">{channelActivity}</div>
+          </div>
           <div className="video-title">{video.title || 'Sin título'}</div>
           {formatPrice(video.price) && <div className="price">{formatPrice(video.price)}</div>}
           {categoryName && <div className="category">{categoryName}</div>}
@@ -89,8 +105,15 @@ const VideoCardVertical = ({ video }) => {
           padding: 8px 8px 6px 8px;
           color: white;
           text-shadow: 0 1px 1px rgba(0,0,0,0.5);
-          pointer-events: none;
+          pointer-events: none;   /* ← El overlay no intercepta clics */
           z-index: 1;
+        }
+        /* Hacemos que el área del canal sea cliqueable */
+        .channel-info {
+          pointer-events: auto;    /* ← Anula el pointer-events para esta zona */
+          cursor: pointer;
+          margin-bottom: 4px;
+          display: inline-block;
         }
         .business-name {
           font-size: 0.85rem;

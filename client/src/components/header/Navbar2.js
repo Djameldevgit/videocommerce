@@ -37,6 +37,7 @@ import MultiCheckboxModal from './MultiCheckboxModal.';
 import ShareAppModal from '../shareAppModal';
 import Drawer from './Drawer';
 import useComponentDirection from '../../pages/google/LanguageManager';
+import './Navbar2.css';
 
 const Navbar2 = () => {
   const { auth, cart, notify, settings } = useSelector((state) => state);
@@ -45,884 +46,371 @@ const Navbar2 = () => {
   const { t } = useTranslation('navbar2');
   const history = useHistory();
 
-  const [isPWAInstalled, setIsPWAInstalled] = useState(false);
-  const [showInstallButton, setShowInstallButton] = useState(false);
-  const [showShareModal, setShowShareModal] = useState(false);
-  const [showVerifyModal, setShowVerifyModal] = useState(false);
-  const [showDeactivatedModal, setShowDeactivatedModal] = useState(false);
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 700);
-  const [showFeaturesModal, setShowFeaturesModal] = useState(false);
-  const [showDrawer, setShowDrawer] = useState(false);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [isPWAInstalled,        setIsPWAInstalled]        = useState(false);
+  const [showInstallButton,     setShowInstallButton]      = useState(false);
+  const [showShareModal,        setShowShareModal]         = useState(false);
+  const [showVerifyModal,       setShowVerifyModal]        = useState(false);
+  const [showDeactivatedModal,  setShowDeactivatedModal]   = useState(false);
+  const [isMobile,              setIsMobile]               = useState(window.innerWidth < 700);
+  const [showFeaturesModal,     setShowFeaturesModal]      = useState(false);
+  const [showDrawer,            setShowDrawer]             = useState(false);
+  const [dropdownOpen,          setDropdownOpen]           = useState(false);
 
   const notifyDropdownRef = useRef(null);
-  const dropdownRef = useRef(null);
+  const dropdownRef       = useRef(null);
   const { dir, textAlign, isRTL, shouldIgnoreRTL } = useComponentDirection('Navbar2');
 
-  // Manejo del drawer
-  const handleDrawerOpen = () => setShowDrawer(true);
+  // ── Drawer ───────────────────────────────────────────
+  const handleDrawerOpen  = () => setShowDrawer(true);
   const handleDrawerClose = () => setShowDrawer(false);
 
-  // Detección de tamaño de pantalla
+  // ── Resize ───────────────────────────────────────────
   useEffect(() => {
-    let timeoutId;
-    const handleResize = () => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
-        setIsMobile(window.innerWidth < 700);
-      }, 100);
+    let tid;
+    const onResize = () => {
+      clearTimeout(tid);
+      tid = setTimeout(() => setIsMobile(window.innerWidth < 700), 100);
     };
+    window.addEventListener('resize', onResize);
+    return () => { window.removeEventListener('resize', onResize); clearTimeout(tid); };
+  }, []);
 
-    window.addEventListener('resize', handleResize);
+  // ── PWA detection ────────────────────────────────────
+  useEffect(() => {
+    if (window.matchMedia('(display-mode: standalone)').matches) setIsPWAInstalled(true);
+    const onAvail    = () => setShowInstallButton(true);
+    const onInstalled = () => { setIsPWAInstalled(true); setShowInstallButton(false); };
+    window.addEventListener('pwaInstallAvailable', onAvail);
+    window.addEventListener('pwaInstalled',        onInstalled);
     return () => {
-      window.removeEventListener('resize', handleResize);
-      clearTimeout(timeoutId);
+      window.removeEventListener('pwaInstallAvailable', onAvail);
+      window.removeEventListener('pwaInstalled',        onInstalled);
     };
   }, []);
 
-  // Detección PWA
-  useEffect(() => {
-    if (window.matchMedia('(display-mode: standalone)').matches) {
-      setIsPWAInstalled(true);
-    }
-
-    const handleInstallAvailable = () => setShowInstallButton(true);
-    const handleInstalled = () => {
-      setIsPWAInstalled(true);
-      setShowInstallButton(false);
-    };
-
-    window.addEventListener('pwaInstallAvailable', handleInstallAvailable);
-    window.addEventListener('pwaInstalled', handleInstalled);
-
-    return () => {
-      window.removeEventListener('pwaInstallAvailable', handleInstallAvailable);
-      window.removeEventListener('pwaInstalled', handleInstalled);
-    };
-  }, []);
-
-  // Forzar mostrar en desarrollo
   useEffect(() => {
     if (process.env.NODE_ENV === 'development') {
-      const timer = setTimeout(() => {
-        if (!showInstallButton && !isPWAInstalled) {
-          setShowInstallButton(true);
-        }
+      const t = setTimeout(() => {
+        if (!showInstallButton && !isPWAInstalled) setShowInstallButton(true);
       }, 3000);
-      return () => clearTimeout(timer);
+      return () => clearTimeout(t);
     }
   }, [showInstallButton, isPWAInstalled]);
 
-  // Verificación PWA mejorada
   useEffect(() => {
-    const checkPWAInstallation = () => {
-      const isInstalled =
+    const checkPWA = () => {
+      const installed =
         window.matchMedia('(display-mode: standalone)').matches ||
         window.navigator.standalone ||
         localStorage.getItem('pwaInstalled') === 'true';
-
-      setIsPWAInstalled(isInstalled);
-      return isInstalled;
+      setIsPWAInstalled(installed);
+      return installed;
     };
-
-    const installed = checkPWAInstallation();
-
-    if (!installed) {
-      const handleInstallAvailable = () => setShowInstallButton(true);
-      const handleInstalled = () => {
-        setIsPWAInstalled(true);
-        setShowInstallButton(false);
-      };
-
-      window.addEventListener('pwaInstallAvailable', handleInstallAvailable);
-      window.addEventListener('pwaInstalled', handleInstalled);
-
-      const installCheckInterval = setInterval(() => {
-        if (checkPWAInstallation()) {
-          clearInterval(installCheckInterval);
-        } else if (window.deferredPrompt && !showInstallButton) {
-          setShowInstallButton(true);
-        }
+    if (!checkPWA()) {
+      const onAvail     = () => setShowInstallButton(true);
+      const onInstalled = () => { setIsPWAInstalled(true); setShowInstallButton(false); };
+      window.addEventListener('pwaInstallAvailable', onAvail);
+      window.addEventListener('pwaInstalled',        onInstalled);
+      const iv = setInterval(() => {
+        if (checkPWA()) { clearInterval(iv); }
+        else if (window.deferredPrompt && !showInstallButton) { setShowInstallButton(true); }
       }, 2000);
-
       return () => {
-        window.removeEventListener('pwaInstallAvailable', handleInstallAvailable);
-        window.removeEventListener('pwaInstalled', handleInstalled);
-        clearInterval(installCheckInterval);
+        window.removeEventListener('pwaInstallAvailable', onAvail);
+        window.removeEventListener('pwaInstalled',        onInstalled);
+        clearInterval(iv);
       };
     }
   }, [showInstallButton]);
 
-  // Manejador de instalación PWA
   const handleInstallPWA = async () => {
     try {
       if (window.installPWA) {
         const installed = await window.installPWA();
-        if (installed) {
-          setShowInstallButton(false);
-          setIsPWAInstalled(true);
-        }
+        if (installed) { setShowInstallButton(false); setIsPWAInstalled(true); }
       } else {
         window.open('/?install-pwa=true', '_blank');
       }
-    } catch (error) {
-      console.error('Error instalando PWA:', error);
+    } catch (err) {
+      console.error('Error instalando PWA:', err);
     }
   };
 
-  // Handlers de autenticación
-  const handleLogout = () => {
-    setDropdownOpen(false);
-    dispatch(logout());
-    setTimeout(() => {
-      window.location.href = '/login';
-    }, 100);
-  };
+  // ── Auth handlers ─────────────────────────────────────
+  const handleLogout   = () => { setDropdownOpen(false); dispatch(logout()); setTimeout(() => { window.location.href = '/login'; }, 100); };
+  const handleLogin    = () => { setDropdownOpen(false); history.push('/login'); };
+  const handleRegister = () => { setDropdownOpen(false); history.push('/register'); };
 
-  const handleLogin = () => {
-    setDropdownOpen(false);
-    history.push('/login');
-  };
-
-  const handleRegister = () => {
-    setDropdownOpen(false);
-    history.push('/register');
-  };
-
-  // Verificación de settings
+  // ── Guard ─────────────────────────────────────────────
   if (!settings || Object.keys(settings).length === 0) {
     return (
-      <nav className="navbar navbar-light bg-light" style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1030 }}>
+      <nav className="navbar navbar-light bg-light nb2-fallback">
         <span className="navbar-brand">{t('loading') || 'Cargando...'}</span>
       </nav>
     );
   }
 
-  const totalItems = (cart?.items && Array.isArray(cart.items))
+  const totalItems           = (cart?.items && Array.isArray(cart.items))
     ? cart.items.reduce((acc, item) => acc + (item?.quantity || 0), 0)
     : 0;
+  const unreadNotifications  = notify?.data?.filter(n => n && !n.isRead).length || 0;
+  const isDark               = !!settings.style;
 
-  // ✅ Calcular notificaciones no leídas correctamente
-  const unreadNotifications = notify?.data?.filter(n => n && !n.isRead).length || 0;
-
-  // MenuItem component
+  // ── MenuItem (unchanged) ──────────────────────────────
   const MenuItem = ({ icon: Icon, iconColor, to, onClick, children, danger = false }) => {
     const handleClick = (e) => {
-      if (onClick) {
-        onClick(e);
-      }
+      if (onClick) onClick(e);
       setDropdownOpen(false);
-      if (to) {
-        history.push(to);
-      }
+      if (to) history.push(to);
     };
-
     return (
       <NavDropdown.Item
         as="button"
         onClick={handleClick}
-        className={`custom-menu-item ${danger ? 'text-danger' : ''}`}
-        style={{
-          padding: '12px 16px',
-          transition: 'all 0.2s ease',
-          borderRadius: '8px',
-          margin: '4px 8px',
-          display: 'flex',
-          alignItems: 'center',
-          fontWeight: '500',
-          width: 'calc(100% - 16px)',
-          boxSizing: 'border-box',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          background: 'transparent',
-          border: 'none',
-          cursor: 'pointer'
-        }}
+        className={`nb2-menu-item${danger ? ' danger' : ''}`}
       >
-        <Icon className="me-2" style={{ color: iconColor, fontSize: '1rem', flexShrink: 0 }} />
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{children}</span>
+        <span className="nb2-item-icon" style={{ color: iconColor }}>
+          <Icon />
+        </span>
+        <span className="nb2-item-label">{children}</span>
       </NavDropdown.Item>
     );
   };
 
+  // ── Three-dots trigger ────────────────────────────────
+  const ThreeDotsTrigger = (
+    <div
+      className={`nb2-dots${dropdownOpen ? ' open' : ''}`}
+      onClick={() => setDropdownOpen(!dropdownOpen)}
+      style={{
+        width:  isMobile ? '38px' : '42px',
+        height: isMobile ? '38px' : '42px',
+      }}
+      aria-label={t('menu') || 'Menu'}
+      aria-expanded={dropdownOpen}
+      aria-haspopup="true"
+    >
+      <span className="nb2-dot" />
+      <span className="nb2-dot" />
+      <span className="nb2-dot" />
+    </div>
+  );
+
   return (
     <>
-      {/* NAVBAR FIJO */}
       <Navbar
-        className="navbar2"
-        style={{
-          zIndex: 1030,
-          background: settings.style
-            ? 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)'
-            : 'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)',
-          padding: isMobile ? '6px 0' : '8px 0',
-          boxShadow: '0 2px 15px rgba(0,0,0,0.1)',
-          minHeight: isMobile ? '56px' : '64px'
-        }}
+        className={`nb2-root${isDark ? ' dark' : ' light'}`}
         fixed="top"
         expand="lg"
       >
         <Container
           fluid
-          className="align-items-center justify-content-between"
-          style={{
-            padding: isMobile ? '0 12px' : '0 20px',
-            maxWidth: '100%'
-          }}
+          className="align-items-center justify-content-between nb2-container"
+          style={{ padding: isMobile ? '0 12px' : '0 20px' }}
         >
-          {/* Logo y Brand */}
-          <div className="d-flex align-items-center" style={{ minWidth: 0, flex: '0 1 auto' }}>
+          {/* ── Logo ── */}
+          <div className="d-flex align-items-center" style={{ flex: '0 1 auto', minWidth: 0 }}>
             <Link
               to="/"
-              onDoubleClick={(e) => {
-                e.preventDefault();
-                window.location.reload();
-              }}
-              className="btn p-0"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: isMobile ? '32px' : '40px',
-                height: isMobile ? '32px' : '40px',
-                marginRight: isMobile ? '6px' : '10px',
-                background: 'transparent',
-                border: 'none',
-                borderRadius: '8px',
-                overflow: 'hidden',
-                flexShrink: 0
-              }}
-              title="Click para ir al inicio - Doble click para recargar"
+              onDoubleClick={e => { e.preventDefault(); window.location.reload(); }}
+              className="nb2-logo-link"
+              title="Accueil — Double-clic pour recharger"
             >
-              <img
-                src="/images/logo.png"
-                alt="Logo"
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'contain',
-                  borderRadius: '6px'
-                }}
-                onError={(e) => {
-                  e.target.style.display = 'none';
-                }}
-              />
+              <div className="nb2-logo-box" style={{ width: isMobile ? '32px' : '40px', height: isMobile ? '32px' : '40px' }}>
+                <img
+                  src="/images/logo.png"
+                  alt="Logo"
+                  onError={e => { e.target.style.display = 'none'; }}
+                />
+              </div>
             </Link>
 
             {!isMobile && (
               <Link
                 to="/"
-                onDoubleClick={(e) => {
-                  e.preventDefault();
-                  window.location.reload();
-                }}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  padding: 0,
-                  textDecoration: 'none',
-                  display: 'flex',
-                  alignItems: 'center'
-                }}
-                title="Click para ir al inicio - Doble click para recargar"
+                onDoubleClick={e => { e.preventDefault(); window.location.reload(); }}
+                className="nb2-brand-link"
               >
-                <Navbar.Brand
-                  className="py-0 mb-0"
-                  style={{
-                    flexShrink: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                    height: '100%'
-                  }}
-                >
-                  <Card.Title
-                    className="mb-0"
-                    style={{
-                      fontFamily: "'Playfair Display', serif",
-                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                      WebkitBackgroundClip: 'text',
-                      WebkitTextFillColor: 'transparent',
-                      fontWeight: 'bold',
-                      fontSize: '1.2rem',
-                      letterSpacing: '0.3px',
-                      margin: 0,
-                      padding: 0,
-                      lineHeight: '1.2',
-                      display: 'flex',
-                      alignItems: 'center'
-                    }}
-                  >
-                    {t('appName') || 'MarketPlace'}
-                  </Card.Title>
+                <Navbar.Brand className="nb2-brand py-0 mb-0">
+                  {t('appName') || 'MarketPlace'}
                 </Navbar.Brand>
               </Link>
             )}
           </div>
 
-          {/* Iconos de acción */}
-          <div
-            className="d-flex align-items-center"
-            style={{
-              gap: isMobile ? '6px' : '10px',
-              flexShrink: 0,
-              marginLeft: 'auto'
-            }}
-          >
-            {/* Búsqueda */}
+          {/* ── Right actions ── */}
+          <div className="nb2-actions" style={{ gap: isMobile ? '6px' : '8px' }}>
+
+            {/* Search */}
             <Link
               to="/search"
-              className="icon-button"
-              style={{
-                width: isMobile ? '38px' : '42px',
-                height: isMobile ? '38px' : '42px',
-                borderRadius: '10px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'all 0.3s ease',
-                backgroundColor: settings.style ? 'rgba(255,255,255,0.1)' : 'rgba(102, 126, 234, 0.1)',
-                textDecoration: 'none'
-              }}
+              className="nb2-btn"
+              style={{ width: isMobile ? '38px' : '42px', height: isMobile ? '38px' : '42px' }}
+              title={t('search') || 'Rechercher'}
             >
-              <FaSearch
-                size={isMobile ? 16 : 18}
-                style={{ color: '#667eea' }}
-                title={t('search') || 'Buscar'}
-              />
+              <FaSearch size={isMobile ? 15 : 16} />
             </Link>
 
-            {/* Botón Instalar PWA */}
+            {/* Install PWA */}
             {showInstallButton && !isPWAInstalled && (
               <button
-                className="icon-button"
+                className="nb2-btn nb2-btn--install"
                 onClick={handleInstallPWA}
-                style={{
-                  width: isMobile ? '38px' : '42px',
-                  height: isMobile ? '38px' : '42px',
-                  borderRadius: '10px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: settings.style ? 'rgba(255,255,255,0.1)' : 'rgba(40, 167, 69, 0.1)',
-                  border: '2px solid #28a745',
-                  transition: 'all 0.3s ease',
-                  animation: 'pulse 2s infinite',
-                  cursor: 'pointer'
-                }}
-                title={t('installPWA') || 'Instalar App'}
+                style={{ width: isMobile ? '38px' : '42px', height: isMobile ? '38px' : '42px' }}
+                title={t('installPWA') || 'Installer l\'app'}
               >
-                <FaDownload
-                  size={isMobile ? 16 : 18}
-                  style={{ color: '#28a745' }}
-                />
+                <FaDownload size={isMobile ? 15 : 16} />
               </button>
             )}
 
-            {/* Los dos botones de "Crear video" y "Agregar post" han sido ELIMINADOS */}
-
-            {/* Notificaciones - Solo para usuarios autenticados */}
+            {/* Notifications */}
             {auth.user && (
               <div
-                className="position-relative icon-button"
+                className="nb2-btn nb2-btn--notify"
                 ref={notifyDropdownRef}
-                style={{
-                  width: isMobile ? '38px' : '42px',
-                  height: isMobile ? '38px' : '42px',
-                  borderRadius: '10px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: settings.style ? 'rgba(255,255,255,0.1)' : 'rgba(102, 126, 234, 0.1)',
-                  transition: 'all 0.3s ease'
-                }}
+                style={{ width: isMobile ? '38px' : '42px', height: isMobile ? '38px' : '42px' }}
               >
-                <Link to={'/notify'} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <FaBell
-                    size={isMobile ? 18 : 20}
-                    style={{ color: unreadNotifications > 0 ? '#f5576c' : '#667eea' }}
-                  />
+                <Link to="/notify" className="nb2-notify-link">
+                  <FaBell size={isMobile ? 17 : 19} className={unreadNotifications > 0 ? 'has-notif' : ''} />
                 </Link>
-
                 {unreadNotifications > 0 && (
-                  <Badge
-                    pill
-                    style={{
-                      fontSize: isMobile ? '0.6rem' : '0.65rem',
-                      position: 'absolute',
-                      top: '-4px',
-                      right: '-4px',
-                      padding: isMobile ? '3px 6px' : '4px 7px',
-                      background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-                      border: '2px solid white',
-                      boxShadow: '0 2px 8px rgba(245, 87, 108, 0.4)',
-                      minWidth: isMobile ? '18px' : '20px',
-                      height: isMobile ? '18px' : '20px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}
-                  >
+                  <span className="nb2-badge">
                     {unreadNotifications > 9 ? '9+' : unreadNotifications}
-                  </Badge>
+                  </span>
                 )}
               </div>
             )}
 
-            {/* DROPDOWN DE USUARIO */}
+            {/* ── THREE DOTS DROPDOWN ── */}
             <NavDropdown
               align="end"
               show={dropdownOpen}
-              onToggle={(isOpen) => setDropdownOpen(isOpen)}
-              title={
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    position: 'relative',
-                    cursor: 'pointer'
-                  }}
-                  onClick={() => setDropdownOpen(!dropdownOpen)}
-                >
-                  {auth.user ? (
-                    <div
-                      style={{
-                        width: isMobile ? '38px' : '42px',
-                        height: isMobile ? '38px' : '42px',
-                        borderRadius: '10px',
-                        padding: '2px',
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                        boxShadow: '0 4px 12px rgba(102, 126, 234, 0.25)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                    >
-                      <Avatar
-                        src={auth.user.avatar}
-                        size="medium-avatar"
-                        style={{
-                          borderRadius: '8px',
-                          objectFit: 'cover',
-                          width: '100%',
-                          height: '100%'
-                        }}
-                      />
-                    </div>
-                  ) : (
-                    <div
-                      style={{
-                        width: isMobile ? '38px' : '42px',
-                        height: isMobile ? '38px' : '42px',
-                        borderRadius: '10px',
-                        backgroundColor: settings.style ? 'rgba(255,255,255,0.1)' : 'rgba(102, 126, 234, 0.1)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                    >
-                      <FaUserCircle size={isMobile ? 22 : 26} style={{ color: '#667eea' }} />
-                    </div>
-                  )}
-                </div>
-              }
+              onToggle={isOpen => setDropdownOpen(isOpen)}
+              title={ThreeDotsTrigger}
               id="nav-user-dropdown"
-              className="custom-dropdown"
+              className="nb2-dropdown-root"
+              ref={dropdownRef}
             >
-              <div className="dropdown-scroll-wrapper">
+              <div className="nb2-scroll-wrap">
                 {auth.user ? (
                   <>
-                    {/* Header del usuario */}
-                    <div className="user-header">
-                      <div className="d-flex align-items-center gap-3">
-                        <div className="user-avatar-wrapper">
-                          <Avatar src={auth.user.avatar} size="medium-avatar" />
+                    {/* User header */}
+                    <div className="nb2-user-header">
+                      <div className="nb2-user-avatar">
+                        <Avatar src={auth.user.avatar} size="medium-avatar" />
+                      </div>
+                      <div className="nb2-user-info">
+                        <div className="nb2-user-name">
+                          {auth.user.username || auth.user.name || 'Utilisateur'}
                         </div>
-                        <div className="flex-grow-1">
-                          <div className="fw-bold text-white user-name">
-                            {auth.user.username || auth.user.name || 'Usuario'}
-                          </div>
-                          <div className="user-role-badge">
-                            {auth.user.role === 'admin' ? `👑 ${t('admin') || 'Admin'}` :
-                              auth.user.role === 'Moderateur' ? `🛡️ ${t('moderator') || 'Moderador'}` :
-                                auth.user.role === 'Super-utilisateur' ? `⭐ ${t('superUser') || 'Super Usuario'}` :
-                                  `👤 ${t('user') || 'Usuario'}`}
-                          </div>
+                        <div className="nb2-user-role">
+                          {auth.user.role === 'admin'              ? `👑 ${t('admin')     || 'Admin'}`
+                          : auth.user.role === 'Moderateur'        ? `🛡️ ${t('moderator') || 'Modérateur'}`
+                          : auth.user.role === 'Super-utilisateur' ? `⭐ ${t('superUser') || 'Super Utilisateur'}`
+                          :                                          `👤 ${t('user')      || 'Utilisateur'}`}
                         </div>
                       </div>
                     </div>
 
                     <NavDropdown.Divider />
 
-                    <MenuItem icon={FaVideo} iconColor="#667eea" to='/create-video-page'>
+                    <MenuItem icon={FaVideo}     iconColor="#0A84FF" to="/create-video-page">
                       Créer une vidéo
                     </MenuItem>
 
-                    {/* Admin options */}
-                    {auth.user.role === "admin" && (
+                    {auth.user.role === 'admin' && (
                       <>
-                        <MenuItem icon={FaShieldAlt} iconColor="#ffc107" to='/admin/posts'>
+                        <MenuItem icon={FaShieldAlt} iconColor="#FF9F0A" to="/admin/posts">
                           Approbation
                         </MenuItem>
-                        <MenuItem icon={FaUsers} iconColor="#28a745" to='/admindashboard'>
+                        <MenuItem icon={FaUsers}     iconColor="#34C759" to="/admindashboard">
                           Admin dashboard
                         </MenuItem>
                       </>
                     )}
 
-                    <MenuItem icon={FaUserCircle} iconColor="#667eea" to={`/profile/${auth.user._id}`}>
-                      {t('profile') || 'Mi Perfil'}
+                    <MenuItem icon={FaUserCircle} iconColor="#0A84FF" to={`/profile/${auth.user._id}`}>
+                      {t('profile') || 'Mon profil'}
                     </MenuItem>
 
-                    <MenuItem icon={FaInfoCircle} iconColor="#6c757d" to="/infoaplicacionn">
-                      {t('appInfo') || 'Información'}
+                    <MenuItem icon={FaInfoCircle} iconColor="#7A7A86" to="/infoaplicacionn">
+                      {t('appInfo') || 'Informations'}
                     </MenuItem>
 
-                    {auth.user.role === "admin" && (
-                      <MenuItem icon={FaTools} iconColor="#6c757d" to="/users/roles">
-                        {t('roles') || 'Roles'}
+                    {auth.user.role === 'admin' && (
+                      <MenuItem icon={FaTools} iconColor="#7A7A86" to="/users/roles">
+                        {t('roles') || 'Rôles'}
                       </MenuItem>
                     )}
 
-                    <MenuItem icon={FaShareAlt} iconColor="#ffc107" onClick={() => setShowShareModal(true)}>
-                      {t('shareApp') || 'Compartir App'}
+                    <MenuItem icon={FaShareAlt} iconColor="#FF9F0A" onClick={() => setShowShareModal(true)}>
+                      {t('shareApp') || 'Partager l\'app'}
                     </MenuItem>
 
-                    {/* Panel de Admin - Sección de Tiendas */}
-                    {auth.user.role === "admin" && (
+                    {auth.user.role === 'admin' && (
                       <>
                         <NavDropdown.Divider />
-                        <div className="admin-panel-header">
-                          <FaStore className="me-2" size={14} />
-                          {t('storeManagement') || 'Gestión de Tiendas'}
+                        <div className="nb2-section-label">
+                          <FaStore size={11} />
+                          {t('storeManagement') || 'Boutiques'}
                         </div>
 
-                        <MenuItem icon={FaPlusCircle} iconColor="#28a745" to="/create-boutique">
-                          {t('createStore') || 'Crear tienda'}
-                        </MenuItem>
-
-                        <MenuItem icon={FaStore} iconColor="#667eea" to={`/boutique/${auth.user._id}`}>
-                          {t('myStore') || 'Mi tienda'}
-                        </MenuItem>
-
-                        <MenuItem icon={FaStore} iconColor="#ffc107" to="/boutiques">
-                          {t('allStores') || 'Todas las tiendas'}
-                        </MenuItem>
-
-                        <MenuItem icon={FaStore} iconColor="#28a745" to="/mes-boutiques">
-                          {t('myStoresList') || 'Mis tiendas'}
-                        </MenuItem>
-
-                        <MenuItem icon={FaUsers} iconColor="#28a745" to="/users">
-                          {t('users') || 'Usuarios'}
-                        </MenuItem>
-
-                        <MenuItem icon={FaUserCog} iconColor="#667eea" to="/usersactionn">
-                          {t('userActions') || 'Acciones de usuario'}
-                        </MenuItem>
+                        <MenuItem icon={FaPlusCircle} iconColor="#34C759"  to="/create-boutique">{t('createStore')  || 'Créer une boutique'}</MenuItem>
+                        <MenuItem icon={FaStore}      iconColor="#0A84FF"  to={`/boutique/${auth.user._id}`}>{t('myStore') || 'Ma boutique'}</MenuItem>
+                        <MenuItem icon={FaStore}      iconColor="#FF9F0A"  to="/boutiques">{t('allStores')  || 'Toutes les boutiques'}</MenuItem>
+                        <MenuItem icon={FaStore}      iconColor="#34C759"  to="/mes-boutiques">{t('myStoresList') || 'Mes boutiques'}</MenuItem>
+                        <MenuItem icon={FaUsers}      iconColor="#34C759"  to="/users">{t('users')  || 'Utilisateurs'}</MenuItem>
+                        <MenuItem icon={FaUserCog}    iconColor="#0A84FF"  to="/usersactionn">{t('userActions') || 'Actions utilisateur'}</MenuItem>
                       </>
                     )}
 
                     <NavDropdown.Divider />
 
-                    <MenuItem
-                      icon={FaSignOutAlt}
-                      iconColor="#dc3545"
-                      onClick={handleLogout}
-                      danger
-                    >
-                      <span className="fw-bold">{t('logout') || 'Cerrar Sesión'}</span>
+                    <MenuItem icon={FaSignOutAlt} iconColor="#FF3B30" onClick={handleLogout} danger>
+                      <strong>{t('logout') || 'Déconnexion'}</strong>
                     </MenuItem>
                   </>
                 ) : (
                   <>
-                    <MenuItem icon={FaSignInAlt} iconColor="#28a745" onClick={handleLogin}>
-                      {t('login') || 'Iniciar Sesión'}
+                    <MenuItem icon={FaSignInAlt}  iconColor="#34C759" onClick={handleLogin}>
+                      {t('login') || 'Se connecter'}
                     </MenuItem>
-
-                    <MenuItem icon={FaUserPlus} iconColor="#667eea" onClick={handleRegister}>
-                      {t('register') || 'Registrarse'}
+                    <MenuItem icon={FaUserPlus}   iconColor="#0A84FF" onClick={handleRegister}>
+                      {t('register') || 'S\'inscrire'}
                     </MenuItem>
-
-                    <MenuItem icon={FaInfoCircle} iconColor="#6c757d" to="/infoaplicacionn">
-                      {t('appInfo') || 'Información'}
+                    <MenuItem icon={FaInfoCircle} iconColor="#7A7A86" to="/infoaplicacionn">
+                      {t('appInfo') || 'Informations'}
                     </MenuItem>
-
-                    <MenuItem icon={FaShareAlt} iconColor="#ffc107" onClick={() => setShowShareModal(true)}>
-                      {t('shareApp') || 'Compartir App'}
+                    <MenuItem icon={FaShareAlt}   iconColor="#FF9F0A" onClick={() => setShowShareModal(true)}>
+                      {t('shareApp') || 'Partager l\'app'}
                     </MenuItem>
                   </>
                 )}
               </div>
             </NavDropdown>
 
-            {/* Botón de menú móvil */}
+            {/* Drawer hamburger */}
             <button
               onClick={handleDrawerOpen}
-              className="icon-button"
-              style={{
-                width: isMobile ? '38px' : '42px',
-                height: isMobile ? '38px' : '42px',
-                borderRadius: '10px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: settings.style ? 'rgba(255,255,255,0.1)' : 'rgba(102, 126, 234, 0.1)',
-                border: 'none',
-                transition: 'all 0.3s ease',
-                cursor: 'pointer',
-                marginLeft: isMobile ? '4px' : '6px'
-              }}
-              title={t('menu') || "Menú"}
+              className="nb2-btn nb2-btn--menu"
+              style={{ width: isMobile ? '38px' : '42px', height: isMobile ? '38px' : '42px' }}
+              title={t('menu') || 'Drawer'}
             >
-              <FaBars
-                size={isMobile ? 18 : 20}
-                style={{
-                  color: settings.style ? '#ffffff' : '#667eea'
-                }}
-              />
+              <FaBars size={isMobile ? 17 : 19} />
             </button>
           </div>
         </Container>
       </Navbar>
 
-      {/* ESPACIO PARA COMPENSAR EL NAVBAR FIJO */}
-      <div style={{
-        height: isMobile ? '56px' : '64px',
-        minHeight: isMobile ? '56px' : '64px'
-      }} />
+      {/* Spacer */}
+      <div style={{ height: isMobile ? '56px' : '64px' }} />
 
-      {/* ESTILOS CSS COMPLETOS (sin cambios) */}
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.05); }
-        }
-        
-        .icon-button {
-          cursor: pointer;
-          transition: all 0.3s ease;
-          -webkit-tap-highlight-color: transparent;
-        }
-
-        .icon-button:hover,
-        .icon-button:active {
-          transform: translateY(-2px);
-          box-shadow: 0 6px 16px rgba(102, 126, 234, 0.25) !important;
-        }
-
-        .custom-menu-item {
-          color: ${settings.style ? '#ffffff' : '#333333'} !important;
-          cursor: pointer;
-          -webkit-tap-highlight-color: transparent;
-          background: transparent !important;
-        }
-
-        .custom-menu-item:hover,
-        .custom-menu-item:focus {
-          background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%) !important;
-          transform: translateX(4px);
-        }
-
-        .custom-menu-item.text-danger:hover,
-        .custom-menu-item.text-danger:focus {
-          background: linear-gradient(135deg, rgba(220, 53, 69, 0.1) 0%, rgba(245, 87, 108, 0.1) 100%) !important;
-        }
-
-        .dropdown-scroll-wrapper {
-          max-height: 70vh;
-          overflow-y: auto;
-          overflow-x: hidden;
-          padding: 8px 0;
-          width: 100%;
-          -webkit-overflow-scrolling: touch;
-        }
-
-        .dropdown-scroll-wrapper::-webkit-scrollbar {
-          width: 4px;
-        }
-
-        .dropdown-scroll-wrapper::-webkit-scrollbar-track {
-          background: ${settings.style ? 'rgba(255,255,255,0.05)' : '#f1f1f1'};
-          border-radius: 10px;
-        }
-
-        .dropdown-scroll-wrapper::-webkit-scrollbar-thumb {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          border-radius: 10px;
-        }
-
-        .user-header {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          padding: 16px;
-          margin: 0 0 8px 0;
-          border-radius: 12px 12px 0 0;
-        }
-
-        .user-avatar-wrapper {
-          width: 50px;
-          height: 50px;
-          border-radius: 50%;
-          border: 3px solid white;
-          padding: 2px;
-          background: white;
-          flex-shrink: 0;
-        }
-
-        .user-name {
-          font-size: 1rem;
-          word-break: break-word;
-        }
-
-        .user-role-badge {
-          font-size: 0.8rem;
-          background-color: rgba(255,255,255,0.2);
-          padding: 4px 10px;
-          border-radius: 20px;
-          display: inline-block;
-          margin-top: 4px;
-          color: white;
-          font-weight: 600;
-        }
-
-        .admin-panel-header {
-          background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
-          padding: 10px 16px;
-          margin: 4px 12px 8px 12px;
-          border-radius: 8px;
-          color: white;
-          font-weight: 700;
-          font-size: 0.85rem;
-          display: flex;
-          align-items: center;
-          box-shadow: 0 4px 12px rgba(255, 107, 107, 0.25);
-        }
-
-        #nav-user-dropdown + .dropdown-menu {
-          position: absolute !important;
-          right: 0 !important;
-          left: auto !important;
-          top: 100% !important;
-          margin-top: 8px !important;
-          width: 290px !important;
-          min-width: 290px !important;
-          max-width: 290px !important;
-          transform: none !important;
-          border: none !important;
-          border-radius: 12px !important;
-          box-shadow: 0 10px 30px rgba(0,0,0,0.15) !important;
-          background: ${settings.style ? '#2d3748' : '#ffffff'} !important;
-          padding: 0 !important;
-          overflow: hidden !important;
-          z-index: 1050 !important;
-        }
-
-        .dropdown-divider {
-          border-color: ${settings.style ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} !important;
-          margin: 8px 12px !important;
-        }
-
-        @media (max-width: 700px) {
-          #nav-user-dropdown + .dropdown-menu {
-            right: 8px !important;
-            width: 280px !important;
-            min-width: 280px !important;
-            max-width: 280px !important;
-          }
-
-          .user-header {
-            padding: 14px;
-          }
-
-          .user-avatar-wrapper {
-            width: 45px;
-            height: 45px;
-          }
-
-          .user-name {
-            font-size: 0.95rem;
-          }
-
-          .user-role-badge {
-            font-size: 0.75rem;
-            padding: 3px 8px;
-          }
-
-          .custom-menu-item {
-            padding: 10px 14px !important;
-            margin: 3px 6px !important;
-            width: calc(100% - 12px) !important;
-          }
-
-          .admin-panel-header {
-            padding: 8px 14px;
-            margin: 4px 10px 6px 10px;
-            font-size: 0.8rem;
-          }
-        }
-
-        @media (min-width: 701px) {
-          .custom-menu-item:hover {
-            transform: translateX(4px);
-          }
-          
-          .icon-button:hover {
-            transform: translateY(-2px);
-          }
-        }
-
-        @media (hover: none) and (pointer: coarse) {
-          .icon-button:hover {
-            transform: none;
-          }
-
-          .icon-button:active {
-            transform: scale(0.95);
-            opacity: 0.8;
-          }
-
-          .custom-menu-item:hover {
-            transform: none;
-          }
-
-          .custom-menu-item:active {
-            background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%) !important;
-          }
-        }
-
-        * {
-          touch-action: manipulation;
-        }
-      `}</style>
-
-      {/* Modales */}
-      <VerifyModal
-        show={showVerifyModal}
-        onClose={() => setShowVerifyModal(false)}
-      />
-
-      <DesactivateModal
-        show={showDeactivatedModal}
-        onClose={() => setShowDeactivatedModal(false)}
-      />
-
-      <MultiCheckboxModal
-        show={showFeaturesModal}
-        onClose={() => setShowFeaturesModal(false)}
-      />
-
-      <ShareAppModal
-        show={showShareModal}
-        onClose={() => setShowShareModal(false)}
-      />
-
-      <Drawer
-        show={showDrawer}
-        onHide={handleDrawerClose}
-        position="start"
-        title={t('menu') || "Menú"}
-        user={auth.user}
-      />
+      {/* Modals — unchanged */}
+      <VerifyModal       show={showVerifyModal}        onClose={() => setShowVerifyModal(false)} />
+      <DesactivateModal  show={showDeactivatedModal}   onClose={() => setShowDeactivatedModal(false)} />
+      <MultiCheckboxModal show={showFeaturesModal}     onClose={() => setShowFeaturesModal(false)} />
+      <ShareAppModal     show={showShareModal}         onClose={() => setShowShareModal(false)} />
+      <Drawer            show={showDrawer}             onHide={handleDrawerClose} position="start" title={t('menu') || 'Menu'} user={auth.user} />
     </>
   );
 };

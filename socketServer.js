@@ -125,33 +125,34 @@ const SocketServer = (socket) => {
     // ============================================
     // COMENTARIOS EN VIDEOS (cambiado de createComment a createCommentVideo)
     // ============================================
-    socket.on('createCommentVideo', (newVideo) => {
-        if (!newVideo || !newVideo.user) return;
-        
-        const followers = getSafeFollowers(newVideo.user);
-        const ids = [...followers, newVideo.user._id]
-        const clients = users.filter(user => ids.includes(user.id))
+  // ✅ Los eventos en SocketServer.js ya están correctos:
+socket.on('createCommentVideo', (newVideo) => {
+    if (!newVideo || !newVideo.user) return;
+    
+    const followers = getSafeFollowers(newVideo.user);
+    const ids = [...followers, newVideo.user._id]
+    const clients = users.filter(user => ids.includes(user.id))
 
-        if(clients.length > 0){
-            clients.forEach(client => {
-                socket.to(`${client.socketId}`).emit('createCommentVideoToClient', newVideo)
-            })
-        }
-    })
+    if(clients.length > 0){
+        clients.forEach(client => {
+            socket.to(`${client.socketId}`).emit('createCommentVideoToClient', newVideo)
+        })
+    }
+})
 
-    socket.on('deleteCommentVideo', (newVideo) => {
-        if (!newVideo || !newVideo.user) return;
-        
-        const followers = getSafeFollowers(newVideo.user);
-        const ids = [...followers, newVideo.user._id]
-        const clients = users.filter(user => ids.includes(user.id))
+socket.on('deleteCommentVideo', (newVideo) => {
+    if (!newVideo || !newVideo.user) return;
+    
+    const followers = getSafeFollowers(newVideo.user);
+    const ids = [...followers, newVideo.user._id]
+    const clients = users.filter(user => ids.includes(user.id))
 
-        if(clients.length > 0){
-            clients.forEach(client => {
-                socket.to(`${client.socketId}`).emit('deleteCommentVideoToClient', newVideo)
-            })
-        }
-    })
+    if(clients.length > 0){
+        clients.forEach(client => {
+            socket.to(`${client.socketId}`).emit('deleteCommentVideoToClient', newVideo)
+        })
+    }
+})
 
     // ============================================
     // VISTAS DE VIDEOS (nuevo)

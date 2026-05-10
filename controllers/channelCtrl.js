@@ -1,17 +1,17 @@
+// controllers/channelCtrl.js
 const Channel = require('../models/channelModel');
 const Video = require('../models/videoModel');
 const User = require('../models/userModel');
 const mongoose = require('mongoose');
 
 // ============================================
-// 🆕 CREAR CANAL (solo para usuarios que no tengan canal o para crear adicional)
+// 🆕 CREAR CANAL
 // ============================================
 const createChannel = async (req, res) => {
   try {
     const { name, activity, description, avatar, cover, phone, email, website, wilaya, commune } = req.body;
     const userId = req.user._id;
 
-    // Verificar si el usuario ya tiene un canal con el mismo nombre
     const existingChannel = await Channel.findOne({ owner: userId, name });
     if (existingChannel) {
       return res.status(400).json({ success: false, message: 'Ya tienes un canal con ese nombre' });
@@ -34,8 +34,6 @@ const createChannel = async (req, res) => {
     });
 
     await channel.save();
-
-    // Opcional: agregar el canal a la lista de canales del usuario (si tienes un array en User)
     await User.findByIdAndUpdate(userId, { $push: { channels: channel._id } });
 
     res.status(201).json({ success: true, channel });
@@ -46,7 +44,7 @@ const createChannel = async (req, res) => {
 };
 
 // ============================================
-// 📋 OBTENER CANAL POR ID
+// 📋 OBTENER CANAL POR ID (con estadísticas)
 // ============================================
 const getChannelById = async (req, res) => {
   try {
@@ -59,14 +57,12 @@ const getChannelById = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Canal no encontrado' });
     }
 
-    // Obtener videos recientes
     const videos = await Video.find({ channel: channelId, pendiente: false, isActive: true })
       .sort({ createdAt: -1 })
       .limit(12)
       .populate('category', 'name slug')
       .lean();
 
-    // Estadísticas (con protección para cuando no hay videos)
     const stats = await Video.aggregate([
       { $match: { channel: new mongoose.Types.ObjectId(channelId), pendiente: false, isActive: true } },
       { $group: {
@@ -94,6 +90,10 @@ const getChannelById = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// ============================================
+// 🌐 PERFIL PÚBLICO DEL CANAL (CORREGIDO)
+// ============================================
 const getChannelProfile = async (req, res) => {
   try {
     const { channelId } = req.params;
@@ -107,7 +107,6 @@ const getChannelProfile = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Canal no encontrado' });
     }
 
-    // Verificar si el usuario actual sigue este canal
     let isFollowing = false;
     if (currentUserId) {
       const currentUser = await User.findById(currentUserId).select('followingChannels');
@@ -116,7 +115,7 @@ const getChannelProfile = async (req, res) => {
       }
     }
 
-    // Estadísticas de videos del canal
+    // Estadísticas con protección contra array vacío
     const stats = await Video.aggregate([
       { $match: { channel: new mongoose.Types.ObjectId(channelId), pendiente: false, isActive: true } },
       { $group: {
@@ -128,6 +127,13 @@ const getChannelProfile = async (req, res) => {
       }}
     ]);
 
+    const statsData = stats.length > 0 ? stats[0] : {
+      totalVideos: 0,
+      totalLikes: 0,
+      totalViews: 0,
+      totalComments: 0
+    };
+
     const profileData = {
       _id: channel._id,
       name: channel.name,
@@ -138,9 +144,9 @@ const getChannelProfile = async (req, res) => {
       commune: channel.commune,
       isVerified: channel.isVerified,
       followersCount: channel.followersCount || 0,
-      totalVideos: stats[0].totalVideos || 0,
-      totalViews: stats[0].totalViews || 0,
-      totalLikes: stats[0].totalLikes || 0,
+      totalVideos: statsData.totalVideos,
+      totalViews: statsData.totalViews,
+      totalLikes: statsData.totalLikes,
       owner: {
         _id: channel.owner._id,
         username: channel.owner.username,
@@ -150,7 +156,6 @@ const getChannelProfile = async (req, res) => {
       isFollowing
     };
 
-    // Si el usuario actual es el dueño, incluir datos privados
     if (currentUserId && channel.owner._id.toString() === currentUserId.toString()) {
       profileData.email = channel.email;
       profileData.phone = channel.phoneHidden ? null : channel.phone;
@@ -165,8 +170,9 @@ const getChannelProfile = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
 // ============================================
-// ✏️ ACTUALIZAR CANAL (solo dueño o admin)
+// ✏️ ACTUALIZAR CANAL
 // ============================================
 const updateChannel = async (req, res) => {
   try {
@@ -185,18 +191,12 @@ const updateChannel = async (req, res) => {
       return res.status(403).json({ success: false, message: 'No autorizado' });
     }
 
-    // Campos permitidos a actualizar
     const allowedFields = ['name', 'activity', 'description', 'avatar', 'cover', 'phone', 'phoneHidden', 'email', 'website', 'wilaya', 'commune', 'location', 'delivery', 'businessHours', 'settings'];
     allowedFields.forEach(field => {
-      if (updates[field] !== undefined) {
-        channel[field] = updates[field];
-      }
+      if (updates[field] !== undefined) channel[field] = updates[field];
     });
 
-    // Actualizar followersCount si se modificaron followers
-    if (updates.followers) {
-      channel.followersCount = updates.followers.length;
-    }
+    if (updates.followers) channel.followersCount = updates.followers.length;
 
     await channel.save();
     res.json({ success: true, channel });
@@ -207,7 +207,7 @@ const updateChannel = async (req, res) => {
 };
 
 // ============================================
-// 👥 SEGUIR / DEJAR DE SEGUIR UN CANAL
+// 👥 SEGUIR / DEJAR DE SEGUIR
 // ============================================
 const toggleFollowChannel = async (req, res) => {
   try {
@@ -226,7 +226,6 @@ const toggleFollowChannel = async (req, res) => {
       await Channel.findByIdAndUpdate(channelId, { $addToSet: { followers: userId } });
     }
 
-    // Actualizar el array followingChannels en el usuario
     if (isFollowing) {
       await User.findByIdAndUpdate(userId, { $pull: { followingChannels: channelId } });
     } else {
@@ -246,30 +245,31 @@ const toggleFollowChannel = async (req, res) => {
 };
 
 // ============================================
-// 📺 OBTENER VIDEOS DE UN CANAL (paginated)
+// 📺 OBTENER VIDEOS DE UN CANAL (paginado)
 // ============================================
 const getChannelVideos = async (req, res) => {
   try {
     const { channelId } = req.params;
-    const { page = 1, limit = 12 } = req.query;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 12;
+    const skip = (page - 1) * limit;
 
     const videos = await Video.find({ channel: channelId, pendiente: false, isActive: true })
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(parseInt(limit))
-      .populate('category', 'name slug')
+      .limit(limit)
       .lean();
 
     const total = await Video.countDocuments({ channel: channelId, pendiente: false, isActive: true });
+    const hasMore = skip + videos.length < total;
 
     res.json({
       success: true,
       videos,
       total,
-      page: parseInt(page),
-      totalPages: Math.ceil(total / parseInt(limit)),
-      hasMore: skip + videos.length < total
+      page,
+      totalPages: Math.ceil(total / limit),
+      hasMore
     });
   } catch (error) {
     console.error('❌ Error getChannelVideos:', error);
@@ -295,7 +295,7 @@ const getMyChannels = async (req, res) => {
 };
 
 // ============================================
-// 📊 OBTENER ESTADÍSTICAS DEL CANAL (para el dueño)
+// 📊 ESTADÍSTICAS DEL CANAL (dueño/admin)
 // ============================================
 const getChannelStats = async (req, res) => {
   try {
@@ -313,7 +313,6 @@ const getChannelStats = async (req, res) => {
       return res.status(403).json({ success: false, message: 'No autorizado' });
     }
 
-    // Estadísticas de videos del canal
     const videoStats = await Video.aggregate([
       { $match: { channel: new mongoose.Types.ObjectId(channelId) } },
       { $group: {
@@ -327,19 +326,21 @@ const getChannelStats = async (req, res) => {
       }}
     ]);
 
-    // Estadísticas de seguidores (crecimiento últimas semanas)
-    // (Necesitarías almacenar historial de followers, por ahora solo contamos)
-    const followersGrowth = {
-      current: channel.followersCount,
-      // Podrías calcular basado en createdAt de followers si tuvieras fechas
+    const statsData = videoStats.length > 0 ? videoStats[0] : {
+      totalVideos: 0,
+      totalViews: 0,
+      totalLikes: 0,
+      totalComments: 0,
+      totalShares: 0,
+      commercialVideos: 0
     };
 
     res.json({
       success: true,
       stats: {
-        ...videoStats[0],
+        ...statsData,
         followersCount: channel.followersCount,
-        followersGrowth
+        followersGrowth: { current: channel.followersCount }
       }
     });
   } catch (error) {
@@ -347,12 +348,9 @@ const getChannelStats = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
 // ============================================
-// 🌐 PERFIL PÚBLICO DEL CANAL (para visualización pública)
-// ============================================
- 
-// ============================================
-// 🗑️ ELIMINAR CANAL (solo owner o admin, con todos sus videos)
+// 🗑️ ELIMINAR CANAL
 // ============================================
 const deleteChannel = async (req, res) => {
   try {
@@ -370,15 +368,11 @@ const deleteChannel = async (req, res) => {
       return res.status(403).json({ success: false, message: 'No autorizado' });
     }
 
-    // Eliminar todos los videos del canal
     await Video.deleteMany({ channel: channelId });
-
-    // Remover el canal de followingChannels de todos los usuarios que lo seguían
     await User.updateMany(
       { followingChannels: channelId },
       { $pull: { followingChannels: channelId } }
     );
-
     await channel.deleteOne();
 
     res.json({ success: true, message: 'Canal y todos sus videos eliminados' });
@@ -388,10 +382,13 @@ const deleteChannel = async (req, res) => {
   }
 };
 
+// ============================================
+// EXPORTACIONES (sin duplicados)
+// ============================================
 module.exports = {
   createChannel,
   getChannelById,
-  getChannelProfile,   // ← agregar si no estaba
+  getChannelProfile,
   updateChannel,
   toggleFollowChannel,
   getChannelVideos,

@@ -1,13 +1,14 @@
-// components/Video/CreateVideoWizard.jsx - VERSION FINAL CON CATEGORÍA ÚNICA
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+// components/Video/CreateVideoWizard.jsx - VERSIÓN FINAL CON VALIDACIÓN DEL CANAL
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useHistory } from 'react-router-dom';
 import { Button, Alert, Spinner, Card, ProgressBar, Badge, Form, Row, Col } from 'react-bootstrap';
-import { ArrowLeft, ArrowRight, CloudUpload, Image, Camera, X, Tag, Building, ChevronDown, ChevronUp, GeoAlt, Telephone, Envelope } from 'react-bootstrap-icons';
+import { ArrowLeft, ArrowRight, CloudUpload, Image, Camera, X, Tag, ChevronDown, ChevronUp } from 'react-bootstrap-icons';
 import StepIndicator from './StepIndicator';
 import StepMusicSelection from './StepMusicSelection';
 import { createVideo } from '../../redux/actions/videoAction';
 import { getSliderCategories } from '../../redux/actions/categoryAction';
+import { getUserChannels } from '../../redux/actions/channelAction';
 import { videoUpload } from '../../utils/imageUpload';
 import { GLOBALTYPES } from '../../redux/actions/globalTypes';
 import './CreateVideoWizard.css';
@@ -19,23 +20,19 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
   const { user } = auth;
 
   const { sliderCategories = [], sliderLoading = false } = useSelector((state) => state.category || {});
+  const { userChannels = [], loading: channelsLoading } = useSelector((state) => state.channel || {});
 
+  // Estados
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState(1);
   const isMountedRef = useRef(true);
-
   const [showCommercial, setShowCommercial] = useState(false);
+  const [selectedChannelId, setSelectedChannelId] = useState('');
 
-  // Wilayas
-  const [wilayasList, setWilayasList] = useState([]);
-  const [communesList, setCommunesList] = useState([]);
-  const [selectedWilaya, setSelectedWilaya] = useState('');
-  const [selectedCommune, setSelectedCommune] = useState('');
-
-  // Estado principal
+  // Estado principal (solo datos del video)
   const [wizardData, setWizardData] = useState({
     videoSource: null,
     videoFile: null,
@@ -47,23 +44,12 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
     selectedMusic: null,
     musicVolume: 70,
     originalAudio: true,
-    // Champs obligatoires (FR)
-    nom_entreprise: '',
-    activite: '',
-    category: '',            // ✅ UNIQUE category ID
     titre: '',
     description: '',
-    // Champs commerciaux (optionnels)
+    category: '',
     price: '',
     wholesale: false,
     minQuantity: 1,
-    phone: '',
-    email: '',
-    wilaya: '',
-    commune: '',
-    pickupOnly: false,
-    deliveryAvailable: false,
-    deliveryCost: 0,
     stock: 0
   });
 
@@ -73,50 +59,28 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
   const isProActive = user?.isPro && (!user?.proExpiryDate || new Date(user.proExpiryDate) > new Date());
   const maxDuration = isProActive ? 60 : 30;
 
-  // Charger catégories
+  // === Cargar categorías
   useEffect(() => {
     if (sliderCategories.length === 0 && !sliderLoading) {
       dispatch(getSliderCategories());
     }
   }, [dispatch, sliderCategories.length, sliderLoading]);
 
-  // Wilayas
+  // === Cargar canales del usuario
   useEffect(() => {
-    const wilayas = [
-      'Adrar', 'Chlef', 'Laghouat', 'Oum El Bouaghi', 'Batna', 'Béjaïa', 'Biskra', 'Béchar',
-      'Blida', 'Bouira', 'Tamanrasset', 'Tébessa', 'Tlemcen', 'Tiaret', 'Tizi Ouzou', 'Alger',
-      'Djelfa', 'Jijel', 'Sétif', 'Saïda', 'Skikda', 'Sidi Bel Abbès', 'Annaba', 'Guelma',
-      'Constantine', 'Médéa', 'Mostaganem', 'M\'Sila', 'Mascara', 'Ouargla', 'Oran', 'El Bayadh',
-      'Illizi', 'Bordj Bou Arréridj', 'Boumerdès', 'El Tarf', 'Tindouf', 'Tissemsilt', 'El Oued',
-      'Khenchela', 'Souk Ahras', 'Tipaza', 'Mila', 'Aïn Defla', 'Naâma', 'Aïn Témouchent',
-      'Ghardaïa', 'Relizane', 'Timimoun', 'Bordj Badji Mokhtar', 'Ouled Djellal', 'Béni Abbès',
-      'In Salah', 'In Guezzam', 'Touggourt', 'Djanet', 'El M\'Ghair', 'El Menia'
-    ];
-    setWilayasList(wilayas);
-  }, []);
-
-  const getCommunesByWilaya = (wilaya) => {
-    const map = {
-      'Alger': ['Sidi M\'Hamed', 'El Biar', 'Bouzareah', 'Kouba', 'Bab El Oued', 'Hydra', 'Ben Aknoun'],
-      'Oran': ['Oran Centre', 'Es Sénia', 'Bir El Djir', 'Mers El Kébir', 'El Hamri'],
-      'Constantine': ['Constantine Centre', 'El Khroub', 'Aïn Smara', 'Zighoud Youcef'],
-      'Annaba': ['Annaba Centre', 'El Bouni', 'Seraïdi', 'Berrahal'],
-      'Tizi Ouzou': ['Tizi Ouzou Centre', 'Azazga', 'Beni Douala', 'Boghni']
-    };
-    return map[wilaya] || ['Centre-ville', 'Bordj', 'Cité'];
-  };
-
-  useEffect(() => {
-    if (selectedWilaya) {
-      setCommunesList(getCommunesByWilaya(selectedWilaya));
-      setWizardData(prev => ({ ...prev, wilaya: selectedWilaya }));
+    if (auth.token && userChannels.length === 0 && !channelsLoading) {
+      dispatch(getUserChannels(auth.token));
     }
-  }, [selectedWilaya]);
+  }, [auth.token, dispatch, userChannels.length, channelsLoading]);
 
+  // Seleccionar primer canal por defecto cuando se carguen
   useEffect(() => {
-    setWizardData(prev => ({ ...prev, commune: selectedCommune }));
-  }, [selectedCommune]);
+    if (userChannels.length > 0 && !selectedChannelId) {
+      setSelectedChannelId(userChannels[0]._id);
+    }
+  }, [userChannels, selectedChannelId]);
 
+  // Limpiar preview al desmontar
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
@@ -125,6 +89,7 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
     };
   }, [wizardData.videoPreview]);
 
+  // Parar audio al cambiar de paso
   useEffect(() => {
     const handleStopAudio = () => {
       document.querySelectorAll('audio').forEach(audio => {
@@ -136,16 +101,34 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
     return () => handleStopAudio();
   }, [currentStep]);
 
-  const isStep1Valid = useMemo(() => {
-    return wizardData.videoSource && wizardData.videoUrl && wizardData.videoDuration <= maxDuration;
-  }, [wizardData.videoSource, wizardData.videoUrl, wizardData.videoDuration, maxDuration]);
+  // Validaciones
+  const isStep1Valid = wizardData.videoSource && wizardData.videoUrl && wizardData.videoDuration <= maxDuration;
+  const isStep3Valid = selectedChannelId && wizardData.titre.trim().length > 0 && wizardData.category.length > 0;
 
-  const isStep3Valid = useMemo(() => {
-    return wizardData.nom_entreprise.trim().length > 0 &&
-           wizardData.activite.trim().length > 0 &&
-           wizardData.category.length > 0 &&
-           wizardData.titre.trim().length > 0;
-  }, [wizardData.nom_entreprise, wizardData.activite, wizardData.category, wizardData.titre]);
+  // Obtener el canal seleccionado
+  const selectedChannel = userChannels.find(ch => ch._id === selectedChannelId);
+
+  // Validar que el canal tenga datos comerciales completos (si vamos a publicar video comercial)
+  const validateChannelForCommercial = () => {
+    const hasCommercialData = !!(wizardData.price || wizardData.wholesale || wizardData.stock);
+    if (!hasCommercialData) return true; // Video no comercial, no necesita esos campos
+
+    if (!selectedChannel?.wilaya || !selectedChannel?.commune) {
+      setError(
+        '❌ Ce canal ne possède pas de wilaya et commune. ' +
+        'Veuillez compléter ces informations dans les paramètres du canal avant de publier une vidéo commerciale.'
+      );
+      return false;
+    }
+    if (!selectedChannel?.phone && !selectedChannel?.email) {
+      setError(
+        '❌ Ce canal ne possède pas de téléphone ou email. ' +
+        'Veuillez ajouter un moyen de contact dans les paramètres du canal.'
+      );
+      return false;
+    }
+    return true;
+  };
 
   const handleGallerySelect = () => fileInputRef.current?.click();
   const handleCameraSelect = () => cameraInputRef.current?.click();
@@ -221,7 +204,7 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
       return;
     }
     if (currentStep === 3 && !isStep3Valid) {
-      setError('Veuillez remplir tous les champs obligatoires (Nom entreprise, Activité, Catégorie, Titre)');
+      setError('Veuillez sélectionner un canal, un titre et une catégorie');
       return;
     }
     setCurrentStep(prev => Math.min(prev + 1, 3));
@@ -241,17 +224,20 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
 
   const handleSubmit = async () => {
     if (submitting) return;
+
+    // Validar que el canal esté completo si es comercial
+    if (!validateChannelForCommercial()) return;
+
     setSubmitting(true);
 
-    const hasCommercialData = !!(wizardData.price || wizardData.phone || wizardData.email || wizardData.wilaya || wizardData.stock);
+    const hasCommercialData = !!(wizardData.price || wizardData.wholesale || wizardData.stock);
     const isCommercial = hasCommercialData;
 
     const payload = {
-      nom_entreprise: wizardData.nom_entreprise,
-      activite: wizardData.activite,
+      channelId: selectedChannelId,
       titre: wizardData.titre,
       description: wizardData.description,
-      category: wizardData.category,           // ✅ UNIQUE ID
+      category: wizardData.category,
       videoUrl: wizardData.videoUrl,
       videoPublicId: wizardData.videoPublicId,
       thumbnail: wizardData.thumbnail,
@@ -268,23 +254,8 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
       price: wizardData.price ? parseFloat(wizardData.price) : 0,
       wholesale: wizardData.wholesale,
       minQuantity: wizardData.wholesale ? (wizardData.minQuantity || 1) : 1,
-      phone: wizardData.phone,
-      email: wizardData.email,
-      wilaya: wizardData.wilaya,
-      commune: wizardData.commune,
-      pickupOnly: wizardData.pickupOnly,
-      delivery: {
-        available: wizardData.deliveryAvailable,
-        cost: wizardData.deliveryCost ? parseFloat(wizardData.deliveryCost) : 0,
-        estimatedDays: 2,
-        zones: wizardData.wilaya ? [wizardData.wilaya] : []
-      },
-      stock: {
-        total: wizardData.stock ? parseInt(wizardData.stock) : 0,
-        available: wizardData.stock ? parseInt(wizardData.stock) : 0,
-        reserved: 0
-      },
-      tags: wizardData.wilaya ? [wizardData.wilaya, wizardData.commune, wizardData.wholesale ? 'gros' : 'détail'] : []
+      stock: wizardData.stock ? parseInt(wizardData.stock) : 0,
+      tags: []
     };
 
     try {
@@ -304,7 +275,7 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
     }
   };
 
-  // RENDER STEP 1
+  // Render paso 1
   const renderStep1 = () => (
     <div className="step1-container" style={{ padding: '0 8px', minHeight: '60vh', display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '40px', marginBottom: '20px', padding: '10px 0' }}>
@@ -350,190 +321,174 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
     </div>
   );
 
-  // RENDER STEP 3 (infos)
-  const renderStep3 = () => (
-    <div className="step3-container" style={{ padding: '0' }}>
-      <h5 className="mb-4" style={{ color: 'white', fontWeight: 'bold' }}>📝 Détails de l'annonce</h5>
+  // Render paso 3 (información del video)
+  const renderStep3 = () => {
+    // Verificar si el canal seleccionado tiene datos incompletos (para mostrar advertencia)
+    const hasCommercialDataOpen = showCommercial;
+    const channelMissingWilaya = selectedChannel && (!selectedChannel.wilaya || !selectedChannel.commune);
+    const channelMissingContact = selectedChannel && (!selectedChannel.phone && !selectedChannel.email);
+    const showChannelWarning = hasCommercialDataOpen && (channelMissingWilaya || channelMissingContact);
 
-      {/* 1. Nom entreprise */}
-      <div className="mb-3">
-        <label className="form-label fw-bold" style={{ color: 'white' }}>Nom de l'entreprise *</label>
-        <input
-          type="text"
-          className="form-control form-control-lg"
-          placeholder="Ex: Boutique Lina"
-          value={wizardData.nom_entreprise}
-          onChange={(e) => updateWizardData({ nom_entreprise: e.target.value })}
-          style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', borderRadius: '12px' }}
-        />
-      </div>
+    return (
+      <div className="step3-container" style={{ padding: '0' }}>
+        <h5 className="mb-4" style={{ color: 'white', fontWeight: 'bold' }}>📝 Détails de la vidéo</h5>
 
-      {/* 2. Activité */}
-      <div className="mb-3">
-        <label className="form-label fw-bold" style={{ color: 'white' }}>Activité *</label>
-        <textarea
-          rows="2"
-          className="form-control"
-          placeholder="Ex: Vente de vêtements de mode pour femmes et hommes"
-          value={wizardData.activite}
-          onChange={(e) => updateWizardData({ activite: e.target.value })}
-          style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', borderRadius: '12px', resize: 'vertical' }}
-        />
-      </div>
+        {/* Selector de canal */}
+        <div className="mb-3">
+          <label className="form-label fw-bold" style={{ color: 'white' }}>Canal *</label>
+          <select
+            className="form-select"
+            value={selectedChannelId}
+            onChange={(e) => setSelectedChannelId(e.target.value)}
+            style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', borderRadius: '12px' }}
+            disabled={channelsLoading}
+          >
+            {userChannels.map(ch => (
+              <option key={ch._id} value={ch._id}>{ch.name} ({ch.activity})</option>
+            ))}
+          </select>
+          <small className="text-muted">Sélectionnez le canal qui publie cette vidéo</small>
+        </div>
 
-      {/* 3. Catégorie unique (select) */}
-      <div className="mb-3">
-        <label className="form-label fw-bold" style={{ color: 'white' }}>Catégorie *</label>
-        <select
-          className="form-select"
-          value={wizardData.category}
-          onChange={(e) => updateWizardData({ category: e.target.value })}
-          style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', borderRadius: '12px' }}
-          required
-        >
-          <option value="">Sélectionnez une catégorie</option>
-          {sliderCategories.map(cat => (
-            <option key={cat._id} value={cat._id}>
-              {cat.icon} {cat.name}
-            </option>
-          ))}
-        </select>
-        <small className="text-muted mt-1 d-block">Choisissez la catégorie principale de votre annonce</small>
-      </div>
+        {/* Catégorie */}
+        <div className="mb-3">
+          <label className="form-label fw-bold" style={{ color: 'white' }}>Catégorie *</label>
+          <select
+            className="form-select"
+            value={wizardData.category}
+            onChange={(e) => updateWizardData({ category: e.target.value })}
+            style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', borderRadius: '12px' }}
+          >
+            <option value="">Sélectionnez une catégorie</option>
+            {sliderCategories.map(cat => (
+              <option key={cat._id} value={cat._id}>{cat.icon} {cat.name}</option>
+            ))}
+          </select>
+        </div>
 
-      {/* 4. Titre */}
-      <div className="mb-3">
-        <label className="form-label fw-bold" style={{ color: 'white' }}>Titre *</label>
-        <input
-          type="text"
-          className="form-control form-control-lg"
-          placeholder="Ex: Nouveaux vêtements en gros - Qualité premium"
-          value={wizardData.titre}
-          onChange={(e) => updateWizardData({ titre: e.target.value })}
-          maxLength="100"
-          style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', borderRadius: '12px' }}
-        />
-        <small className="text-muted">{wizardData.titre.length}/100</small>
-      </div>
+        {/* Titre */}
+        <div className="mb-3">
+          <label className="form-label fw-bold" style={{ color: 'white' }}>Titre *</label>
+          <input
+            type="text"
+            className="form-control form-control-lg"
+            placeholder="Ex: Démonstration de notre nouveau produit"
+            value={wizardData.titre}
+            onChange={(e) => updateWizardData({ titre: e.target.value })}
+            maxLength="100"
+            style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', borderRadius: '12px' }}
+          />
+          <small className="text-muted">{wizardData.titre.length}/100</small>
+        </div>
 
-      {/* Description (optionnelle) */}
-      <div className="mb-3">
-        <label className="form-label" style={{ color: 'white' }}>Description (optionnelle)</label>
-        <textarea
-          rows="3"
-          className="form-control"
-          placeholder="Décrivez votre produit ou service..."
-          value={wizardData.description}
-          onChange={(e) => updateWizardData({ description: e.target.value })}
-          style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', borderRadius: '12px', resize: 'vertical' }}
-        />
-      </div>
+        {/* Description */}
+        <div className="mb-3">
+          <label className="form-label" style={{ color: 'white' }}>Description (optionnelle)</label>
+          <textarea
+            rows="3"
+            className="form-control"
+            placeholder="Décrivez votre vidéo..."
+            value={wizardData.description}
+            onChange={(e) => updateWizardData({ description: e.target.value })}
+            style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', borderRadius: '12px', resize: 'vertical' }}
+          />
+        </div>
 
-      {/* Section commerciale colapsable */}
-      <div className="mt-4">
-        <Button
-          variant="outline-light"
-          onClick={() => setShowCommercial(!showCommercial)}
-          className="w-100 d-flex justify-content-between align-items-center"
-          style={{ borderRadius: '40px', padding: '8px 16px', background: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.2)' }}
-        >
-          <span><Tag className="me-2" /> Informations commerciales (optionnel)</span>
-          {showCommercial ? <ChevronUp /> : <ChevronDown />}
-        </Button>
+        {/* Section commerciale simplificada */}
+        <div className="mt-4">
+          <Button
+            variant="outline-light"
+            onClick={() => setShowCommercial(!showCommercial)}
+            className="w-100 d-flex justify-content-between align-items-center"
+            style={{ borderRadius: '40px', padding: '8px 16px', background: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.2)' }}
+          >
+            <span><Tag className="me-2" /> Informations commerciales (optionnel)</span>
+            {showCommercial ? <ChevronUp /> : <ChevronDown />}
+          </Button>
 
-        {showCommercial && (
-          <div className="mt-3 p-3" style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '16px', animation: 'fadeIn 0.3s ease' }}>
-            <Row>
-              <Col md={6} className="mb-2">
-                <label className="form-label" style={{ color: 'white' }}>Prix (DA)</label>
-                <input type="number" className="form-control" placeholder="Ex: 2500"
-                  value={wizardData.price} onChange={(e) => updateWizardData({ price: e.target.value })}
-                  style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }} />
-              </Col>
-              <Col md={6} className="mb-2">
-                <label className="form-label" style={{ color: 'white' }}>Stock disponible</label>
-                <input type="number" className="form-control" placeholder="Ex: 50"
-                  value={wizardData.stock} onChange={(e) => updateWizardData({ stock: e.target.value })}
-                  style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }} />
-              </Col>
-            </Row>
+          {showCommercial && (
+            <div className="mt-3 p-3" style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '16px', animation: 'fadeIn 0.3s ease' }}>
+              {/* Advertencia si el canal no tiene datos completos */}
+              {showChannelWarning && (
+                <Alert variant="warning" className="mb-3">
+                  <div>⚠️ Ce canal ne possède pas toutes les informations nécessaires pour les vidéos commerciales :</div>
+                  <ul className="mt-2 mb-2">
+                    {channelMissingWilaya && <li>• Wilaya et commune manquants</li>}
+                    {channelMissingContact && <li>• Téléphone ou email manquant</li>}
+                  </ul>
+                  <Button
+                    variant="outline-warning"
+                    size="sm"
+                    onClick={() => history.push(`/channel/${selectedChannelId}/settings`)}
+                  >
+                    ✏️ Modifier le canal
+                  </Button>
+                </Alert>
+              )}
 
-            <Form.Check type="switch" id="wholesale" label="Vente en gros (quantité minimale)"
-              checked={wizardData.wholesale} onChange={(e) => updateWizardData({ wholesale: e.target.checked })}
-              className="mb-2" style={{ color: 'white' }} />
-            {wizardData.wholesale && (
-              <div className="mb-2 ms-4">
-                <label className="form-label" style={{ color: 'white' }}>Quantité minimum</label>
-                <input type="number" className="form-control" style={{ width: '150px',background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }}
-                  value={wizardData.minQuantity} onChange={(e) => updateWizardData({ minQuantity: e.target.value })}
-  />
-              </div>
-            )}
+              <Row>
+                <Col md={6} className="mb-2">
+                  <label className="form-label" style={{ color: 'white' }}>Prix (DA)</label>
+                  <input type="number" className="form-control" placeholder="Ex: 2500"
+                    value={wizardData.price} onChange={(e) => updateWizardData({ price: e.target.value })}
+                    style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }} />
+                </Col>
+                <Col md={6} className="mb-2">
+                  <label className="form-label" style={{ color: 'white' }}>Stock disponible</label>
+                  <input type="number" className="form-control" placeholder="Ex: 50"
+                    value={wizardData.stock} onChange={(e) => updateWizardData({ stock: e.target.value })}
+                    style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }} />
+                </Col>
+              </Row>
+              <Form.Check type="switch" id="wholesale" label="Vente en gros (quantité minimale)"
+                checked={wizardData.wholesale} onChange={(e) => updateWizardData({ wholesale: e.target.checked })}
+                className="mb-2" style={{ color: 'white' }} />
+              {wizardData.wholesale && (
+                <div className="mb-2 ms-4">
+                  <label className="form-label" style={{ color: 'white' }}>Quantité minimum</label>
+                  <input type="number" className="form-control" style={{ width: '150px', background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }}
+                    value={wizardData.minQuantity} onChange={(e) => updateWizardData({ minQuantity: e.target.value })} />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
-            <Row className="mt-2">
-              <Col md={6} className="mb-2">
-                <label className="form-label" style={{ color: 'white' }}>Téléphone</label>
-                <input type="tel" className="form-control" placeholder="0555 12 34 56"
-                  value={wizardData.phone} onChange={(e) => updateWizardData({ phone: e.target.value })}
-                  style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }} />
-              </Col>
-              <Col md={6} className="mb-2">
-                <label className="form-label" style={{ color: 'white' }}>Email</label>
-                <input type="email" className="form-control" placeholder="contact@boutique.com"
-                  value={wizardData.email} onChange={(e) => updateWizardData({ email: e.target.value })}
-                  style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }} />
-              </Col>
-            </Row>
-
-            <Row className="mt-2">
-              <Col md={6} className="mb-2">
-                <label className="form-label" style={{ color: 'white' }}>Wilaya</label>
-                <select className="form-select" value={selectedWilaya} onChange={(e) => setSelectedWilaya(e.target.value)}
-                  style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }}>
-                  <option value="">Sélectionnez</option>
-                  {wilayasList.map(w => <option key={w} value={w}>{w}</option>)}
-                </select>
-              </Col>
-              <Col md={6} className="mb-2">
-                <label className="form-label" style={{ color: 'white' }}>Commune</label>
-                <select className="form-select" value={selectedCommune} onChange={(e) => setSelectedCommune(e.target.value)} disabled={!selectedWilaya}
-                  style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }}>
-                  <option value="">Sélectionnez</option>
-                  {communesList.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </Col>
-            </Row>
-
-            <Form.Check type="switch" id="pickup" label="Retrait en magasin uniquement"
-              checked={wizardData.pickupOnly} onChange={(e) => updateWizardData({ pickupOnly: e.target.checked })}
-              className="mt-2" style={{ color: 'white' }} />
-            <Form.Check type="switch" id="delivery" label="Livraison disponible"
-              checked={wizardData.deliveryAvailable} onChange={(e) => updateWizardData({ deliveryAvailable: e.target.checked })}
-              className="mt-2" style={{ color: 'white' }} />
-            {wizardData.deliveryAvailable && (
-              <div className="mt-2 ms-4">
-                <label className="form-label" style={{ color: 'white' }}>Frais de livraison (DA)</label>
-                <input type="number" className="form-control" style={{ width: '150px', background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white'}}
-                  value={wizardData.deliveryCost} onChange={(e) => updateWizardData({ deliveryCost: e.target.value })}
- />
-              </div>
-            )}
+        {/* Aperçu vidéo */}
+        {wizardData.videoPreview && (
+          <div className="mt-4 p-3" style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '12px' }}>
+            <label className="form-label" style={{ color: 'white', fontWeight: 500 }}>Aperçu vidéo</label>
+            <video src={wizardData.videoPreview} controls style={{ width: '100%', maxHeight: '180px', borderRadius: '8px' }} />
+            <div className="mt-2 text-muted small">Durée: {Math.floor(wizardData.videoDuration / 60)}:{Math.floor(wizardData.videoDuration % 60).toString().padStart(2, '0')}</div>
           </div>
         )}
       </div>
-
-      {/* Aperçu vidéo */}
-      {wizardData.videoPreview && (
-        <div className="mt-4 p-3" style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '12px' }}>
-          <label className="form-label" style={{ color: 'white', fontWeight: 500 }}>Aperçu vidéo</label>
-          <video src={wizardData.videoPreview} controls style={{ width: '100%', maxHeight: '180px', borderRadius: '8px' }} />
-          <div className="mt-2 text-muted small">Durée: {Math.floor(wizardData.videoDuration / 60)}:{Math.floor(wizardData.videoDuration % 60).toString().padStart(2, '0')}</div>
-        </div>
-      )}
-    </div>
-  );
+    );
+  };
 
   const stepLabels = ['Vidéo', 'Musique', 'Infos'];
+
+  // Render condicional (todos los hooks ya ejecutados)
+  if (channelsLoading) {
+    return (
+      <div className="text-center py-5" style={{ background: '#1a1a2e', minHeight: '100vh', color: 'white' }}>
+        <Spinner animation="border" variant="light" />
+        <p className="mt-3">Chargement de vos canaux...</p>
+      </div>
+    );
+  }
+
+  if (userChannels.length === 0) {
+    return (
+      <div className="text-center py-5" style={{ background: '#1a1a2e', minHeight: '100vh', color: 'white' }}>
+        <h3>⚠️ Vous n'avez aucun canal</h3>
+        <p>Vous devez créer un canal avant de publier des vidéos.</p>
+        <Button variant="primary" onClick={() => history.push('/channel/new')}>
+          Créer un canal
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="create-video-wizard" style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)', padding: '12px' }}>

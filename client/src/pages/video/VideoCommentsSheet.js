@@ -1,10 +1,7 @@
-// components/video/VideoCommentsSheet.jsx
-
 import React, { useRef, useEffect } from 'react'
-import { X, ChevronDown } from 'lucide-react'
+import { X } from 'lucide-react'
 import Comments from '../../components/Comments'
 import InputComment from '../../components/InputComment'
- 
 import { useSelector } from 'react-redux'
 import './VideoCommentsSheet.css'
 
@@ -13,6 +10,9 @@ const VideoCommentsSheet = ({ show, onClose, video, commentsCount }) => {
     const sheetRef = useRef(null)
     const startY = useRef(0)
     const currentY = useRef(0)
+    
+    // ✅ Vérifier que l'ID du video est complet
+    console.log('🎬 VideoCommentsSheet - video:', video?._id);
     
     useEffect(() => {
         const handleEsc = (e) => {
@@ -79,23 +79,25 @@ const VideoCommentsSheet = ({ show, onClose, video, commentsCount }) => {
                 </div>
                 
                 {/* Video miniaturizado */}
-                <div className="video-preview">
-                    <div className="video-preview-container">
-                        <video
-                            src={video.videoUrl}
-                            autoPlay
-                            loop
-                            muted
-                            playsInline
-                        />
+                {video && video.videoUrl && (
+                    <div className="video-preview">
+                        <div className="video-preview-container">
+                            <video
+                                src={video.videoUrl}
+                                autoPlay
+                                loop
+                                muted
+                                playsInline
+                            />
+                        </div>
+                        <div className="video-preview-info">
+                            <span className="video-title">{video.title}</span>
+                        </div>
                     </div>
-                    <div className="video-preview-info">
-                        <span className="video-title">{video.title}</span>
-                    </div>
-                </div>
+                )}
                 
                 {/* Input para comentarios */}
-                {auth.token && (
+                {auth.token && video && (
                     <div className="sheet-input-container">
                         <InputComment 
                             video={video}
@@ -107,7 +109,7 @@ const VideoCommentsSheet = ({ show, onClose, video, commentsCount }) => {
                 
                 {/* Lista de comentarios */}
                 <div className="sheet-comments-container">
-                    <Comments video={video} />
+                    {video && <Comments video={video} />}
                 </div>
             </div>
         </div>

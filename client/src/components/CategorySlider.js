@@ -1,117 +1,98 @@
-// components/CategorySlider.jsx - Versión pegada (sin padding)
+// src/components/CategorySlider.jsx
 import React, { useState } from 'react';
+import './CategorySlider.css';
 
 const CategorySlider = ({ categories = [], onCategoryClick }) => {
+  const [activeId,     setActiveId]     = useState(null); // null = "Tout"
   const [failedImages, setFailedImages] = useState({});
 
+  /* ── Lógica original sin cambios ─────────────────── */
   const handleImageError = (categoryId, imageUrl) => {
     setFailedImages(prev => ({
       ...prev,
-      [categoryId]: [...(prev[categoryId] || []), imageUrl]
+      [categoryId]: [...(prev[categoryId] || []), imageUrl],
     }));
   };
 
-  // Obtener la URL de la imagen (prioriza imageUrl, luego construye desde slug)
   const getImageUrl = (category) => {
     if (!category) return null;
 
-    // Verificar si la imagen por defecto (imageUrl o construida) ya falló
-    const defaultUrl = category.imageUrl || (category.slug ? `/categories/${category.slug}/${category.slug}.png` : null);
+    const defaultUrl =
+      category.imageUrl ||
+      (category.slug ? `/categories/${category.slug}/${category.slug}.png` : null);
+
     if (defaultUrl && failedImages[category._id]?.includes(defaultUrl)) {
-      return null; // Esta URL ya falló, no intentar de nuevo
+      return null;
     }
-    
-    // Si tiene imageUrl, usarlo (si no ha fallado)
     if (category.imageUrl && !failedImages[category._id]?.includes(category.imageUrl)) {
       return category.imageUrl;
     }
-    
-    // Si no tiene imageUrl o falló, construir desde slug (si no ha fallado ya)
     if (category.slug) {
       const slugUrl = `/categories/${category.slug}/${category.slug}.png`;
-      if (!failedImages[category._id]?.includes(slugUrl)) {
-        return slugUrl;
-      }
+      if (!failedImages[category._id]?.includes(slugUrl)) return slugUrl;
     }
-    
-    return null; // No hay URL válida
+    return null;
+  };
+  /* ─────────────────────────────────────────────────── */
+
+  const handleClick = (cat) => {
+    setActiveId(cat ? cat._id : null);
+    onCategoryClick?.(cat);
   };
 
-  if (!categories || categories.length === 0) {
-    return <div className="text-center p-3">No hay categorías</div>;
-  }
+  if (!categories || categories.length === 0) return null;
 
   return (
     <div
-      style={{
-        display: 'flex',
-        overflowX: 'auto',
-        gap: '16px',
-        padding: 0,                    // ✅ SIN PADDING (pegado arriba/abajo)
-        backgroundColor: '#fff',
-        borderRadius: '12px',          // Opcional: mantiene bordes redondeados
-        scrollbarWidth: 'thin'
-      }}
+      className="catslider-row"
+      role="navigation"
+      aria-label="Filtrer par catégorie"
     >
+      {/* Chip "Tout" */}
+      <button
+        className={`catslider-item${activeId === null ? ' active' : ''}`}
+        onClick={() => handleClick(null)}
+        aria-pressed={activeId === null}
+      >
+        <div className="catslider-ring">
+          <div className="catslider-inner catslider-inner--all">
+            <span className="catslider-initial">✦</span>
+          </div>
+          <span className="catslider-dot" aria-hidden="true" />
+        </div>
+        <span className="catslider-label">Tout</span>
+      </button>
+
+      {/* Categorías */}
       {categories.map((cat) => {
         const imageUrl = getImageUrl(cat);
         const hasImage = imageUrl !== null;
+        const isActive = activeId === cat._id;
+        const initial  = cat.name?.charAt(0).toUpperCase() || '?';
 
         return (
-          <div
+          <button
             key={cat._id}
-            onClick={() => onCategoryClick && onCategoryClick(cat)}
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              cursor: 'pointer',
-              minWidth: '70px'
-            }}
+            className={`catslider-item${isActive ? ' active' : ''}`}
+            onClick={() => handleClick(cat)}
+            aria-pressed={isActive}
           >
-            <div
-              style={{
-                width: '60px',
-                height: '60px',
-                borderRadius: '50%',
-                backgroundColor: '#f0f0f0',
-                overflow: 'hidden',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 2px 6px rgba(0,0,0,0.1)'
-              }}
-            >
-              {hasImage ? (
-                <img
-                  src={imageUrl}
-                  alt={cat.name}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover'
-                  }}
-                  onError={() => handleImageError(cat._id, imageUrl)}
-                />
-              ) : (
-                <span style={{ fontSize: '24px', fontWeight: 'bold', color: '#555' }}>
-                  {cat.name?.charAt(0).toUpperCase() || '?'}
-                </span>
-              )}
+            <div className="catslider-ring">
+              <div className="catslider-inner">
+                {hasImage ? (
+                  <img
+                    src={imageUrl}
+                    alt={cat.name}
+                    onError={() => handleImageError(cat._id, imageUrl)}
+                  />
+                ) : (
+                  <span className="catslider-initial">{initial}</span>
+                )}
+              </div>
+              <span className="catslider-dot" aria-hidden="true" />
             </div>
-            <span
-              style={{
-                fontSize: '12px',
-                marginTop: '6px',
-                textAlign: 'center',
-                maxWidth: '70px',
-                fontWeight: '500',
-                color: '#333'
-              }}
-            >
-              {cat.name}
-            </span>
-          </div>
+            <span className="catslider-label">{cat.name}</span>
+          </button>
         );
       })}
     </div>

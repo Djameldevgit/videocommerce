@@ -1,4 +1,4 @@
-// components/Feed/Feed.jsx
+// components/Feed/Feed.jsx - VERSIÓN CORREGIDA PARA CANALES
 import React, { useState, useRef, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useHistory } from 'react-router-dom';
@@ -78,8 +78,14 @@ const Feed = ({
   const [isLargeScreen, setIsLargeScreen] = useState(window.innerWidth > 1024);
 
   const isAdmin = auth.user?.role === 'admin' || auth.user?.role === 'moderator';
-  const isOwner = auth.user?._id === video.user?._id;
+  const isOwner = auth.user?._id === video.user?._id; // dueño del video (usuario que subió)
   const isPending = video?.pendiente === true;
+
+  // Datos del canal (para mostrar y navegar)
+  const channelData = video.channel || {};
+  const channelId = channelData._id;
+  const channelName = channelData.name || 'Canal';
+  const channelAvatar = channelData.avatar || '/default-avatar.png';
 
   const getFinalVideoSrc = () => {
     if (video.videoUrl && (video.videoUrl.includes('l_audio') || video.videoUrl.includes('.m3u8'))) {
@@ -92,6 +98,14 @@ const Feed = ({
   };
 
   const finalVideoSrc = getFinalVideoSrc();
+
+  // Navegación al canal
+  const goToChannel = (e) => {
+    e.stopPropagation();
+    if (channelId) {
+      history.push(`/channel/${channelId}`);
+    }
+  };
 
   // Manejo de HLS
   useEffect(() => {
@@ -309,7 +323,7 @@ const Feed = ({
   };
   const handleGoBack = () => history.goBack();
 
-  // ✅ NUEVA FUNCIÓN: Ver detalles del video
+  // Ver detalles del video
   const handleViewDetails = (e) => {
     e?.stopPropagation();
     sessionStorage.setItem('returnToFeed', 'true');
@@ -317,14 +331,6 @@ const Feed = ({
     history.push(`/video/${video._id}`);
   };
 
-  const handleGoToUserProfile = (e) => {
-    e.stopPropagation();
-    sessionStorage.setItem('returnToFeed', 'true');
-    sessionStorage.setItem('feedScrollPosition', window.scrollY.toString());
-    history.push(`/video/userVideo/${video.user._id}`);
-  };
-
-  // Menú desplegable
   const menuAction = fn => () => { setShowMenu(false); fn(); };
   const handleEdit = menuAction(() => {
     sessionStorage.setItem('returnToFeed', 'true');
@@ -377,7 +383,7 @@ const Feed = ({
 
   const videoScale = !showComments ? 1 : 0.7 + 0.3 * Math.min(dragOffset / (window.innerHeight * 0.6), 1);
   const videoTranslateY = !showComments ? 0 : -15 * (1 - Math.min(dragOffset / (window.innerHeight * 0.6), 1));
-
+   
   return (
     <div className="video-reel-container">
       {/* Header */}
@@ -493,15 +499,15 @@ const Feed = ({
         {!showComments && (
           <div className="vr-actions-sidebar">
             <div className="vr-action-group vr-avatar-group">
-              <div className="vr-avatar-wrapper" onClick={handleGoToUserProfile}>
-                <img src={video.user?.avatar || '/default-avatar.png'} alt={video.user?.username} className="vr-sidebar-avatar" />
-                {video.user?.isPro && (
+              <div className="vr-avatar-wrapper" onClick={goToChannel}>
+                <img src={channelAvatar} alt={channelName} className="vr-sidebar-avatar" />
+                {channelData.isVerified && (
                   <div className="vr-pro-badge">
                     <FontAwesomeIcon icon={faCheckCircle} />
                   </div>
                 )}
               </div>
-              <span className="vr-action-count">@{video.user?.username?.slice(0, 12)}</span>
+              <span className="vr-action-count">@{channelName.slice(0, 12)}</span>
             </div>
 
             <div className="vr-action-group">
@@ -536,7 +542,6 @@ const Feed = ({
               <span className="vr-action-count">Partager</span>
             </div>
 
-            {/* ✅ NUEVO BOTÓN DE DETALLES EN SIDEBAR */}
             <div className="vr-action-group">
               <button className="vr-action-btn" onClick={handleViewDetails} title="Détails du produit">
                 <FontAwesomeIcon icon={faInfoCircle} className="vr-action-icon" />
@@ -576,9 +581,9 @@ const Feed = ({
           <div className="vr-video-info">
             {isPending && isAdmin && <span className="vr-pending-badge">⏳ En attente</span>}
             <div className="vr-user-row">
-              <img src={video.user?.avatar || '/default-avatar.png'} alt={video.user?.username} className="vr-user-avatar" onClick={handleGoToUserProfile} />
+              <img src={channelAvatar} alt={channelName} className="vr-user-avatar" onClick={goToChannel} />
               <div className="vr-user-details">
-                <div className="vr-username" onClick={handleGoToUserProfile}>@{video.user?.username}</div>
+                <div className="vr-username" onClick={goToChannel}>@{channelName}</div>
                 <div className="vr-stats">
                   <span><FontAwesomeIcon icon={faEye} />{formatNumber(video.views)}</span>
                   <span><FontAwesomeIcon icon={faClock} />{moment(video.createdAt).fromNow()}</span>

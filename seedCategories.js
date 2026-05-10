@@ -1,131 +1,74 @@
-Total de categorías: 21
+// scripts/seedCategories.js
+require('dotenv').config();
+const mongoose = require('mongoose');
+const Category = require('./models/categoryModel');
+//const Category = require('../models/categoryModel'); // ← mismo modelo
+ 
 
-[1] Immobilier
-    Slug: immobilier
-    Image URL: /categories/immobilier/immobilier.png
-    ID: 69fcfc1e5fbd0614b8f05274
-    Creado: 2026-5-7 22:54:54
----
-[2] Véhicules
-    Slug: vehicules
-    Image URL: /categories/vehicules/vehicules.png
-    ID: 69fcfc1e5fbd0614b8f05275
-    Creado: 2026-5-7 22:54:54
----
-[3] Pièces détachées
-    Slug: pieces-detachees
-    Image URL: /categories/pieces-detachees/pieces-detachees.png
-    ID: 69fcfc1e5fbd0614b8f05276
-    Creado: 2026-5-7 22:54:54
----
-[4] Téléphones
-    Slug: telephones
-    Image URL: /categories/telephones/telephones.png
-    ID: 69fcfc1e5fbd0614b8f05277
-    Creado: 2026-5-7 22:54:54
----
-[5] Informatique
-    Slug: informatique
-    Image URL: /categories/informatique/informatique.png
-    ID: 69fcfc1e5fbd0614b8f05278
-    Creado: 2026-5-7 22:54:54
----
-[6] Électroménager
-    Slug: electromenager
-    Image URL: /categories/electromenager/electromenager.png
-    ID: 69fcfc1e5fbd0614b8f05279
-    Creado: 2026-5-7 22:54:54
----
-[7] Électronique
-    Slug: electronique
-    Image URL: /categories/electronique/electronique.png
-    ID: 69fcfc1e5fbd0614b8f0527a
-    Creado: 2026-5-7 22:54:54
----
-[8] Vêtements & Mode
-    Slug: vetements-mode
-    Image URL: /categories/vetements-mode/vetements-mode.png
-    ID: 69fcfc1e5fbd0614b8f0527b
-    Creado: 2026-5-7 22:54:54
----
-[9] Santé & Beauté
-    Slug: sante-beaute
-    Image URL: /categories/sante-beaute/sante-beaute.png
-    ID: 69fcfc1e5fbd0614b8f0527c
-    Creado: 2026-5-7 22:54:54
----
-[10] Meubles & Maison
-    Slug: meubles-maison
-    Image URL: /categories/meubles-maison/meubles-maison.png
-    ID: 69fcfc1e5fbd0614b8f0527d
-    Creado: 2026-5-7 22:54:54
----
-[11] Loisirs & Divertissements
-    Slug: loisirs-divertissements
-    Image URL: /categories/loisirs-divertissements/loisirs-divertissements.png
-    ID: 69fcfc1e5fbd0614b8f0527e
-    Creado: 2026-5-7 22:54:54
----
-[12] Art
-    Slug: art
-    Image URL: /categories/art/art.png
-    ID: 69fcfc1e5fbd0614b8f0527f
-    Creado: 2026-5-7 22:54:54
----
-[13] Sport
-    Slug: sport
-    Image URL: /categories/sport/sport.png
-    ID: 69fcfc1e5fbd0614b8f05280
-    Creado: 2026-5-7 22:54:54
----
-[14] Emploi
-    Slug: emploi
-    Image URL: /categories/emploi/emploi.png
-    ID: 69fcfc1e5fbd0614b8f05281
-    Creado: 2026-5-7 22:54:54
----
-[15] Matériaux & Équipement
-    Slug: materiaux-equipement
-    Image URL: /categories/materiaux-equipement/materiaux-equipement.png
-    ID: 69fcfc1e5fbd0614b8f05282
-    Creado: 2026-5-7 22:54:54
----
-[16] Alimentaires
-    Slug: alimentaires
-    Image URL: /categories/alimentaires/alimentaires.png
-    ID: 69fcfc1e5fbd0614b8f05283
-    Creado: 2026-5-7 22:54:54
----
-[17] Voyages
-    Slug: voyages
-    Image URL: /categories/voyages/voyages.png
-    ID: 69fcfc1e5fbd0614b8f05284
-    Creado: 2026-5-7 22:54:54
----
-[18] Services
-    Slug: services
-    Image URL: /categories/services/services.png
-    ID: 69fcfc1e5fbd0614b8f05285
-    Creado: 2026-5-7 22:54:54
----
-[19] Publicité
-    Slug: publicite
-    Image URL: /categories/publicite/publicite.png
-    ID: 69fcfc1e5fbd0614b8f05286
-    Creado: 2026-5-7 22:54:54
----
-[20] Agence
-    Slug: agence
-    Image URL: /categories/agence/agence.png
-    ID: 69fde9dc9e42e70604f5f54b
-    Creado: 2026-5-8 15:49:16
----
-[21] Boutiques
-    Slug: boutiques
-    Image URL: /categories/boutiques/boutiques.png
-    ID: 69fde9dc9e42e70604f5f551
-    Creado: 2026-5-8 15:49:16
----
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/VideoCommerce';
+const mongooseOptions = { useNewUrlParser: true, useUnifiedTopology: true };
 
-� Desconectado de MongoDB
-PS C:\Users\USER\Desktop\VideoCommerce>
+// Lista de categorías (mismo orden que en categoriesData2.js)
+const categoriesData = [
+  { slug: 'agence', name: 'Agence', order: 1 },
+  { slug: 'alimentaires', name: 'Alimentaires', order: 2 },
+  { slug: 'art', name: 'Art', order: 3 },
+  { slug: 'boutiques', name: 'Boutiques', order: 4 },
+  { slug: 'electromenager', name: 'Électroménager', order: 5 },
+  { slug: 'electronique', name: 'Électronique', order: 6 },
+  { slug: 'emploi', name: 'Emploi', order: 7 },
+  { slug: 'immobilier', name: 'Immobilier', order: 8 },
+  { slug: 'informatique', name: 'Informatique', order: 9 },
+  { slug: 'loisirs-divertissements', name: 'Loisirs & Divertissements', order: 10 },
+  { slug: 'materiaux-equipement', name: 'Matériaux & Équipement', order: 11 },
+  { slug: 'meubles-maison', name: 'Meubles & Maison', order: 12 },
+  { slug: 'pieces-detachees', name: 'Pièces détachées', order: 13 },
+  { slug: 'publicite', name: 'Publicité', order: 14 },
+  { slug: 'sante-beaute', name: 'Santé & Beauté', order: 15 },
+  { slug: 'services', name: 'Services', order: 16 },
+  { slug: 'sport', name: 'Sport', order: 17 },
+  { slug: 'telephones', name: 'Téléphones', order: 18 },
+  { slug: 'vehicules', name: 'Véhicules', order: 19 },
+  { slug: 'vetements-mode', name: 'Vêtements & Mode', order: 20 },
+  { slug: 'voyages', name: 'Voyages', order: 21 }
+];
+
+const seedCategories = async () => {
+  try {
+    await mongoose.connect(MONGODB_URI, mongooseOptions);
+    console.log('✅ Conectado a MongoDB');
+
+    // Opcional: eliminar primero (si quieres empezar limpio)
+    // await Category.deleteMany({});
+    // console.log('🗑️ Categorías anteriores eliminadas');
+
+    let created = 0;
+    for (const cat of categoriesData) {
+      const existing = await Category.findOne({ slug: cat.slug });
+      if (!existing) {
+        const newCat = new Category({
+          name: cat.name,
+          slug: cat.slug,
+          imageUrl: `/categories/${cat.slug}/${cat.slug}.png`, // ← CLAVE: ruta del icono
+          order: cat.order,
+          isActive: true,
+          videoCount: 0
+        });
+        await newCat.save();
+        created++;
+        console.log(`✅ Creada: ${cat.name} (${cat.slug}) - imageUrl: ${newCat.imageUrl}`);
+      } else {
+        console.log(`⏭️ Ya existe: ${cat.name}`);
+      }
+    }
+    console.log(`\n🎉 Categorías insertadas: ${created} / ${categoriesData.length}`);
+    process.exit(0);
+  } catch (error) {
+    console.error('❌ Error al poblar categorías:', error);
+    process.exit(1);
+  } finally {
+    await mongoose.disconnect();
+  }
+};
+
+seedCategories();

@@ -6,17 +6,26 @@ const initialState = {
   channel: null,
   channels: [],
   userChannels: [],
-  channelVideos: {
-    items: [],
-    total: 0,
-    page: 1,
-    totalPages: 1,
-    hasMore: false,
-  },
+  // Videos del canal – estructura plana (similar a userVideoReducer)
+  videos: [],           // ← array de videos
+  totalVideos: 0,
+  currentPage: 1,
+  totalPages: 1,
+  hasMore: false,
+  // Otros
   followers: [],
   followingChannels: [],
   stats: null,
   viewsCount: 0,
+  channelFeed: {
+    videos: [],
+    loading: false,
+    page: 1,
+    hasMore: true,
+    total: 0,
+    channelId: null
+  },
+
 };
 
 const channelReducer = (state = initialState, action) => {
@@ -27,26 +36,24 @@ const channelReducer = (state = initialState, action) => {
     case CHANNEL_TYPES.GET_CHANNEL:
       return { ...state, channel: action.payload };
 
-    case CHANNEL_TYPES.GET_USER_CHANNELS:   // ← NUEVO CASE
+    case CHANNEL_TYPES.GET_USER_CHANNELS:
       return { ...state, userChannels: action.payload };
 
     case CHANNEL_TYPES.CLEAR_CHANNEL:
-      return { ...state, channel: null, channelVideos: initialState.channelVideos, followers: [], stats: null };
+      return { ...state, channel: null, videos: [], totalVideos: 0, currentPage: 1, totalPages: 1, hasMore: false, followers: [], stats: null };
 
     case CHANNEL_TYPES.GET_CHANNEL_VIDEOS:
       return {
         ...state,
-        channelVideos: {
-          items: action.payload.videos,
-          total: action.payload.total,
-          page: action.payload.page,
-          totalPages: action.payload.totalPages,
-          hasMore: action.payload.hasMore,
-        },
+        videos: action.payload.page === 1 ? action.payload.videos : [...state.videos, ...action.payload.videos],
+        totalVideos: action.payload.total,
+        currentPage: action.payload.page,
+        totalPages: action.payload.totalPages,
+        hasMore: action.payload.hasMore,
       };
 
     case CHANNEL_TYPES.FOLLOW_CHANNEL:
-      if (state.channel && state.channel._id === action.payload.channelId) {
+      if (state.channel?._id === action.payload.channelId) {
         return {
           ...state,
           channel: { ...state.channel, followersCount: action.payload.followersCount, isFollowing: true },
@@ -55,7 +62,7 @@ const channelReducer = (state = initialState, action) => {
       return state;
 
     case CHANNEL_TYPES.UNFOLLOW_CHANNEL:
-      if (state.channel && state.channel._id === action.payload.channelId) {
+      if (state.channel?._id === action.payload.channelId) {
         return {
           ...state,
           channel: { ...state.channel, followersCount: action.payload.followersCount, isFollowing: false },
@@ -80,10 +87,48 @@ const channelReducer = (state = initialState, action) => {
       return { ...state, stats: action.payload };
 
     case CHANNEL_TYPES.UPDATE_CHANNEL:
-      if (state.channel && state.channel._id === action.payload._id) {
+      if (state.channel?._id === action.payload._id) {
         return { ...state, channel: { ...state.channel, ...action.payload } };
       }
       return state;
+      case CHANNEL_TYPES.CHANNEL_FEED_LOADING:
+        return { ...state, channelFeed: { ...state.channelFeed, loading: action.payload } };
+      
+      case CHANNEL_TYPES.GET_CHANNEL_FEED_VIDEOS:
+        return {
+          ...state,
+          channelFeed: {
+            videos: action.payload.page === 1 ? action.payload.videos : [...state.channelFeed.videos, ...action.payload.videos],
+            page: action.payload.page,
+            hasMore: action.payload.hasMore,
+            total: action.payload.total,
+            channelId: action.payload.channelId,
+            loading: false
+          }
+        };
+      
+      case CHANNEL_TYPES.CLEAR_CHANNEL_FEED:
+        return {
+          ...state,
+          channelFeed: {
+            videos: [],
+            loading: false,
+            page: 1,
+            hasMore: true,
+            total: 0,
+            channelId: null
+          }
+        };
+    // ✅ Opcional: si quieres usar clearChannelVideos en el futuro
+    case CHANNEL_TYPES.CLEAR_CHANNEL_VIDEOS:
+      return {
+        ...state,
+        videos: [],
+        totalVideos: 0,
+        currentPage: 1,
+        totalPages: 1,
+        hasMore: false,
+      };
 
     default:
       return state;

@@ -1,11 +1,9 @@
- 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
- import Comments from '../../components/Comments';
- 
+import Comments from '../../components/Comments';
+import InputComment from '../../components/InputComment';
 import { getDataAPI } from '../../utils/fetchData';
 import './VideoCommentsModern.css';
- 
 
 const VideoComments = ({ videoId, videoData, totalComments, onClose, onRefresh }) => {
     const { auth } = useSelector(state => state);
@@ -13,20 +11,31 @@ const VideoComments = ({ videoId, videoData, totalComments, onClose, onRefresh }
     const [loading, setLoading] = useState(true);
     const [refreshKey, setRefreshKey] = useState(0);
 
-    // Cargar comentarios desde el servidor
+    // ✅ CORRIGÉ: Vérifier que videoId est complet
     const loadComments = async () => {
-        if (!videoId) return;
+        // ✅ Vérification stricte
+        if (!videoId || videoId.length < 24) {
+            console.error('❌ videoId invalide ou incomplet:', videoId);
+            setLoading(false);
+            return;
+        }
         
         setLoading(true);
         try {
-            const res = await getDataAPI(`comments?targetId=${videoId}&targetModel=video`, auth.token);
+            // ✅ S'assurer que l'ID est complet
+            const cleanVideoId = videoId.trim();
+            console.log('📥 Chargement commentaires pour videoId:', cleanVideoId);
+            
+            const res = await getDataAPI(`comments?targetId=${cleanVideoId}&targetModel=video`, auth.token);
+            
+            console.log('📥 Réponse:', res.data);
             
             if (res.data.success) {
                 const allComments = [...res.data.data.comments, ...res.data.data.replies];
                 setComments(allComments);
             }
         } catch (err) {
-            console.error('Error loading comments:', err);
+            console.error('❌ Erreur:', err);
         } finally {
             setLoading(false);
         }
@@ -36,13 +45,15 @@ const VideoComments = ({ videoId, videoData, totalComments, onClose, onRefresh }
         loadComments();
     }, [videoId, refreshKey]);
 
+    // ✅ Fonction pour rafraîchir après ajout de commentaire
     const handleCommentAction = () => {
         setRefreshKey(prev => prev + 1);
         if (onRefresh) onRefresh();
     };
 
+    // ✅ Vérifier que target a un ID complet
     const target = {
-        _id: videoId,
+        _id: videoId,  // Assurez-vous que videoId est complet
         user: {
             _id: videoData?.user?._id || auth.user?._id,
             username: videoData?.user?.username || auth.user?.username,
@@ -55,12 +66,30 @@ const VideoComments = ({ videoId, videoData, totalComments, onClose, onRefresh }
     };
 
     if (loading) {
-        return <div className="text-center py-4">Cargando comentarios...</div>;
+        return (
+            <div className="video-comments-container">
+                <div className="comments-header">
+                    {onClose && (
+                        <>
+                            <div className="header-drag-handle">
+                                <div className="drag-bar" />
+                            </div>
+                            <button className="close-button" onClick={onClose}>
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <line x1="18" y1="6" x2="6" y2="18" />
+                                    <line x1="6" y1="6" x2="18" y2="18" />
+                                </svg>
+                            </button>
+                        </>
+                    )}
+                </div>
+                <div className="text-center py-4">Chargement des commentaires...</div>
+            </div>
+        );
     }
 
     return (
         <div className="video-comments-container">
-            {/* Header */}
             {onClose && (
                 <div className="comments-header">
                     <div className="header-drag-handle">
@@ -85,10 +114,17 @@ const VideoComments = ({ videoId, videoData, totalComments, onClose, onRefresh }
                 </div>
             )}
             
-            {/* ❌ ELIMINADO: InputComment duplicado */}
-            {/* El InputComment ya está dentro de Comments */}
+            {auth.token && (
+                <div className="comment-input-wrapper">
+                    <InputComment 
+                        video={target}
+                        onReply={null}
+                        setOnReply={null}
+                        onCommentAdded={handleCommentAction}
+                    />
+                </div>
+            )}
             
-            {/* Lista de comentarios */}
             <div className="comments-list-scrollable">
                 <Comments 
                     target={target}
@@ -98,6 +134,10 @@ const VideoComments = ({ videoId, videoData, totalComments, onClose, onRefresh }
             </div>
 
             <style>{`
+                .comment-input-wrapper {
+                    padding: 12px 16px;
+                    border-bottom: 1px solid rgba(255,255,255,0.1);
+                }
                 .comments-list-scrollable {
                     flex: 1;
                     overflow-y: auto;
@@ -115,12 +155,11 @@ const VideoComments = ({ videoId, videoData, totalComments, onClose, onRefresh }
                     background: #666;
                     border-radius: 10px;
                 }
-                .comments-list-scrollable::-webkit-scrollbar-thumb:hover {
-                    background: #888;
+                .text-center {
+                    text-align: center;
                 }
-                .comments-list-scrollable {
-                    scrollbar-width: auto;
-                    scrollbar-color: #666 #2a2a2a;
+                .py-4 {
+                    padding: 1rem 0;
                 }
             `}</style>
         </div>
