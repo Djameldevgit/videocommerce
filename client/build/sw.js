@@ -9,7 +9,7 @@ const urlsToCache = [
   '/icon-web-01.png',
   '/sounds/notify.mp3'
 ];
-
+npm 
 // Instalación
 self.addEventListener('install', (event) => {
   console.log('🚀 Service Worker instalando...');
