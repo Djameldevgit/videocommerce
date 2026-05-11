@@ -16,7 +16,7 @@ const {
 // Obtener videos de un canal (paginado) – DEBE IR ANTES de /channels/:channelId
 router.get('/channels/:channelId/videos', getChannelVideos);
 
-// Obtener perfil público de un canal (sin auth, o con auth opcional para saber si sigue)
+// Obtener perfil público de un canal
 router.get('/channels/:channelId', getChannelProfile);
 
 // ========== RUTAS CON AUTENTICACIÓN ==========
@@ -26,11 +26,11 @@ router.post('/channels', auth, createChannel);
 // Obtener canales del usuario logueado
 router.get('/users/my-channels', auth, getMyChannels);
 
-// Actualizar canal (solo dueño/admin)
-router.patch('/channels/:channelId', auth, updateChannel);
+// 🔥 Ruta para seguir/dejar de seguir (debe ser PATCH, y antes de la ruta genérica PATCH)
+router.patch('/channels/:channelId/follow', auth, toggleFollowChannel);
 
-// Seguir / dejar de seguir
-router.post('/channels/:channelId/follow', auth, toggleFollowChannel);
+// Actualizar canal (solo dueño/admin) – esta es genérica, debe ir DESPUÉS de las rutas específicas
+router.patch('/channels/:channelId', auth, updateChannel);
 
 // Estadísticas (solo dueño/admin)
 router.get('/channels/:channelId/stats', auth, getChannelStats);

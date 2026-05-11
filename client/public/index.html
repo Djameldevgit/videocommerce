@@ -254,5 +254,20 @@
 
       console.log('✅ Configuration PWA terminée');
     </script>
+
+
+<script src="https://cdn.onesignal.com/sdks/OneSignalSDK.js" async></script>
+<script>
+  window.OneSignal = window.OneSignal || [];
+  OneSignal.push(function() {
+    OneSignal.init({
+      appId: "TU_APP_ID",
+      safari_web_id: "OPCIONAL",
+      notifyButton: { enable: true },
+      allowLocalhostAsSecureOrigin: true,
+    });
+  });
+</script>
+
   </body>
 </html>

@@ -177,22 +177,31 @@ const Navbar2 = () => {
     );
   };
 
-  // ── Three-dots trigger ────────────────────────────────
-  const ThreeDotsTrigger = (
+  // ── Avatar trigger for dropdown ─────────────────────────
+  const AvatarTrigger = (
     <div
-      className={`nb2-dots${dropdownOpen ? ' open' : ''}`}
+      className={`nb2-avatar-trigger ${dropdownOpen ? 'open' : ''}`}
       onClick={() => setDropdownOpen(!dropdownOpen)}
       style={{
-        width:  isMobile ? '38px' : '42px',
+        width: isMobile ? '38px' : '42px',
         height: isMobile ? '38px' : '42px',
+        cursor: 'pointer',
+        borderRadius: '50%',
+        overflow: 'hidden',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'transparent',
       }}
-      aria-label={t('menu') || 'Menu'}
+      aria-label={t('userMenu') || 'Menú de usuario'}
       aria-expanded={dropdownOpen}
       aria-haspopup="true"
     >
-      <span className="nb2-dot" />
-      <span className="nb2-dot" />
-      <span className="nb2-dot" />
+      {auth.user ? (
+        <Avatar src={auth.user.avatar} size="small-avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      ) : (
+        <FaUserCircle size={isMobile ? 24 : 28} style={{ color: '#6c757d' }} />
+      )}
     </div>
   );
 
@@ -263,7 +272,7 @@ const Navbar2 = () => {
               </button>
             )}
 
-            {/* Notifications */}
+            {/* Notifications - Bell in YELLOW */}
             {auth.user && (
               <div
                 className="nb2-btn nb2-btn--notify"
@@ -271,7 +280,7 @@ const Navbar2 = () => {
                 style={{ width: isMobile ? '38px' : '42px', height: isMobile ? '38px' : '42px' }}
               >
                 <Link to="/notify" className="nb2-notify-link">
-                  <FaBell size={isMobile ? 17 : 19} className={unreadNotifications > 0 ? 'has-notif' : ''} />
+                  <FaBell size={isMobile ? 17 : 19} style={{ color: '#FFC107' }} className={unreadNotifications > 0 ? 'has-notif' : ''} />
                 </Link>
                 {unreadNotifications > 0 && (
                   <span className="nb2-badge">
@@ -281,15 +290,17 @@ const Navbar2 = () => {
               </div>
             )}
 
-            {/* ── THREE DOTS DROPDOWN ── */}
+            {/* ── AVATAR DROPDOWN (replaces three dots) ── */}
             <NavDropdown
               align="end"
               show={dropdownOpen}
               onToggle={isOpen => setDropdownOpen(isOpen)}
-              title={ThreeDotsTrigger}
+              title={AvatarTrigger}
               id="nav-user-dropdown"
               className="nb2-dropdown-root"
               ref={dropdownRef}
+              // Important: remove default arrow styling
+              renderMenuOnMount
             >
               <div className="nb2-scroll-wrap">
                 {auth.user ? (
@@ -405,7 +416,7 @@ const Navbar2 = () => {
       {/* Spacer */}
       <div style={{ height: isMobile ? '56px' : '64px' }} />
 
-      {/* Modals — unchanged */}
+      {/* Modals */}
       <VerifyModal       show={showVerifyModal}        onClose={() => setShowVerifyModal(false)} />
       <DesactivateModal  show={showDeactivatedModal}   onClose={() => setShowDeactivatedModal(false)} />
       <MultiCheckboxModal show={showFeaturesModal}     onClose={() => setShowFeaturesModal(false)} />

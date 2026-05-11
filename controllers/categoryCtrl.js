@@ -114,13 +114,11 @@ const getCategoriesWithVideos = async (req, res) => {
     
     console.log(`📡 getCategoriesWithVideos - page: ${page}, limit: ${limit}, videosPerCategory: ${videosPerCategory}`);
     
-    // Obtener total de categorías activas
     const total = await Category.countDocuments({ isActive: true });
     console.log(`📊 Total categorías activas: ${total}`);
     
     const hasMore = skip + limit < total;
     
-    // Obtener categorías paginadas
     const categories = await Category.find({ isActive: true })
       .sort({ order: 1 })
       .skip(skip)
@@ -129,10 +127,8 @@ const getCategoriesWithVideos = async (req, res) => {
     
     console.log(`📦 Categorías encontradas: ${categories.length}`);
     
-    // Para cada categoría, obtener sus videos
     const categoriesWithVideos = await Promise.all(
       categories.map(async (category) => {
-        // Buscar videos de esta categoría
         const videos = await Video.find({
           category: category._id,
           pendiente: false,
@@ -142,13 +138,12 @@ const getCategoriesWithVideos = async (req, res) => {
           .limit(videosPerCategory)
           .populate('user', 'username avatar isPro')
           .populate('category', 'slug name')
+          .populate('channel', '_id name avatar slug')   // ← 🔥 LÍNEA CLAVE
           .lean();
         
         console.log(`   📹 ${category.name}: ${videos.length} videos encontrados`);
-        
-        // Si hay videos, mostrar el primero como ejemplo
         if (videos.length > 0) {
-          console.log(`      Ejemplo: ${videos[0].title}`);
+          console.log(`      Ejemplo: ${videos[0].title} - canal: ${videos[0].channel.name || 'SIN CANAL'}`);
         }
         
         return { ...category, videos };
@@ -242,7 +237,6 @@ const getVideosByCategory = asyncHandler(async (req, res) => {
     const limit = parseInt(req.query.limit) || 12;
     const skip = (page - 1) * limit;
 
-    // Filtros adicionales
     const {
       wilaya,
       minPrice,
@@ -282,7 +276,6 @@ const getVideosByCategory = asyncHandler(async (req, res) => {
       pendiente: false
     };
 
-    // Filtros adicionales
     if (wilaya && wilaya !== '') {
       filter.wilaya = wilaya;
     }
@@ -316,14 +309,15 @@ const getVideosByCategory = asyncHandler(async (req, res) => {
         break;
     }
 
-    // Ejecutar consulta
+    // 🔥 Ejecutar consulta con POPULATE de CHANNEL
     const [videos, total] = await Promise.all([
       Video.find(filter)
         .sort(sort)
         .skip(skip)
         .limit(limit)
-        .select('_id title thumbnail videoUrl views likes price wilaya commune createdAt isCommercial wholesale')
-        .populate('user', 'username avatar')
+        .select('_id title thumbnail videoUrl views likes price wilaya commune createdAt isCommercial wholesale channel')
+        .populate('user', 'username avatar isPro')
+        .populate('channel', '_id name avatar slug isVerified')   // ← CRUCIAL
         .lean(),
       Video.countDocuments(filter)
     ]);

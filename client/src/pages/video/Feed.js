@@ -1,6 +1,5 @@
-// components/Feed/Feed.jsx - VERSIÓN DEFINITIVA (usando getChannelProfile)
-
-import React, { useState, useRef, useEffect } from 'react';
+// components/Feed/Feed.jsx - VERSIÓN CORREGIDA (sin bucles, con navegación segura)
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useHistory } from 'react-router-dom';
 import { Dropdown } from 'react-bootstrap';
@@ -61,6 +60,10 @@ const Feed = ({
   const videoRef = useRef(null);
   const drawerRef = useRef(null);
   let hlsRef = useRef(null);
+  
+  // 🛑 Control de búsqueda del canal (evita bucles)
+  const hasFetchedRef = useRef(false);
+  const lastVideoIdRef = useRef(null);
 
   const [liked, setLiked] = useState(video.liked || false);
   const [likesCount, setLikesCount] = useState(video.likes?.length || 0);
@@ -89,100 +92,121 @@ const Feed = ({
   const isPending = video?.pendiente === true;
 
   // ============================================
-  // ✅ OBTENER CHANNEL ID DE MÚLTIPLES FUENTES
+  // ✅ OBTENER CHANNEL ID DE MÚLTIPLES FUENTES (memorizado)
   // ============================================
-  let initialChannelId = null;
-  let initialChannelName = null;
-  let initialChannelAvatar = null;
-
-  // Fuente 1: video.channel como objeto
-  if (video.channel && typeof video.channel === 'object') {
-    initialChannelId = video.channel._id;
-    initialChannelName = video.channel.name;
-    initialChannelAvatar = video.channel.avatar;
-    console.log('✅ [Feed] Canal de video.channel (objeto):', initialChannelId);
-  }
-  // Fuente 2: video.channel como string (ID)
-  else if (typeof video.channel === 'string' && video.channel.length > 0) {
-    initialChannelId = video.channel;
-    console.log('✅ [Feed] Canal de video.channel (string):', initialChannelId);
-  }
-  // Fuente 3: video.channelId
-  else if (video.channelId) {
-    initialChannelId = video.channelId;
-    console.log('✅ [Feed] Canal de video.channelId:', initialChannelId);
-  }
-  // Fuente 4: video.user?.channelId
-  else if (video.user?.channelId) {
-    initialChannelId = video.user.channelId;
-    console.log('✅ [Feed] Canal de video.user.channelId:', initialChannelId);
-  }
+  const { initialChannelId, initialChannelName, initialChannelAvatar } = useMemo(() => {
+    let id = null, name = null, avatar = null;
+    if (video.channel && typeof video.channel === 'object') {
+      id = video.channel._id;
+      name = video.channel.name;
+      avatar = video.channel.avatar;
+    } else if (typeof video.channel === 'string' && video.channel.length > 0) {
+      id = video.channel;
+    } else if (video.channelId) {
+      id = video.channelId;
+    } else if (video.user?.channelId) {
+      id = video.user.channelId;
+    }
+    return { initialChannelId: id, initialChannelName: name, initialChannelAvatar: avatar };
+  }, [video.channel, video.channelId, video.user?.channelId]);
 
   // ============================================
-  // ✅ BUSCAR CANAL POR ID USANDO getChannelProfile
+  // ✅ BUSCAR CANAL POR ID (SOLO UNA VEZ POR VIDEO)
   // ============================================
   useEffect(() => {
-    const fetchChannelById = async () => {
-      // Si ya tenemos un canal válido en video.channel (objeto con nombre), no buscamos
-      if (video.channel && typeof video.channel === 'object' && video.channel.name) {
-        console.log('✅ [Feed] Ya tenemos canal completo, no buscamos');
-        setFetchedChannel(video.channel);
-        return;
+    // Si cambió el video, resetear el estado de búsqueda
+    if (lastVideoIdRef.current !== video._id) {
+      lastVideoIdRef.current = video._id;
+      hasFetchedRef.current = false;
+      setFetchedChannel(null);
+      setFetchError(false);
+    }
+
+    // Si ya se intentó buscar para este video, no repetir
+    if (hasFetchedRef.current) return;
+
+    // Si el video ya trae el canal completo, usarlo directamente
+    if (video.channel && typeof video.channel === 'object' && video.channel._id) {
+      setFetchedChannel(video.channel);
+      hasFetchedRef.current = true;
+      return;
+    }
+
+    // Si no hay channelId válido, marcar error y salir
+    if (!initialChannelId || initialChannelId === 'null' || initialChannelId === 'undefined') {
+      if (process.env.NODE_ENV === 'development') {
+        console.warn(`⚠️ Video ${video._id} no tiene channelId válido`);
       }
-      
-      // Si tenemos un channelId, buscamos el canal
-      if (initialChannelId) {
-        console.log('🔍 [Feed] Buscando canal por ID:', initialChannelId);
-        setFetchingChannel(true);
-        
-        try {
-          const result = await dispatch(getChannelProfile(initialChannelId, auth.token));
-          
-          if (result?.profile || result?.channel) {
-            const channelData = result.profile || result.channel;
-            setFetchedChannel(channelData);
-            console.log('✅ [Feed] Canal encontrado:', {
-              id: channelData._id,
-              name: channelData.name,
-              avatar: channelData.avatar
-            });
-          } else {
-            console.log('⚠️ [Feed] No se encontró canal para ID:', initialChannelId);
-            setFetchError(true);
-          }
-        } catch (err) {
-          console.error('❌ [Feed] Error buscando canal:', err);
+      setFetchError(true);
+      hasFetchedRef.current = true;
+      return;
+    }
+
+    const fetchChannel = async () => {
+      setFetchingChannel(true);
+      try {
+        const result = await dispatch(getChannelProfile(initialChannelId, auth.token));
+        if (result?.profile || result?.channel) {
+          setFetchedChannel(result.profile || result.channel);
+        } else {
           setFetchError(true);
-        } finally {
-          setFetchingChannel(false);
         }
-      } else {
-        console.log('⚠️ [Feed] No hay channelId para buscar');
+      } catch (err) {
+        console.error('❌ Error fetching channel:', err);
         setFetchError(true);
+      } finally {
+        setFetchingChannel(false);
+        hasFetchedRef.current = true;
       }
     };
-    
-    fetchChannelById();
-  }, [initialChannelId, video.channel, dispatch, auth.token]);
+
+    fetchChannel();
+  }, [initialChannelId, video._id, video.channel, dispatch, auth.token]);
 
   // ============================================
   // ✅ DATOS FINALES DEL CANAL
   // ============================================
-  // Prioridad: fetchedChannel > video.channel > valores por defecto
   const finalChannel = fetchedChannel || (video.channel && typeof video.channel === 'object' ? video.channel : {});
   const channelId = finalChannel._id || initialChannelId;
   const channelName = finalChannel.name || initialChannelName || 'Canal';
   const channelAvatar = finalChannel.avatar || initialChannelAvatar || '/default-avatar.png';
   const isChannelVerified = finalChannel.isVerified || false;
 
-  console.log('🔍 [Feed] Datos finales del canal:', { 
-    channelId, 
-    channelName, 
-    channelAvatar,
-    fuente: fetchedChannel ? 'fetched' : (video.channel ? 'video' : 'default'),
-    fetching: fetchingChannel
-  });
+  // Logs controlados (solo en desarrollo y cuando cambia el video)
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`🎬 [Feed] Video ${video._id} -> canal:`, {
+        channelId,
+        channelName,
+        tieneCanalReal: !!channelId && channelId !== 'null'
+      });
+    }
+  }, [video._id, channelId, channelName]);
 
+  // ============================================
+  // ✅ FUNCIÓN PARA NAVEGAR AL CANAL (SEGURA)
+  // ============================================
+  const goToChannel = useCallback((e) => {
+    e?.stopPropagation();
+    
+    // Validación rigurosa
+    if (!channelId || channelId === 'null' || channelId === 'undefined' || channelId === '') {
+      dispatch({
+        type: GLOBALTYPES.ALERT,
+        payload: { error: 'Este video no pertenece a ningún canal. El creador debe crear un canal primero.' }
+      });
+      return;
+    }
+    
+    // Guardar posición para volver al feed después
+    sessionStorage.setItem('returnToFeed', 'true');
+    sessionStorage.setItem('feedScrollPosition', window.scrollY.toString());
+    history.push(`/channel/${channelId}`);
+  }, [channelId, dispatch, history]);
+
+  // ============================================
+  // MANEJO DE HLS, reproducción, etc. (sin cambios relevantes)
+  // ============================================
   const getFinalVideoSrc = () => {
     if (video.videoUrl && (video.videoUrl.includes('l_audio') || video.videoUrl.includes('.m3u8'))) {
       return video.videoUrl;
@@ -192,44 +216,17 @@ const Feed = ({
     }
     return video.videoUrl;
   };
-
   const finalVideoSrc = getFinalVideoSrc();
 
-  // ============================================
-  // ✅ FUNCIÓN PARA NAVEGAR AL CANAL
-  // ============================================
-  const goToChannel = (e) => {
-    e?.stopPropagation();
-    
-    if (!channelId) {
-      console.error('❌ [Feed] No se puede navegar: channelId no existe');
-      dispatch({
-        type: GLOBALTYPES.ALERT,
-        payload: { error: 'Canal no disponible para este video' }
-      });
-      return;
-    }
-    
-    console.log('🚀 [Feed] Navegando al canal:', channelId, channelName);
-    sessionStorage.setItem('returnToFeed', 'true');
-    sessionStorage.setItem('feedScrollPosition', window.scrollY.toString());
-    history.push(`/channel/${channelId}`);
-  };
-
-  // ============================================
-  // MANEJO DE HLS
-  // ============================================
   useEffect(() => {
     const videoEl = videoRef.current;
     if (!videoEl) return;
     const src = finalVideoSrc;
     if (!src) return;
-
     if (hlsRef.current) {
       hlsRef.current.destroy();
       hlsRef.current = null;
     }
-
     if (src.endsWith('.m3u8')) {
       if (Hls.isSupported()) {
         const hls = new Hls({ enableWorker: true, lowLatencyMode: true, maxBufferLength: 30 });
@@ -242,7 +239,6 @@ const Feed = ({
     } else {
       videoEl.src = src;
     }
-
     return () => {
       if (hlsRef.current) {
         hlsRef.current.destroy();
@@ -251,13 +247,9 @@ const Feed = ({
     };
   }, [finalVideoSrc]);
 
-  // ============================================
-  // REPRODUCCIÓN AUTOMÁTICA
-  // ============================================
   useEffect(() => {
     const videoEl = videoRef.current;
     if (!videoEl) return;
-
     if (isActive && !showComments) {
       videoEl.play().catch(e => console.log("Play error:", e));
       setIsPlaying(true);
@@ -269,9 +261,6 @@ const Feed = ({
     }
   }, [isActive, showComments, onVisibilityChange]);
 
-  // ============================================
-  // BARRA DE PROGRESO
-  // ============================================
   useEffect(() => {
     const videoEl = videoRef.current;
     if (!videoEl) return;
@@ -282,9 +271,6 @@ const Feed = ({
     return () => videoEl.removeEventListener('timeupdate', onTimeUpdate);
   }, []);
 
-  // ============================================
-  // SOCKET PARA COMENTARIOS
-  // ============================================
   useEffect(() => {
     if (!socket || !video || isPending) return;
     socket.emit('join-video-room', video._id);
@@ -301,16 +287,13 @@ const Feed = ({
     };
   }, [socket, video, isPending]);
 
-  // ============================================
-  // DRAG PARA COMMENTS
-  // ============================================
+  // Drag para comments, teclado, responsive (sin cambios)
   const handleDragStart = e => {
     e.stopPropagation();
     setStartY(e.touches ? e.touches[0].clientY : e.clientY);
     setIsDragging(true);
     setDragOffset(0);
   };
-
   const handleDragMove = e => {
     if (!isDragging) return;
     e.preventDefault();
@@ -319,7 +302,6 @@ const Feed = ({
     setDragOffset(delta);
     if (drawerRef.current) drawerRef.current.style.transform = `translateY(${delta}px)`;
   };
-
   const handleDragEnd = () => {
     setIsDragging(false);
     if (dragOffset > window.innerHeight * 0.25) {
@@ -329,10 +311,6 @@ const Feed = ({
       setDragOffset(0);
     }
   };
-
-  // ============================================
-  // NAVEGACIÓN POR TECLADO
-  // ============================================
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'ArrowUp' && hasPrev && onPreviousVideo) {
@@ -346,25 +324,18 @@ const Feed = ({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [hasPrev, hasNext, onPreviousVideo, onNextVideo]);
-
-  // ============================================
-  // EFECTO RESPONSIVE
-  // ============================================
   useEffect(() => {
     const handleResize = () => setIsLargeScreen(window.innerWidth > 1024);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // ============================================
-  // ACCIONES DEL USUARIO
-  // ============================================
+  // Acciones (like, save, share, etc.) - sin cambios
   const guardPending = () => {
     if (!isPending) return false;
     dispatch({ type: GLOBALTYPES.ALERT, payload: { error: "Cette vidéo est en attente d'approbation" } });
     return true;
   };
-
   const handleLike = async () => {
     if (!auth.token) return history.push('/login');
     if (guardPending()) return;
@@ -375,7 +346,6 @@ const Feed = ({
       if (res.liked) createHeartEffect();
     }
   };
-
   const handleSave = async () => {
     if (!auth.token) return history.push('/login');
     if (guardPending()) return;
@@ -391,7 +361,6 @@ const Feed = ({
     }
     setSaving(false);
   };
-
   const createHeartEffect = () => {
     const h = document.createElement('div');
     h.className = 'vr-floating-heart';
@@ -399,12 +368,10 @@ const Feed = ({
     document.body.appendChild(h);
     setTimeout(() => h.remove(), 800);
   };
-
   const handleDoubleClick = e => {
     e.stopPropagation();
     if (!liked && !isPending) handleLike();
   };
-
   const handleShare = async () => {
     const url = `${window.location.origin}/video/${video._id}`;
     if (navigator.share) {
@@ -415,7 +382,6 @@ const Feed = ({
     }
     await dispatch(shareVideo(video._id, auth.token, auth, socket, video));
   };
-
   const toggleMute = e => {
     e.stopPropagation();
     if (videoRef.current) {
@@ -423,7 +389,6 @@ const Feed = ({
       setIsMuted(m => !m);
     }
   };
-
   const togglePlay = e => {
     e.stopPropagation();
     if (videoRef.current) {
@@ -431,7 +396,6 @@ const Feed = ({
       setIsPlaying(p => !p);
     }
   };
-
   const handleProgressClick = e => {
     e.stopPropagation();
     if (videoRef.current?.duration) {
@@ -439,7 +403,6 @@ const Feed = ({
       videoRef.current.currentTime = ((e.clientX - rect.left) / rect.width) * videoRef.current.duration;
     }
   };
-
   const handleOpenComments = () => { setShowComments(true); setDragOffset(0); };
   const handleCloseComments = () => {
     setShowComments(false);
@@ -447,14 +410,12 @@ const Feed = ({
     if (drawerRef.current) drawerRef.current.style.transform = '';
   };
   const handleGoBack = () => history.goBack();
-
   const handleViewDetails = (e) => {
     e?.stopPropagation();
     sessionStorage.setItem('returnToFeed', 'true');
     sessionStorage.setItem('feedScrollPosition', window.scrollY.toString());
     history.push(`/video/${video._id}`);
   };
-
   const menuAction = fn => () => { setShowMenu(false); fn(); };
   const handleEdit = menuAction(() => {
     sessionStorage.setItem('returnToFeed', 'true');
@@ -508,7 +469,7 @@ const Feed = ({
   const videoScale = !showComments ? 1 : 0.7 + 0.3 * Math.min(dragOffset / (window.innerHeight * 0.6), 1);
   const videoTranslateY = !showComments ? 0 : -15 * (1 - Math.min(dragOffset / (window.innerHeight * 0.6), 1));
    
-  // Mostrar loading mientras se busca el canal
+  // Estados de carga
   if (fetchingChannel && !channelId) {
     return (
       <div className="video-reel-container">
@@ -633,13 +594,13 @@ const Feed = ({
         {/* Sidebar actions */}
         {!showComments && (
           <div className="vr-actions-sidebar">
-            {/* ✅ AVATAR CON CLICK - Navega al canal */}
+            {/* ✅ AVATAR CON CLICK - Navega al canal (solo si channelId válido) */}
             <div className="vr-action-group vr-avatar-group">
               <div 
                 className="vr-avatar-wrapper" 
                 onClick={goToChannel}
-                style={{ cursor: 'pointer' }}
-                title={`Aller au canal ${channelName}`}
+                style={{ cursor: channelId && channelId !== 'null' ? 'pointer' : 'not-allowed', opacity: channelId && channelId !== 'null' ? 1 : 0.6 }}
+                title={channelId && channelId !== 'null' ? `Aller au canal ${channelName}` : 'Canal no disponible'}
               >
                 <img src={channelAvatar} alt={channelName} className="vr-sidebar-avatar" />
                 {isChannelVerified && (
@@ -648,7 +609,11 @@ const Feed = ({
                   </div>
                 )}
               </div>
-              <span className="vr-action-count" style={{ cursor: 'pointer' }} onClick={goToChannel}>
+              <span 
+                className="vr-action-count" 
+                onClick={channelId && channelId !== 'null' ? goToChannel : undefined}
+                style={{ cursor: channelId && channelId !== 'null' ? 'pointer' : 'default' }}
+              >
                 @{channelName.length > 12 ? channelName.slice(0, 12) + '...' : channelName}
               </span>
             </div>
@@ -731,10 +696,14 @@ const Feed = ({
                 alt={channelName} 
                 className="vr-user-avatar" 
                 onClick={goToChannel}
-                style={{ cursor: 'pointer' }}
+                style={{ cursor: channelId && channelId !== 'null' ? 'pointer' : 'not-allowed' }}
               />
               <div className="vr-user-details">
-                <div className="vr-username" onClick={goToChannel} style={{ cursor: 'pointer' }}>
+                <div 
+                  className="vr-username" 
+                  onClick={goToChannel} 
+                  style={{ cursor: channelId && channelId !== 'null' ? 'pointer' : 'default' }}
+                >
                   @{channelName}
                 </div>
                 <div className="vr-stats">

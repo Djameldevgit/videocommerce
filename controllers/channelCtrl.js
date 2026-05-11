@@ -87,6 +87,12 @@ const createChannel = async (req, res) => {
 const getChannelById = async (req, res) => {
   try {
     const { channelId } = req.params;
+
+    // ✅ Validar que channelId sea un ObjectId válido
+    if (!mongoose.Types.ObjectId.isValid(channelId)) {
+      return res.status(400).json({ success: false, message: 'ID de canal inválido' });
+    }
+
     const channel = await Channel.findById(channelId)
       .populate('owner', 'username avatar fullname')
       .lean();
@@ -136,6 +142,11 @@ const getChannelProfile = async (req, res) => {
   try {
     const { channelId } = req.params;
     const currentUserId = req.user ? req.user._id : null;
+
+    // ✅ Validar channelId
+    if (!mongoose.Types.ObjectId.isValid(channelId)) {
+      return res.status(400).json({ success: false, message: 'ID de canal inválido' });
+    }
 
     const channel = await Channel.findById(channelId)
       .populate('owner', 'username avatar fullname')
@@ -219,6 +230,11 @@ const updateChannel = async (req, res) => {
     const userId = req.user._id;
     const isAdmin = req.user.role === 'admin';
 
+    // ✅ Validar channelId
+    if (!mongoose.Types.ObjectId.isValid(channelId)) {
+      return res.status(400).json({ success: false, message: 'ID de canal inválido' });
+    }
+
     const channel = await Channel.findById(channelId);
     if (!channel) {
       return res.status(404).json({ success: false, message: 'Canal no encontrado' });
@@ -252,6 +268,11 @@ const toggleFollowChannel = async (req, res) => {
     const { channelId } = req.params;
     const userId = req.user._id;
 
+    // ✅ Validar channelId
+    if (!mongoose.Types.ObjectId.isValid(channelId)) {
+      return res.status(400).json({ success: false, message: 'ID de canal inválido' });
+    }
+
     const channel = await Channel.findById(channelId);
     if (!channel) {
       return res.status(404).json({ success: false, message: 'Canal no encontrado' });
@@ -283,19 +304,32 @@ const toggleFollowChannel = async (req, res) => {
 };
 
 // ============================================
-// 📺 OBTENER VIDEOS DE UN CANAL (paginado)
+// 📺 OBTENER VIDEOS DE UN CANAL (paginado) - CORREGIDO
 // ============================================
 const getChannelVideos = async (req, res) => {
   try {
-    const { channelId } = req.params;
+    let { channelId } = req.params;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 12;
     const skip = (page - 1) * limit;
+
+    // ✅ Validar channelId
+    if (!mongoose.Types.ObjectId.isValid(channelId)) {
+      return res.status(400).json({ success: false, message: 'ID de canal inválido' });
+    }
+
+    // Verificar que el canal exista (opcional pero recomendable)
+    const channelExists = await Channel.exists({ _id: channelId });
+    if (!channelExists) {
+      return res.status(404).json({ success: false, message: 'Canal no encontrado' });
+    }
 
     const videos = await Video.find({ channel: channelId, pendiente: false, isActive: true })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
+      .populate('channel', '_id name avatar slug')
+      .populate('category', 'name slug')
       .lean();
 
     const total = await Video.countDocuments({ channel: channelId, pendiente: false, isActive: true });
@@ -340,6 +374,11 @@ const getChannelStats = async (req, res) => {
     const { channelId } = req.params;
     const userId = req.user._id;
     const isAdmin = req.user.role === 'admin';
+
+    // ✅ Validar channelId
+    if (!mongoose.Types.ObjectId.isValid(channelId)) {
+      return res.status(400).json({ success: false, message: 'ID de canal inválido' });
+    }
 
     const channel = await Channel.findById(channelId);
     if (!channel) {
@@ -396,6 +435,11 @@ const deleteChannel = async (req, res) => {
     const userId = req.user._id;
     const isAdmin = req.user.role === 'admin';
 
+    // ✅ Validar channelId
+    if (!mongoose.Types.ObjectId.isValid(channelId)) {
+      return res.status(400).json({ success: false, message: 'ID de canal inválido' });
+    }
+
     const channel = await Channel.findById(channelId);
     if (!channel) {
       return res.status(404).json({ success: false, message: 'Canal no encontrado' });
@@ -421,7 +465,7 @@ const deleteChannel = async (req, res) => {
 };
 
 // ============================================
-// EXPORTACIONES (sin duplicados)
+// EXPORTACIONES
 // ============================================
 module.exports = {
   createChannel,
