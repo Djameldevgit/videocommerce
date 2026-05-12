@@ -1,12 +1,8 @@
 import React, { useState } from 'react';
 
 const HomeSlider = ({ categories = [], onCategoryClick, activeCategoryId = null }) => {
-    // Si viene activeCategoryId desde fuera, lo usamos; si no, usamos estado interno
     const [internalActiveId, setInternalActiveId] = useState(null);
-    
-    // Usar la prop externa si existe, si no el estado interno
     const activeId = activeCategoryId !== undefined ? activeCategoryId : internalActiveId;
-    
     const [failedImages, setFailedImages] = useState({});
   
     const handleImageError = (categoryId, imageUrl) => {
@@ -18,17 +14,9 @@ const HomeSlider = ({ categories = [], onCategoryClick, activeCategoryId = null 
   
     const getImageUrl = (category) => {
       if (!category) return null;
-  
-      const defaultUrl =
-        category.imageUrl ||
-        (category.slug ? `/categories/${category.slug}/${category.slug}.png` : null);
-  
-      if (defaultUrl && failedImages[category._id]?.includes(defaultUrl)) {
-        return null;
-      }
-      if (category.imageUrl && !failedImages[category._id]?.includes(category.imageUrl)) {
-        return category.imageUrl;
-      }
+      const defaultUrl = category.imageUrl || (category.slug ? `/categories/${category.slug}/${category.slug}.png` : null);
+      if (defaultUrl && failedImages[category._id]?.includes(defaultUrl)) return null;
+      if (category.imageUrl && !failedImages[category._id]?.includes(category.imageUrl)) return category.imageUrl;
       if (category.slug) {
         const slugUrl = `/categories/${category.slug}/${category.slug}.png`;
         if (!failedImages[category._id]?.includes(slugUrl)) return slugUrl;
@@ -37,12 +25,8 @@ const HomeSlider = ({ categories = [], onCategoryClick, activeCategoryId = null 
     };
   
     const handleClick = (cat) => {
-      // Actualizar estado interno
       setInternalActiveId(cat._id);
-      // Notificar al componente padre
-      if (onCategoryClick) {
-        onCategoryClick(cat);
-      }
+      if (onCategoryClick) onCategoryClick(cat);
     };
   
     if (!categories || categories.length === 0) return null;
@@ -59,21 +43,17 @@ const HomeSlider = ({ categories = [], onCategoryClick, activeCategoryId = null 
               scrollbar-width: thin;
               -webkit-overflow-scrolling: touch;
             }
-  
             .catslider-row::-webkit-scrollbar {
               height: 4px;
             }
-  
             .catslider-row::-webkit-scrollbar-track {
               background: #f0f0f0;
               border-radius: 10px;
             }
-  
             .catslider-row::-webkit-scrollbar-thumb {
               background: #fe2c55;
               border-radius: 10px;
             }
-  
             .catslider-item {
               display: flex;
               flex-direction: column;
@@ -86,11 +66,9 @@ const HomeSlider = ({ categories = [], onCategoryClick, activeCategoryId = null 
               padding: 0;
               min-width: 70px;
             }
-  
             .catslider-item:hover {
               transform: translateY(-4px);
             }
-  
             .catslider-ring {
               position: relative;
               width: 70px;
@@ -103,12 +81,10 @@ const HomeSlider = ({ categories = [], onCategoryClick, activeCategoryId = null 
               box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
               transition: all 0.2s ease;
             }
-  
             .catslider-item.active .catslider-ring {
               background: linear-gradient(135deg, #fe2c55, #ff6b8a);
               box-shadow: 0 4px 12px rgba(254, 44, 85, 0.3);
             }
-  
             .catslider-inner {
               width: 60px;
               height: 60px;
@@ -120,24 +96,20 @@ const HomeSlider = ({ categories = [], onCategoryClick, activeCategoryId = null 
               overflow: hidden;
               transition: all 0.2s ease;
             }
-  
             .catslider-item.active .catslider-inner {
               background: #fff;
               transform: scale(0.95);
             }
-  
             .catslider-inner img {
               width: 100%;
               height: 100%;
               object-fit: cover;
             }
-  
             .catslider-initial {
               font-size: 28px;
               font-weight: 600;
               color: #fe2c55;
             }
-  
             .catslider-dot {
               position: absolute;
               bottom: -2px;
@@ -150,11 +122,9 @@ const HomeSlider = ({ categories = [], onCategoryClick, activeCategoryId = null 
               opacity: 0;
               transition: opacity 0.2s ease;
             }
-  
             .catslider-item.active .catslider-dot {
               opacity: 1;
             }
-  
             .catslider-label {
               font-size: 12px;
               font-weight: 500;
@@ -166,15 +136,15 @@ const HomeSlider = ({ categories = [], onCategoryClick, activeCategoryId = null 
               text-overflow: ellipsis;
               white-space: nowrap;
             }
-  
             .catslider-item.active .catslider-label {
               color: #fe2c55;
               font-weight: 600;
             }
-  
+
+            /* Tablets */
             @media (max-width: 768px) {
               .catslider-row {
-                gap: 16px;
+                gap: 12px;
                 padding: 12px 8px 20px;
               }
               .catslider-ring {
@@ -192,18 +162,30 @@ const HomeSlider = ({ categories = [], onCategoryClick, activeCategoryId = null 
                 font-size: 11px;
               }
             }
-  
+
+            /* Móviles (ancho hasta 480px) - Ajustado para que quepan 5 iconos */
             @media (max-width: 480px) {
+              .catslider-row {
+                gap: 8px;
+                padding: 12px 8px 20px;
+              }
+              .catslider-item {
+                min-width: 55px;
+              }
               .catslider-ring {
                 width: 55px;
                 height: 55px;
               }
               .catslider-inner {
-                width: 47px;
-                height: 47px;
+                width: 48px;
+                height: 48px;
+              }
+              .catslider-initial {
+                font-size: 22px;
               }
               .catslider-label {
                 font-size: 10px;
+                max-width: 60px;
               }
             }
           `}
@@ -244,7 +226,7 @@ const HomeSlider = ({ categories = [], onCategoryClick, activeCategoryId = null 
           })}
         </div>
       </>
-     );
-    };
-     
-export default HomeSlider
+    );
+};
+
+export default HomeSlider;

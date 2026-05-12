@@ -6,13 +6,11 @@ const initialState = {
   channel: null,
   channels: [],
   userChannels: [],
-  // Videos del canal – estructura plana (similar a userVideoReducer)
-  videos: [],           // ← array de videos
+  videos: [],
   totalVideos: 0,
   currentPage: 1,
   totalPages: 1,
   hasMore: false,
-  // Otros
   followers: [],
   followingChannels: [],
   stats: null,
@@ -25,13 +23,26 @@ const initialState = {
     total: 0,
     channelId: null
   },
-
 };
 
 const channelReducer = (state = initialState, action) => {
   switch (action.type) {
     case CHANNEL_TYPES.CHANNEL_LOADING:
       return { ...state, loading: action.payload };
+
+    // ✅ Manejar creación de canal
+    case CHANNEL_TYPES.CREATE_CHANNEL_REQUEST:
+      return { ...state, loading: true };
+    
+    case CHANNEL_TYPES.CREATE_CHANNEL_SUCCESS:
+      return { 
+        ...state, 
+        loading: false,
+        userChannels: [action.payload, ...state.userChannels]
+      };
+    
+    case CHANNEL_TYPES.CREATE_CHANNEL_FAIL:
+      return { ...state, loading: false };
 
     case CHANNEL_TYPES.GET_CHANNEL:
       return { ...state, channel: action.payload };
@@ -90,36 +101,46 @@ const channelReducer = (state = initialState, action) => {
       if (state.channel?._id === action.payload._id) {
         return { ...state, channel: { ...state.channel, ...action.payload } };
       }
+      // También actualizar en userChannels
+      if (state.userChannels.length > 0) {
+        return {
+          ...state,
+          userChannels: state.userChannels.map(ch => 
+            ch._id === action.payload._id ? { ...ch, ...action.payload } : ch
+          )
+        };
+      }
       return state;
-      case CHANNEL_TYPES.CHANNEL_FEED_LOADING:
-        return { ...state, channelFeed: { ...state.channelFeed, loading: action.payload } };
       
-      case CHANNEL_TYPES.GET_CHANNEL_FEED_VIDEOS:
-        return {
-          ...state,
-          channelFeed: {
-            videos: action.payload.page === 1 ? action.payload.videos : [...state.channelFeed.videos, ...action.payload.videos],
-            page: action.payload.page,
-            hasMore: action.payload.hasMore,
-            total: action.payload.total,
-            channelId: action.payload.channelId,
-            loading: false
-          }
-        };
+    case CHANNEL_TYPES.CHANNEL_FEED_LOADING:
+      return { ...state, channelFeed: { ...state.channelFeed, loading: action.payload } };
+    
+    case CHANNEL_TYPES.GET_CHANNEL_FEED_VIDEOS:
+      return {
+        ...state,
+        channelFeed: {
+          videos: action.payload.page === 1 ? action.payload.videos : [...state.channelFeed.videos, ...action.payload.videos],
+          page: action.payload.page,
+          hasMore: action.payload.hasMore,
+          total: action.payload.total,
+          channelId: action.payload.channelId,
+          loading: false
+        }
+      };
+    
+    case CHANNEL_TYPES.CLEAR_CHANNEL_FEED:
+      return {
+        ...state,
+        channelFeed: {
+          videos: [],
+          loading: false,
+          page: 1,
+          hasMore: true,
+          total: 0,
+          channelId: null
+        }
+      };
       
-      case CHANNEL_TYPES.CLEAR_CHANNEL_FEED:
-        return {
-          ...state,
-          channelFeed: {
-            videos: [],
-            loading: false,
-            page: 1,
-            hasMore: true,
-            total: 0,
-            channelId: null
-          }
-        };
-    // ✅ Opcional: si quieres usar clearChannelVideos en el futuro
     case CHANNEL_TYPES.CLEAR_CHANNEL_VIDEOS:
       return {
         ...state,

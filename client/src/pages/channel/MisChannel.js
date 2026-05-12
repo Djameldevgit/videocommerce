@@ -1,5 +1,5 @@
 // src/pages/channel/MisChannel.jsx
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Link, useHistory } from 'react-router-dom';
 import { 
@@ -30,14 +30,27 @@ const MisChannel = () => {
   const history = useHistory();
   const { token, user } = useSelector(state => state.auth);
   const { userChannels, loading } = useSelector(state => state.channel);
+  
+  // ✅ Usar ref para evitar llamadas duplicadas
+  const hasLoadedRef = useRef(false);
 
   useEffect(() => {
-    if (user) {
+    // ✅ Solo cargar si hay token, usuario, y no se ha cargado antes
+    if (token && user && !hasLoadedRef.current && !loading) {
+      hasLoadedRef.current = true;
+      console.log('📱 Cargando canales del usuario...');
       dispatch(getUserChannels(token));
     }
-  }, [dispatch, token, user]);
+  }, [token, user, loading, dispatch]);
 
-  if (loading) {
+  // ✅ Limpiar el ref al desmontar (opcional)
+  useEffect(() => {
+    return () => {
+      hasLoadedRef.current = false;
+    };
+  }, []);
+
+  if (loading && userChannels.length === 0) {
     return (
       <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '60vh' }}>
         <Spinner animation="border" variant="primary" />

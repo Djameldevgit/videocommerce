@@ -1,61 +1,210 @@
-// redux/actions/channelAction.js
 import { getDataAPI, patchDataAPI, postDataAPI } from '../../utils/fetchData';
-import { CHANNEL_TYPES } from '../constants/channelConstants';
+ 
 import { GLOBALTYPES } from './globalTypes';
-import { createNotify } from './notifyAction'; // si usas notificaciones
-// ==================== CREAR UN NUEVO CANAL ====================
-export const createChannel = (channelData, token) => async (dispatch) => {
+import { createNotify } from './notifyAction';
+ 
+export const CHANNEL_TYPES = {
+  // Loading
+  CHANNEL_LOADING: 'CHANNEL_LOADING',
+  
+  // Crear canal (✅ NUEVAS)
+  CREATE_CHANNEL_REQUEST: 'CREATE_CHANNEL_REQUEST',
+  CREATE_CHANNEL_SUCCESS: 'CREATE_CHANNEL_SUCCESS',
+  CREATE_CHANNEL_FAIL: 'CREATE_CHANNEL_FAIL',
+  
+  // Obtener canal
+  GET_CHANNEL: 'GET_CHANNEL',
+  CLEAR_CHANNEL: 'CLEAR_CHANNEL',
+  
+  // Canales del usuario
+  GET_USER_CHANNELS: 'GET_USER_CHANNELS',
+  
+  // Videos del canal
+  GET_CHANNEL_VIDEOS: 'GET_CHANNEL_VIDEOS',
+  CLEAR_CHANNEL_VIDEOS: 'CLEAR_CHANNEL_VIDEOS',
+  
+  // Follow/Unfollow
+  FOLLOW_CHANNEL: 'FOLLOW_CHANNEL',
+  UNFOLLOW_CHANNEL: 'UNFOLLOW_CHANNEL',
+  
+  // Seguidores
+  GET_CHANNEL_FOLLOWERS: 'GET_CHANNEL_FOLLOWERS',
+  GET_USER_FOLLOWING_CHANNELS: 'GET_USER_FOLLOWING_CHANNELS',
+  
+  // Estadísticas y vistas
+  REGISTER_CHANNEL_VIEW: 'REGISTER_CHANNEL_VIEW',
+  CHANNEL_STATS: 'CHANNEL_STATS',
+  
+  // Actualizar canal
+  UPDATE_CHANNEL: 'UPDATE_CHANNEL',
+  
+  // Feed del canal
+  CHANNEL_FEED_LOADING: 'CHANNEL_FEED_LOADING',
+  GET_CHANNEL_FEED_VIDEOS: 'GET_CHANNEL_FEED_VIDEOS',
+  CLEAR_CHANNEL_FEED: 'CLEAR_CHANNEL_FEED'
+};
+// ==================== CREAR UN NUEVO CANAL (CON NOTIFICACIÓN) ====================
+// En channelAction.js, asegúrate de que el dispatch use las constantes:
+
+ 
+export const createChannel = (formData, token, auth, socket) => async (dispatch) => {
+  try {
+    dispatch({ type: CHANNEL_TYPES.CREATE_CHANNEL_REQUEST });
+    
+    const res = await postDataAPI('channels', formData, token);
+    
+    dispatch({ 
+      type: CHANNEL_TYPES.CREATE_CHANNEL_SUCCESS, 
+      payload: res.data.channel 
+    });
+    
+    // ✅ Notificar a los administradores sobre el nuevo canal
+    if (res.data.channel && auth?.user) {
+      const msg = {
+        id: res.data.channel._id,
+        text: `📺 ${auth.user.username} a créé un nouveau canal : "${res.data.channel.name}"`,
+        recipients: [], // Los administradores reciben esto (backend)
+        url: `/channel/${res.data.channel._id}`,
+        content: res.data.channel.name,
+        image: res.data.channel.avatar || null,
+        type: 'channel_created'
+      };
+      
+      // ✅ Enviar notificación por socket (si está disponible)
+      if (socket) {
+        socket.emit('createNotify', msg);
+      }
+      
+      // ✅ Guardar notificación en la base de datos
+      await dispatch(createNotify({ msg, auth, socket }));
+    }
+    
+    // ✅ Mostrar mensaje de éxito
+    dispatch({
+      type: GLOBALTYPES.ALERT,
+      payload: { success: `Canal "${res.data.channel.name}" créé avec succès!` }
+    });
+    
+    return { success: true, message: res.data.message, channel: res.data.channel };
+    
+  } catch (err) {
+    const errorMsg = err.response?.data?.message || 'Erreur lors de la création';
+    
+    dispatch({ 
+      type: CHANNEL_TYPES.CREATE_CHANNEL_FAIL, 
+      payload: errorMsg
+    });
+    
+    dispatch({
+      type: GLOBALTYPES.ALERT,
+      payload: { error: errorMsg }
+    });
+    
+    return { success: false, message: errorMsg };
+  }
+};
+// ==================== ACTUALIZAR PERFIL DEL CANAL (CON NOTIFICACIÓN) ====================
+export const updateChannelProfile = (channelId, updateData, token, auth, socket) => async (dispatch) => {
   try {
     dispatch({ type: GLOBALTYPES.ALERT, payload: { loading: true } });
     
-    // Verificar datos requeridos
-    if (!channelData.name || !channelData.name.trim()) {
-      throw new Error('El nombre del canal es obligatorio');
-    }
-    if (!channelData.activity || !channelData.activity.trim()) {
-      throw new Error('La actividad es obligatoria');
-    }
-
-    // Enviar petición al backend (asumiendo endpoint POST /api/channels)
-    const res = await postDataAPI('channels', channelData, token);
+    const res = await patchDataAPI(`channels/${channelId}`, updateData, token);
     
     if (res.data.success) {
-      // Actualizar el reducer con el nuevo canal (añadir a userChannels)
       dispatch({
-        type: CHANNEL_TYPES.CREATE_CHANNEL,
+        type: CHANNEL_TYPES.UPDATE_CHANNEL,
         payload: res.data.channel
       });
       
-      // Mostrar mensaje de éxito
+      // ✅ Notificar a los seguidores del canal que ha sido actualizado
+      if (res.data.channel && auth.user) {
+        const msg = {
+          id: res.data.channel._id,
+          text: `✏️ ${auth.user.username} a mis à jour son canal : "${res.data.channel.name}"`,
+          recipients: [], // Los seguidores recibirán esto (backend)
+          url: `/channel/${res.data.channel._id}`,
+          content: res.data.channel.name,
+          image: res.data.channel.avatar || null,
+          type: 'channel_updated'
+        };
+        
+        if (socket) {
+          socket.emit('updateChannel', msg);
+        }
+        
+        await dispatch(createNotify({ msg, auth, socket }));
+      }
+      
       dispatch({
         type: GLOBALTYPES.ALERT,
-        payload: { success: res.data.message || 'Canal creado exitosamente' }
+        payload: { success: 'Perfil del canal actualizado' }
       });
-      
-      return { success: true, channel: res.data.channel };
-    } else {
-      throw new Error(res.data.message || 'Error al crear canal');
     }
+    
+    return res.data;
   } catch (err) {
-    console.error('❌ createChannel error:', err);
+    console.error('❌ updateChannelProfile error:', err);
     dispatch({
       type: GLOBALTYPES.ALERT,
-      payload: { error: err.response?.data?.message || err.message || 'Error al crear canal' }
+      payload: { error: err.response?.data?.message || 'Error al actualizar' }
     });
-    return { success: false, error: err.message };
+    return null;
   } finally {
     dispatch({ type: GLOBALTYPES.ALERT, payload: { loading: false } });
   }
 };
 
+// ==================== SEGUIR / DEJAR DE SEGUIR UN CANAL (CON NOTIFICACIÓN) ====================
+export const toggleFollowChannel = (channelId, token, auth, socket, channelData) => async (dispatch) => {
+  try {
+    const res = await patchDataAPI(`channels/${channelId}/follow`, {}, token);
+    
+    if (res.data.success) {
+      dispatch({
+        type: res.data.isFollowing ? CHANNEL_TYPES.FOLLOW_CHANNEL : CHANNEL_TYPES.UNFOLLOW_CHANNEL,
+        payload: { channelId, followersCount: res.data.followersCount }
+      });
+      
+      // ✅ Notificar al dueño del canal que alguien lo sigue
+      if (res.data.isFollowing && channelData && channelData.owner?._id && channelData.owner._id !== auth.user._id) {
+        const msg = {
+          id: auth.user._id,
+          text: `👥 @${auth.user.username} a commencé à suivre votre canal : "${channelData.name}"`,
+          recipients: [channelData.owner._id],
+          url: `/channel/${channelId}`,
+          content: channelData.name,
+          image: channelData.avatar || null,
+          type: 'channel_follow'
+        };
+        
+        if (socket) {
+          socket.emit('followChannel', msg);
+        }
+        
+        await dispatch(createNotify({ msg, auth, socket }));
+      }
+      
+      dispatch({
+        type: GLOBALTYPES.ALERT,
+        payload: { success: res.data.isFollowing ? 'Canal seguido' : 'Dejaste de seguir el canal' }
+      });
+    }
+    
+    return res.data;
+  } catch (err) {
+    console.error('❌ toggleFollowChannel error:', err);
+    dispatch({
+      type: GLOBALTYPES.ALERT,
+      payload: { error: err.response?.data?.message || 'Error al seguir/dejar de seguir' }
+    });
+    return null;
+  }
+};
 
 // ==================== OBTENER PERFIL DE UN CANAL (público) ====================
 export const getChannelProfile = (channelId, token = null) => async (dispatch) => {
   try {
     dispatch({ type: CHANNEL_TYPES.CHANNEL_LOADING, payload: true });
-
-    // Si hay token, la petición puede devolver datos extras (dueño)
-    const config = token ? { headers: { Authorization: token } } : {};
     const res = await getDataAPI(`channels/${channelId}`, token);
     
     dispatch({
@@ -75,11 +224,12 @@ export const getChannelProfile = (channelId, token = null) => async (dispatch) =
     dispatch({ type: CHANNEL_TYPES.CHANNEL_LOADING, payload: false });
   }
 };
+
 // ==================== OBTENER CANALES DEL USUARIO AUTENTICADO ====================
 export const getUserChannels = (token) => async (dispatch) => {
   try {
     dispatch({ type: CHANNEL_TYPES.CHANNEL_LOADING, payload: true });
-    const res = await getDataAPI('users/my-channels', token); // Endpoint que debes crear en backend
+    const res = await getDataAPI('users/my-channels', token);
     dispatch({
       type: CHANNEL_TYPES.GET_USER_CHANNELS,
       payload: res.data.channels || []
@@ -96,38 +246,33 @@ export const getUserChannels = (token) => async (dispatch) => {
     dispatch({ type: CHANNEL_TYPES.CHANNEL_LOADING, payload: false });
   }
 };
-// ==================== SEGUIR / DEJAR DE SEGUIR UN CANAL ====================
-export const toggleFollowChannel = (channelId, token) => async (dispatch, getState) => {
+
+// ==================== OBTENER VIDEOS DE UN CANAL ====================
+export const getChannelVideos = (channelId, page = 1, limit = 12, token = null) => async (dispatch) => {
   try {
-    const res = await patchDataAPI(`channels/${channelId}/follow`, {}, token);
+    dispatch({ type: CHANNEL_TYPES.CHANNEL_LOADING, payload: true });
     
-    if (res.data.success) {
-      dispatch({
-        type: res.data.isFollowing ? CHANNEL_TYPES.FOLLOW_CHANNEL : CHANNEL_TYPES.UNFOLLOW_CHANNEL,
-        payload: { channelId, followersCount: res.data.followersCount }
-      });
-      
-      // Opcional: actualizar el estado de seguimiento en el perfil del usuario
-      // (ya que el usuario tiene followingChannels)
-      dispatch({
-        type: 'USER_UPDATE_FOLLOWING_CHANNELS', // si tienes una acción en userAction
-        payload: { channelId, isFollowing: res.data.isFollowing }
-      });
-      
-      dispatch({
-        type: GLOBALTYPES.ALERT,
-        payload: { success: res.data.isFollowing ? 'Canal seguido' : 'Dejaste de seguir el canal' }
-      });
-    }
+    const params = new URLSearchParams({ page, limit });
+    const url = `channels/${channelId}/videos?${params.toString()}`;
+    const res = token ? await getDataAPI(url, token) : await getDataAPI(url);
+    
+    dispatch({
+      type: CHANNEL_TYPES.GET_CHANNEL_VIDEOS,
+      payload: {
+        videos: res.data.videos,
+        total: res.data.total,
+        page: res.data.page,
+        totalPages: res.data.totalPages,
+        hasMore: res.data.hasMore
+      }
+    });
     
     return res.data;
   } catch (err) {
-    console.error('❌ toggleFollowChannel error:', err);
-    dispatch({
-      type: GLOBALTYPES.ALERT,
-      payload: { error: err.response?.data?.message || 'Error al seguir/dejar de seguir' }
-    });
+    console.error('❌ getChannelVideos error:', err);
     return null;
+  } finally {
+    dispatch({ type: CHANNEL_TYPES.CHANNEL_LOADING, payload: false });
   }
 };
 
@@ -160,17 +305,7 @@ export const getUserFollowingChannels = (userId, token) => async (dispatch) => {
     return null;
   }
 };
-export const toggleLikeVideo = (videoId, token) => async (dispatch) => {
-  try {
-    const res = await patchDataAPI(`video/${videoId}/like`, {}, token);
-    if (res.data.success) {
-      dispatch({ type: USER_VIDEO_TYPES.TOGGLE_LIKE_VIDEO, payload: { videoId, liked: res.data.liked } });
-    }
-    return res.data;
-  } catch (err) {
-    console.error(err);
-  }
-};
+
 // ==================== REGISTRAR VISTA AL PERFIL DEL CANAL ====================
 export const registerChannelView = (channelId, token) => async (dispatch) => {
   try {
@@ -202,7 +337,8 @@ export const getChannelStats = (channelId, token) => async (dispatch) => {
     return null;
   }
 };
-// Obtener videos del canal para feed (con paginación acumulativa)
+
+// ==================== OBTENER VIDEOS DEL CANAL PARA FEED ====================
 export const getChannelFeedVideos = (channelId, page = 1, limit = 10, token = null) => async (dispatch) => {
   try {
     dispatch({ type: CHANNEL_TYPES.CHANNEL_FEED_LOADING, payload: true });
@@ -226,67 +362,7 @@ export const getChannelFeedVideos = (channelId, page = 1, limit = 10, token = nu
   }
 };
 
-// Limpiar el feed al salir
+// ==================== LIMPIAR FEED ====================
 export const clearChannelFeed = () => ({
   type: CHANNEL_TYPES.CLEAR_CHANNEL_FEED
 });
-// ==================== OBTENER VIDEOS DE UN CANAL ====================
-export const getChannelVideos = (channelId, page = 1, limit = 12, token = null) => async (dispatch) => {
-  try {
-    dispatch({ type: CHANNEL_TYPES.CHANNEL_LOADING, payload: true });
-    
-    const params = new URLSearchParams({ page, limit });
-    const url = `channels/${channelId}/videos?${params.toString()}`;
-    const res = token ? await getDataAPI(url, token) : await getDataAPI(url);
-    
-    dispatch({
-      type: CHANNEL_TYPES.GET_CHANNEL_VIDEOS,
-      payload: {
-        videos: res.data.videos,
-        total: res.data.total,
-        page: res.data.page,
-        totalPages: res.data.totalPages,
-        hasMore: res.data.hasMore
-      }
-    });
-    
-    return res.data;
-  } catch (err) {
-    console.error('❌ getChannelVideos error:', err);
-    return null;
-  } finally {
-    dispatch({ type: CHANNEL_TYPES.CHANNEL_LOADING, payload: false });
-  }
-};
-
-// ==================== ACTUALIZAR PERFIL DEL CANAL ====================
-export const updateChannelProfile = (channelId, updateData, token) => async (dispatch) => {
-  try {
-    dispatch({ type: GLOBALTYPES.ALERT, payload: { loading: true } });
-    
-    const res = await patchDataAPI(`channels/${channelId}`, updateData, token);
-    
-    if (res.data.success) {
-      dispatch({
-        type: CHANNEL_TYPES.UPDATE_CHANNEL,
-        payload: res.data.channel
-      });
-      
-      dispatch({
-        type: GLOBALTYPES.ALERT,
-        payload: { success: 'Perfil del canal actualizado' }
-      });
-    }
-    
-    return res.data;
-  } catch (err) {
-    console.error('❌ updateChannelProfile error:', err);
-    dispatch({
-      type: GLOBALTYPES.ALERT,
-      payload: { error: err.response?.data?.message || 'Error al actualizar' }
-    });
-    return null;
-  } finally {
-    dispatch({ type: GLOBALTYPES.ALERT, payload: { loading: false } });
-  }
-};

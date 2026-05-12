@@ -3,24 +3,25 @@ import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useHistory } from 'react-router-dom';
 import { Container, Row, Col, Card, Form, Button, Alert, Spinner } from 'react-bootstrap';
-import { Tv, ArrowLeft, Building, InfoCircle } from 'react-bootstrap-icons';
+import { Tv, ArrowLeft, Building, InfoCircle, CheckCircle } from 'react-bootstrap-icons';
 import { createChannel } from '../../redux/actions/channelAction';
 import { getMainCategories } from '../../redux/actions/categoryAction';
-//import { getMainCategories } from '../../redux/actions/categoryActions';
- 
+import WilayaCommuneField from './WilayaCommuneField';
+
 const CreateChannel = () => {
   const dispatch = useDispatch();
   const history = useHistory();
-  const { token } = useSelector(state => state.auth);
+  const { token ,auth,socket} = useSelector(state => state.auth);
   const { categories, loading: loadingCategories, error: categoriesError } = useSelector(state => state.category);
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(false);
   const [validated, setValidated] = useState(false);
   
   const [formData, setFormData] = useState({
     name: '',
-    activity: '',        // Guardará el ID de la categoría seleccionada
+    activity: '',
     description: '',
     wilaya: '',
     commune: '',
@@ -36,42 +37,106 @@ const CreateChannel = () => {
     }
   }, [dispatch, categories]);
 
-  const wilayas = [
-    'Adrar', 'Chlef', 'Laghouat', 'Oum El Bouaghi', 'Batna', 'Béjaïa', 'Biskra', 'Béchar',
-    'Blida', 'Bouira', 'Tamanrasset', 'Tébessa', 'Tlemcen', 'Tiaret', 'Tizi Ouzou', 'Alger',
-    'Djelfa', 'Jijel', 'Sétif', 'Saïda', 'Skikda', 'Sidi Bel Abbès', 'Annaba', 'Guelma',
-    'Constantine', 'Médéa', 'Mostaganem', 'M\'Sila', 'Mascara', 'Ouargla', 'Oran', 'El Bayadh',
-    'Illizi', 'Bordj Bou Arréridj', 'Boumerdès', 'El Tarf', 'Tindouf', 'Tissemsilt', 'El Oued',
-    'Khenchela', 'Souk Ahras', 'Tipaza', 'Mila', 'Aïn Defla', 'Naâma', 'Aïn Témouchent',
-    'Ghardaïa', 'Relizane'
-  ];
-
+  // Limpiar mensajes cuando el usuario empieza a escribir
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+    if (error) setError(null);
+    if (success) setSuccess(false);
+  };
+
+  const handleWilayaChange = (wilaya) => {
+    setFormData(prev => ({ ...prev, wilaya }));
+    if (error) setError(null);
+  };
+
+  const handleCommuneChange = (commune) => {
+    setFormData(prev => ({ ...prev, commune }));
     if (error) setError(null);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const form = e.currentTarget;
+    
+    // Validación del formulario HTML5
     if (form.checkValidity() === false) {
       e.stopPropagation();
       setValidated(true);
       return;
     }
-
+  
+    // Validación adicional del nombre
+    if (!formData.name.trim()) {
+      setError("Le nom de la chaîne est obligatoire");
+      setValidated(true);
+      return;
+    }
+  
+    // Validación de categoría
+    if (!formData.activity) {
+      setError("Veuillez sélectionner une activité/secteur");
+      setValidated(true);
+      return;
+    }
+  
     setLoading(true);
     setError(null);
+    setSuccess(false);
+    
     try {
-      const res = await dispatch(createChannel(formData, token));
+      // ✅ Pasar auth y socket como parámetros
+      const res = await dispatch(createChannel(formData, token, auth, socket));
+      
       if (res?.success) {
-        history.push('/my-channels');
+        setSuccess(true);
+        // Limpiar formulario después de éxito
+        setFormData({
+          name: '',
+          activity: '',
+          description: '',
+          wilaya: '',
+          commune: '',
+          phone: '',
+          email: '',
+          website: ''
+        });
+        setValidated(false);
+        
+        // Redirigir después de 2 segundos para que el usuario vea el mensaje de éxito
+        setTimeout(() => {
+          history.push('/my-channels');
+        }, 2000);
       } else {
-        setError(res?.message || "Erreur lors de la création de la chaîne");
+        // Manejar diferentes tipos de errores
+        const errorMsg = res?.message || "Erreur lors de la création de la chaîne";
+        
+        // Verificar si es error de nombre duplicado
+        if (errorMsg.includes('déjà') || errorMsg.includes('existe') || errorMsg.includes('Ya tienes')) {
+          setError(`❌ Un canal avec le nom "${formData.name}" existe déjà. Veuillez choisir un autre nom.`);
+        } else {
+          setError(errorMsg);
+        }
       }
     } catch (err) {
-      setError(err.message || "Une erreur est survenue");
+      console.error('❌ Error en createChannel:', err);
+      
+      // Manejar errores de red o servidor
+      if (err.message?.includes('Network')) {
+        setError("❌ Problème de connexion réseau. Vérifiez votre connexion internet.");
+      } else if (err.response?.status === 400) {
+        const serverMsg = err.response?.data?.message;
+        if (serverMsg?.includes('nom') || serverMsg?.includes('name')) {
+          setError(`❌ Le nom "${formData.name}" est déjà utilisé. Choisissez un autre nom.`);
+        } else {
+          setError(serverMsg || "❌ Données invalides. Vérifiez les champs.");
+        }
+      } else if (err.response?.status === 401) {
+        setError("❌ Session expirée. Veuillez vous reconnecter.");
+        setTimeout(() => history.push('/login'), 2000);
+      } else {
+        setError(err.message || "Une erreur est survenue. Veuillez réessayer.");
+      }
     } finally {
       setLoading(false);
     }
@@ -99,9 +164,39 @@ const CreateChannel = () => {
                 <p className="text-muted mt-2">Créez votre vitrine professionnelle pour partager vos vidéos commerciales</p>
               </Card.Header>
               <Card.Body className="p-4">
+                {/* Mensaje de error */}
                 {error && (
-                  <Alert variant="danger" className="mb-4">
-                    {error}
+                  <Alert 
+                    variant="danger" 
+                    className="mb-4"
+                    onClose={() => setError(null)}
+                    dismissible
+                  >
+                    <div className="d-flex align-items-center gap-2">
+                      <span>⚠️</span>
+                      <div>
+                        <strong>Erreur :</strong> {error}
+                      </div>
+                    </div>
+                  </Alert>
+                )}
+                
+                {/* Mensaje de éxito */}
+                {success && (
+                  <Alert 
+                    variant="success" 
+                    className="mb-4"
+                    onClose={() => setSuccess(false)}
+                    dismissible
+                  >
+                    <div className="d-flex align-items-center gap-2">
+                      <CheckCircle size={20} />
+                      <div>
+                        <strong>✅ Chaîne créée avec succès !</strong>
+                        <br />
+                        <small>Redirection vers vos chaînes...</small>
+                      </div>
+                    </div>
                   </Alert>
                 )}
                 
@@ -110,7 +205,9 @@ const CreateChannel = () => {
                     {/* Nom de la chaîne */}
                     <Col md={6}>
                       <Form.Group>
-                        <Form.Label>Nom de la chaîne <span className="text-danger">*</span></Form.Label>
+                        <Form.Label>
+                          Nom de la chaîne <span className="text-danger">*</span>
+                        </Form.Label>
                         <Form.Control
                           type="text"
                           name="name"
@@ -118,23 +215,31 @@ const CreateChannel = () => {
                           onChange={handleChange}
                           required
                           placeholder="ex: Électroménager Ben Omar"
+                          isInvalid={validated && !formData.name.trim()}
+                          disabled={loading}
                         />
                         <Form.Control.Feedback type="invalid">
                           Veuillez saisir le nom de votre chaîne.
                         </Form.Control.Feedback>
+                        <Form.Text className="text-muted">
+                          Choisissez un nom unique pour votre chaîne.
+                        </Form.Text>
                       </Form.Group>
                     </Col>
 
-                    {/* Actividad / Secteur - SELECT OBLIGATORIO con categorías reales */}
+                    {/* Actividad / Secteur */}
                     <Col md={6}>
                       <Form.Group>
-                        <Form.Label>Activité / Secteur <span className="text-danger">*</span></Form.Label>
+                        <Form.Label>
+                          Activité / Secteur <span className="text-danger">*</span>
+                        </Form.Label>
                         <Form.Select
                           name="activity"
                           value={formData.activity}
                           onChange={handleChange}
                           required
-                          disabled={loadingCategories}
+                          disabled={loadingCategories || loading}
+                          isInvalid={validated && !formData.activity}
                         >
                           <option value="">Sélectionnez un secteur</option>
                           {loadingCategories && (
@@ -143,7 +248,7 @@ const CreateChannel = () => {
                           {!loadingCategories && categories && categories.length > 0 ? (
                             categories.map(cat => (
                               <option key={cat._id} value={cat._id}>
-                                {cat.name}
+                                {cat.icon} {cat.name}
                               </option>
                             ))
                           ) : (
@@ -153,11 +258,11 @@ const CreateChannel = () => {
                           )}
                         </Form.Select>
                         <Form.Control.Feedback type="invalid">
-          Veuillez sélectionner un secteur d'activité.
+                          Veuillez sélectionner un secteur d'activité.
                         </Form.Control.Feedback>
                         {categoriesError && (
                           <Form.Text className="text-danger">
-                            Erreur de chargement des catégories. Actualisez la page.
+                            ⚠️ Erreur de chargement des catégories. Actualisez la page.
                           </Form.Text>
                         )}
                       </Form.Group>
@@ -174,6 +279,7 @@ const CreateChannel = () => {
                           value={formData.description}
                           onChange={handleChange}
                           placeholder="Décrivez votre activité, vos produits, services, etc."
+                          disabled={loading}
                         />
                         <Form.Text className="text-muted">
                           Une description claire aide vos clients à vous comprendre.
@@ -181,36 +287,15 @@ const CreateChannel = () => {
                       </Form.Group>
                     </Col>
 
-                    {/* Wilaya */}
-                    <Col md={6}>
-                      <Form.Group>
-                        <Form.Label>Wilaya</Form.Label>
-                        <Form.Select
-                          name="wilaya"
-                          value={formData.wilaya}
-                          onChange={handleChange}
-                        >
-                          <option value="">Sélectionnez une wilaya</option>
-                          {wilayas.map(w => <option key={w} value={w}>{w}</option>)}
-                        </Form.Select>
-                      </Form.Group>
+                    {/* Wilaya y Commune */}
+                    <Col xs={12}>
+                      <WilayaCommuneField
+                        postData={formData}
+                        handleChangeInput={handleChange}
+                      />
                     </Col>
 
-                    {/* Commune */}
-                    <Col md={6}>
-                      <Form.Group>
-                        <Form.Label>Commune</Form.Label>
-                        <Form.Control
-                          type="text"
-                          name="commune"
-                          value={formData.commune}
-                          onChange={handleChange}
-                          placeholder="Ex: Alger Centre"
-                        />
-                      </Form.Group>
-                    </Col>
-
-                    {/* Téléphone */}
+                    {/* Teléfono */}
                     <Col md={6}>
                       <Form.Group>
                         <Form.Label>Téléphone</Form.Label>
@@ -220,7 +305,11 @@ const CreateChannel = () => {
                           value={formData.phone}
                           onChange={handleChange}
                           placeholder="+213 5XX XX XX XX"
+                          disabled={loading}
                         />
+                        <Form.Text className="text-muted">
+                          Format: +213 5XX XX XX XX
+                        </Form.Text>
                       </Form.Group>
                     </Col>
 
@@ -234,6 +323,7 @@ const CreateChannel = () => {
                           value={formData.email}
                           onChange={handleChange}
                           placeholder="contact@exemple.com"
+                          disabled={loading}
                         />
                       </Form.Group>
                     </Col>
@@ -248,6 +338,7 @@ const CreateChannel = () => {
                           value={formData.website}
                           onChange={handleChange}
                           placeholder="https://www.monsite.com"
+                          disabled={loading}
                         />
                       </Form.Group>
                     </Col>
@@ -257,6 +348,7 @@ const CreateChannel = () => {
                     <Button 
                       variant="secondary" 
                       onClick={() => history.push('/my-channels')}
+                      disabled={loading}
                     >
                       Annuler
                     </Button>
@@ -266,8 +358,17 @@ const CreateChannel = () => {
                       disabled={loading || loadingCategories}
                       className="d-flex align-items-center gap-2"
                     >
-                      {loading ? <Spinner as="span" animation="border" size="sm" /> : <Building size={16} />}
-                      {loading ? 'Création en cours...' : 'Créer la chaîne'}
+                      {loading ? (
+                        <>
+                          <Spinner as="span" animation="border" size="sm" />
+                          Création en cours...
+                        </>
+                      ) : (
+                        <>
+                          <Building size={16} />
+                          Créer la chaîne
+                        </>
+                      )}
                     </Button>
                   </div>
                 </Form>

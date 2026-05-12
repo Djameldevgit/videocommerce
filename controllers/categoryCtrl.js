@@ -228,8 +228,7 @@ const getCategoryById = asyncHandler(async (req, res) => {
 
   res.json(response);
 });
-
-// ==================== 4. OBTENER VIDEOS POR CATEGORÍA (con filtros) ====================
+ 
 const getVideosByCategory = asyncHandler(async (req, res) => {
   try {
     const { slug } = req.params;
@@ -539,5 +538,5 @@ module.exports = {
   searchCategories,
   getCategoryFilters,
   updateVideoCounts,
-  getCategoriesWithVideos, // ✅ AHORA SÍ está exportada correctamente
+  getCategoriesWithVideos // ✅ AHORA SÍ está exportada correctamente
 };

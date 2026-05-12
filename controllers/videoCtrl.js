@@ -66,7 +66,7 @@ const createVideo = async (req, res) => {
     const isProValid = user.isPro && (!user.proExpiryDate || new Date(user.proExpiryDate) > new Date());
 
     // Validar duración
-    const MAX_DURATION_FREE = 30;
+    const MAX_DURATION_FREE = 60;
     const MAX_DURATION_PRO = 60;
     const maxAllowed = (isProValid || isAdmin) ? MAX_DURATION_PRO : MAX_DURATION_FREE;
     if (duration && duration > maxAllowed) {

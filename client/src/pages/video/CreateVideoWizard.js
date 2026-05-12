@@ -1,4 +1,4 @@
-// CreateVideoWizard.jsx - ACTUALIZADO (solo comerciales nuevos)
+// CreateVideoWizard.jsx - CORREGIDO (sin bucle)
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useHistory } from 'react-router-dom';
@@ -32,6 +32,10 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
   const [showCommercial, setShowCommercial] = useState(false);
   const [selectedChannelId, setSelectedChannelId] = useState('');
 
+  // ✅ Refs para evitar bucles
+  const hasLoadedChannelsRef = useRef(false);
+  const hasLoadedCategoriesRef = useRef(false);
+
   // Estado principal (solo datos del video)
   const [wizardData, setWizardData] = useState({
     videoSource: null,
@@ -47,8 +51,7 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
     titre: '',
     description: '',
     category: '',
-    // NUEVOS CAMPOS COMERCIALES
-    saleType: '',      // 'retail', 'wholesale', 'both'
+    saleType: '',
     address: '',
     mapUrl: ''
   });
@@ -57,18 +60,20 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
   const cameraInputRef = useRef(null);
 
   const isProActive = user?.isPro && (!user?.proExpiryDate || new Date(user.proExpiryDate) > new Date());
-  const maxDuration = isProActive ? 60 : 60;
+  const maxDuration = 60;
 
-  // === Cargar categorías
+  // === Cargar categorías (SOLO UNA VEZ)
   useEffect(() => {
-    if (sliderCategories.length === 0 && !sliderLoading) {
+    if (sliderCategories.length === 0 && !sliderLoading && !hasLoadedCategoriesRef.current) {
+      hasLoadedCategoriesRef.current = true;
       dispatch(getSliderCategories());
     }
   }, [dispatch, sliderCategories.length, sliderLoading]);
 
-  // === Cargar canales del usuario
+  // === Cargar canales del usuario (SOLO UNA VEZ)
   useEffect(() => {
-    if (auth.token && userChannels.length === 0 && !channelsLoading) {
+    if (auth.token && userChannels.length === 0 && !channelsLoading && !hasLoadedChannelsRef.current) {
+      hasLoadedChannelsRef.current = true;
       dispatch(getUserChannels(auth.token));
     }
   }, [auth.token, dispatch, userChannels.length, channelsLoading]);
@@ -80,12 +85,22 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
     }
   }, [userChannels, selectedChannelId]);
 
+  // Limpiar refs al desmontar
+  useEffect(() => {
+    return () => {
+      hasLoadedChannelsRef.current = false;
+      hasLoadedCategoriesRef.current = false;
+    };
+  }, []);
+
   // Limpiar preview al desmontar
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
       if (wizardData.videoPreview?.startsWith('blob:')) URL.revokeObjectURL(wizardData.videoPreview);
+      hasLoadedChannelsRef.current = false;
+      hasLoadedCategoriesRef.current = false;
     };
   }, [wizardData.videoPreview]);
 
@@ -108,10 +123,9 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
   // Obtener el canal seleccionado
   const selectedChannel = userChannels.find(ch => ch._id === selectedChannelId);
 
-  // Validar que el canal tenga datos comerciales completos (si vamos a publicar video comercial)
   const validateChannelForCommercial = () => {
-    const hasCommercialData = !!wizardData.saleType; // si tiene tipo de venta, es comercial
-    if (!hasCommercialData) return true; // Video no comercial, no necesita esos campos
+    const hasCommercialData = !!wizardData.saleType;
+    if (!hasCommercialData) return true;
 
     if (!selectedChannel?.wilaya || !selectedChannel?.commune) {
       setError(
@@ -224,13 +238,11 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
 
   const handleSubmit = async () => {
     if (submitting) return;
-
-    // Validar que el canal esté completo si es comercial
     if (!validateChannelForCommercial()) return;
 
     setSubmitting(true);
 
-    const isCommercial = !!wizardData.saleType; // Hay tipo de venta seleccionado
+    const isCommercial = !!wizardData.saleType;
 
     const payload = {
       channelId: selectedChannelId,
@@ -273,7 +285,7 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
     }
   };
 
-  // Render paso 1 (sin cambios)
+  // Render paso 1
   const renderStep1 = () => (
     <div className="step1-container" style={{ padding: '0 8px', minHeight: '60vh', display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '40px', marginBottom: '20px', padding: '10px 0' }}>
@@ -319,19 +331,16 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
     </div>
   );
 
-  // Render paso 3 (solo se actualiza la sección comercial interna)
+  // Render paso 3
   const renderStep3 = () => {
-    // Verificar si el canal seleccionado tiene datos incompletos (para mostrar advertencia)
-    const hasCommercialDataOpen = showCommercial;
     const channelMissingWilaya = selectedChannel && (!selectedChannel.wilaya || !selectedChannel.commune);
     const channelMissingContact = selectedChannel && (!selectedChannel.phone && !selectedChannel.email);
-    const showChannelWarning = hasCommercialDataOpen && (channelMissingWilaya || channelMissingContact);
+    const showChannelWarning = showCommercial && (channelMissingWilaya || channelMissingContact);
 
     return (
       <div className="step3-container" style={{ padding: '0' }}>
         <h5 className="mb-4" style={{ color: 'white', fontWeight: 'bold' }}>📝 Détails de la vidéo</h5>
 
-        {/* Selector de canal */}
         <div className="mb-3">
           <label className="form-label fw-bold" style={{ color: 'white' }}>Canal *</label>
           <select
@@ -348,7 +357,6 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
           <small className="text-muted">Sélectionnez le canal qui publie cette vidéo</small>
         </div>
 
-        {/* Catégorie */}
         <div className="mb-3">
           <label className="form-label fw-bold" style={{ color: 'white' }}>Catégorie *</label>
           <select
@@ -364,7 +372,6 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
           </select>
         </div>
 
-        {/* Titre */}
         <div className="mb-3">
           <label className="form-label fw-bold" style={{ color: 'white' }}>Titre *</label>
           <input
@@ -379,7 +386,6 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
           <small className="text-muted">{wizardData.titre.length}/100</small>
         </div>
 
-        {/* Description */}
         <div className="mb-3">
           <label className="form-label" style={{ color: 'white' }}>Description (optionnelle)</label>
           <textarea
@@ -392,7 +398,6 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
           />
         </div>
 
-        {/* Section commerciale colapsable - ACTUALIZADA */}
         <div className="mt-4">
           <Button
             variant="outline-light"
@@ -406,7 +411,6 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
 
           {showCommercial && (
             <div className="mt-3 p-3" style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '16px', animation: 'fadeIn 0.3s ease' }}>
-              {/* Advertencia si el canal no tiene datos completos */}
               {showChannelWarning && (
                 <Alert variant="warning" className="mb-3">
                   <div>⚠️ Ce canal ne possède pas toutes les informations nécessaires pour les vidéos commerciales :</div>
@@ -424,7 +428,6 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
                 </Alert>
               )}
 
-              {/* CAMPOS COMERCIALES NUEVOS */}
               <div className="mb-3">
                 <label className="form-label fw-bold" style={{ color: 'white' }}>Type de vente</label>
                 <select
@@ -450,12 +453,10 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
                   style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }}
                 />
               </div>
-             
             </div>
           )}
         </div>
 
-        {/* Aperçu vidéo */}
         {wizardData.videoPreview && (
           <div className="mt-4 p-3" style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '12px' }}>
             <label className="form-label" style={{ color: 'white', fontWeight: 500 }}>Aperçu vidéo</label>
@@ -469,8 +470,7 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
 
   const stepLabels = ['Vidéo', 'Musique', 'Infos'];
 
-  // Render condicional
-  if (channelsLoading) {
+  if (channelsLoading && userChannels.length === 0) {
     return (
       <div className="text-center py-5" style={{ background: '#1a1a2e', minHeight: '100vh', color: 'white' }}>
         <Spinner animation="border" variant="light" />
@@ -479,7 +479,7 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
     );
   }
 
-  if (userChannels.length === 0) {
+  if (userChannels.length === 0 && !channelsLoading) {
     return (
       <div className="text-center py-5" style={{ background: '#1a1a2e', minHeight: '100vh', color: 'white' }}>
         <h3>⚠️ Vous n'avez aucun canal</h3>
@@ -498,7 +498,7 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
           <div className="cw-header px-2 pt-2 pb-0">
             <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
               <h3 className="cw-header-title" style={{ color: 'white', fontWeight: 'bold' }}>🎬 Nouvelle vidéo</h3>
-              {!isProActive ? <Badge bg="warning" text="dark" className="p-2">⚡ {maxDuration}s max</Badge> : <Badge bg="primary" className="p-2">⭐ Pro: {maxDuration}s</Badge>}
+              <Badge bg="primary" className="p-2">⭐ {maxDuration}s max</Badge>
             </div>
             <StepIndicator currentStep={currentStep} totalSteps={3} labels={stepLabels} />
           </div>

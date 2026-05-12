@@ -9,7 +9,7 @@ import { Navbar, Container, NavDropdown } from 'react-bootstrap';
 import {
   FaPlusCircle, FaStore, FaTools, FaShieldAlt, FaUsers, FaUserCog,
   FaSignOutAlt, FaInfoCircle, FaSignInAlt, FaUserPlus, FaShareAlt,
-  FaBars, FaSearch, FaBell, FaUserCircle, FaDownload, FaVideo
+  FaBars, FaSearch, FaBell, FaUserCircle, FaDownload /*, FaVideo (eliminado) */
 } from 'react-icons/fa';
 import VerifyModal from '../authAndVerify/VerifyModal';
 import DesactivateModal from '../authAndVerify/DesactivateModal';
@@ -35,7 +35,7 @@ const Navbar2 = () => {
   const [showDrawer, setShowDrawer] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
-  // 🆕 Estados para scroll del navbar
+  // Estados para scroll del navbar
   const [isNavbarVisible, setIsNavbarVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
 
@@ -57,21 +57,17 @@ const Navbar2 = () => {
     return () => { window.removeEventListener('resize', onResize); clearTimeout(tid); };
   }, []);
 
-  // 🆕 Efecto de scroll para ocultar/mostrar navbar
+  // Efecto de scroll para ocultar/mostrar navbar
   useEffect(() => {
     const controlNavbar = () => {
       const currentScrollY = window.scrollY;
-      // Solo actuar si el scroll supera los 50px (evita fluctuaciones en el top)
       if (currentScrollY > lastScrollY && currentScrollY > 50) {
-        // Scroll hacia abajo: ocultar
         setIsNavbarVisible(false);
       } else if (currentScrollY < lastScrollY) {
-        // Scroll hacia arriba: mostrar
         setIsNavbarVisible(true);
       }
       setLastScrollY(currentScrollY);
     };
-
     window.addEventListener('scroll', controlNavbar, { passive: true });
     return () => window.removeEventListener('scroll', controlNavbar);
   }, [lastScrollY]);
@@ -196,6 +192,34 @@ const Navbar2 = () => {
 
   return (
     <>
+      <style>
+        {`
+          /* ✅ Ajustes para móviles: estirar elementos a todo el ancho */
+          @media (max-width: 700px) {
+            .nb2-actions {
+              flex: 1 !important;
+              justify-content: space-evenly !important;
+              gap: 4px !important;
+              width: 100% !important;
+            }
+            .nb2-btn {
+              flex: 1 !important;
+              min-width: 38px !important;
+              max-width: none !important;
+              background: rgba(255,255,255,0.08);
+              border-radius: 40px;
+            }
+            .nb2-container {
+              padding-left: 0px !important;
+              padding-right: 0px !important;
+            }
+            /* Ajustar logo para que no robe espacio */
+            .nb2-logo-link {
+              margin-right: 4px !important;
+            }
+          }
+        `}
+      </style>
       <Navbar
         className={`nb2-root${isDark ? ' dark' : ' light'} ${!isNavbarVisible ? 'nb2-hidden' : ''}`}
         fixed="top"
@@ -222,9 +246,9 @@ const Navbar2 = () => {
               <FaSearch size={isMobile ? 15 : 16} />
             </Link>
 
-            {/* Botón crear video */}
+            {/* Botón crear video: icono cambiado a FaPlusCircle */}
             <Link to="/create-video-page" className="nb2-btn" style={{ width: isMobile ? '38px' : '42px', height: isMobile ? '38px' : '42px' }} title={t('createVideo') || 'Crear video'}>
-              <FaVideo size={isMobile ? 17 : 19} style={{ color: '#FF0000' }} />
+              <FaPlusCircle size={isMobile ? 18 : 20} style={{ color: '#34C759' }} />
             </Link>
 
             {showInstallButton && !isPWAInstalled && (
@@ -269,7 +293,7 @@ const Navbar2 = () => {
                       </div>
                     </div>
                     <NavDropdown.Divider />
-                    <MenuItem icon={FaVideo} iconColor="#0A84FF" to="/create-video-page">Créer une vidéo</MenuItem>
+                    <MenuItem icon={FaPlusCircle} iconColor="#34C759" to="/create-video-page">Créer une vidéo</MenuItem>
                     {auth.user.role === 'admin' && (
                       <>
                         <MenuItem icon={FaShieldAlt} iconColor="#FF9F0A" to="/admin/posts">Approbation</MenuItem>

@@ -1,13 +1,12 @@
-// node seedCategories.js
+// node seedCategories.js - VERSIÓN QUE ELIMINA Y RECREA (para agregar "art")
 require('dotenv').config();
 const mongoose = require('mongoose');
 const Category = require('./models/categoryModel');
-//const Category = require('../models/categoryModel');
- 
+
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/VideoCommerce';
 const mongooseOptions = { useNewUrlParser: true, useUnifiedTopology: true };
 
-// ✅ CATEGORÍAS EN EL ORDEN CORRECTO (sin duplicados)
+// ✅ CATEGORÍAS EN EL ORDEN CORRECTO (con "Art" al final, order 19)
 const categoriesData = [
   { slug: 'agence', name: 'Agence', order: 1, icon: '🏢' },
   { slug: 'immobilier', name: 'Immobilier', order: 2, icon: '🏠' },
@@ -26,10 +25,11 @@ const categoriesData = [
   { slug: 'alimentaires', name: 'Alimentaires', order: 15, icon: '🍎' },
   { slug: 'voyages', name: 'Voyages', order: 16, icon: '✈️' },
   { slug: 'services', name: 'Services', order: 17, icon: '🛠️' },
-  { slug: 'publicite', name: 'Publicité', order: 18, icon: '📢' }
+  { slug: 'publicite', name: 'Publicité', order: 18, icon: '📢' },
+  { slug: 'art', name: 'Art', order: 19, icon: '🎨' }  // ← Al final
 ];
 
-// Colores para cada categoría
+// Colores para cada categoría (incluyendo 'art')
 const categoryColors = {
   'agence': '#4A90E2',
   'immobilier': '#50B5A9',
@@ -48,7 +48,8 @@ const categoryColors = {
   'alimentaires': '#27AE60',
   'voyages': '#2980B9',
   'services': '#16A085',
-  'publicite': '#FF9800'
+  'publicite': '#FF9800',
+  'art': '#E84393'   // Rosa/ Magenta para arte
 };
 
 const seedCategories = async () => {
@@ -57,17 +58,13 @@ const seedCategories = async () => {
     console.log('✅ Conectado a MongoDB');
     console.log('📂 Base de datos:', mongoose.connection.db.databaseName);
 
-    // Opcional: Eliminar solo si quieres resetear (descomentar si necesitas)
-    // const deleteResult = await Category.deleteMany({});
-    // console.log(`🗑️ Eliminadas ${deleteResult.deletedCount} categorías anteriores`);
+    // 🔥 ELIMINAR TODAS LAS CATEGORÍAS EXISTENTES (para que la nueva aparezca)
+    const deleteResult = await Category.deleteMany({});
+    console.log(`🗑️ Eliminadas ${deleteResult.deletedCount} categorías anteriores`);
 
     let created = 0;
-    let updated = 0;
-    let skipped = 0;
 
     for (const cat of categoriesData) {
-      const existing = await Category.findOne({ slug: cat.slug });
-      
       const categoryData = {
         name: cat.name,
         slug: cat.slug,
@@ -79,36 +76,13 @@ const seedCategories = async () => {
         bgColor: `${categoryColors[cat.slug] || '#666666'}15`,
         videoCount: 0
       };
-
-      if (!existing) {
-        const newCat = new Category(categoryData);
-        await newCat.save();
-        created++;
-        console.log(`✅ [${cat.order}] CREADA: ${cat.name} (${cat.slug})`);
-      } else {
-        if (existing.order !== cat.order || existing.name !== cat.name) {
-          await Category.findByIdAndUpdate(existing._id, {
-            $set: {
-              order: cat.order,
-              name: cat.name,
-              icon: cat.icon,
-              iconColor: categoryColors[cat.slug] || existing.iconColor
-            }
-          });
-          updated++;
-          console.log(`🔄 [${cat.order}] ACTUALIZADA: ${cat.name} (orden: ${existing.order} → ${cat.order})`);
-        } else {
-          skipped++;
-          console.log(`⏭️ [${cat.order}] EXISTE: ${cat.name}`);
-        }
-      }
+      const newCat = new Category(categoryData);
+      await newCat.save();
+      created++;
+      console.log(`✅ [${cat.order}] CREADA: ${cat.name} (${cat.slug})`);
     }
 
-    console.log('\n📊 Resumen final:');
-    console.log(`   ✅ Creadas: ${created}`);
-    console.log(`   🔄 Actualizadas: ${updated}`);
-    console.log(`   ⏭️ Existentes: ${skipped}`);
-    console.log(`   📦 Total: ${categoriesData.length}`);
+    console.log(`\n📊 Resumen final: ${created} categorías creadas.`);
 
     // Mostrar todas las categorías ordenadas
     const allCategories = await Category.find({ isActive: true })

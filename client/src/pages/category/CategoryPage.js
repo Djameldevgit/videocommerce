@@ -345,7 +345,7 @@ const CategoryPage = () => {
         <Button 
           variant="primary" 
           className="rounded-pill px-4 py-2"
-          onClick={() => history.push('/upload-video')}
+          onClick={() => history.push('/create-video-page')}
           style={{
             backgroundColor: '#fe2c55',
             border: 'none',

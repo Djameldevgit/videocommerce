@@ -7,7 +7,7 @@ const videoSchema = new mongoose.Schema({
     description: { type: String, trim: true, maxlength: 2000, default: '' },
     shortDescription: { type: String, trim: true, maxlength: 300, default: '' },
     
-    // ============ VIDEO Y MULTIMEDIA ============
+    // ============ VIDEO Y MULTIMEDIA ============**
     videoUrl: { type: String, required: true },
     videoPublicId: { type: String, default: '' },
     videoType: { type: String, enum: ['youtube', 'vimeo', 'local'], default: 'local' },

@@ -1,34 +1,27 @@
+// src/pages/Login.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useHistory } from 'react-router-dom';
 import { login } from '../redux/actions/authAction';
 import { useDispatch, useSelector } from 'react-redux';
-import { Container, Row, Col, Card, Form, Button } from 'react-bootstrap';
+import { Container, Row, Col, Card, Form, Button, Alert, Spinner } from 'react-bootstrap';
+import { Envelope, Lock, Eye, EyeSlash, ArrowRight } from 'react-bootstrap-icons';
 import Loginfacegoogle from '../auth/Loginfacegoogle';
-import './Login.css'; // Importamos los estilos externos
-
+ 
 const Login = () => {
     const initialState = { email: '', password: '' };
     const [userData, setUserData] = useState(initialState);
     const { email, password } = userData;
     const [typePass, setTypePass] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
     const { auth } = useSelector(state => state);
     const dispatch = useDispatch();
     const history = useHistory();
 
-    const [isRTL, setIsRTL] = useState(document.documentElement.dir === 'rtl');
-    const [currentLang, setCurrentLang] = useState(document.documentElement.lang || 'ar');
-
-    // Referencia para el contenedor del formulario
-    const formRef = useRef(null);
-
-    useEffect(() => {
-        const handleLanguageChange = () => {
-            setIsRTL(document.documentElement.dir === 'rtl');
-            setCurrentLang(document.documentElement.lang || 'ar');
-        };
-        window.addEventListener('languageChanged', handleLanguageChange);
-        return () => window.removeEventListener('languageChanged', handleLanguageChange);
-    }, []);
+    // Prevenir propagación de eventos
+    const stopPropagation = (e) => {
+        e.stopPropagation();
+    };
 
     useEffect(() => {
         if (auth.token) history.push("/");
@@ -37,151 +30,222 @@ const Login = () => {
     const handleChangeInput = e => {
         const { name, value } = e.target;
         setUserData({ ...userData, [name]: value });
+        if (error) setError(null);
     };
 
-    const handleSubmit = e => {
+    const handleSubmit = async e => {
         e.preventDefault();
-        dispatch(login(userData));
-    };
-
-    // ⚡ Prevención de propagación de eventos (evita que el clic en inputs active el login social)
-    const stopPropagation = (e) => {
         e.stopPropagation();
-    };
-
-    // Bloqueo adicional para eventos de mouse (por si el componente social escucha clicks globales)
-    const preventSocialClick = (e) => {
-        e.stopPropagation();
+        
+        if (!email || !password) {
+            setError("Veuillez remplir tous les champs");
+            return;
+        }
+        
+        setLoading(true);
+        setError(null);
+        
+        try {
+            await dispatch(login(userData));
+        } catch (err) {
+            setError(err.response?.data?.msg || "Erreur de connexion");
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
-        <div className={`login-page ${isRTL ? 'rtl' : 'ltr'}`}>
+        <div 
+            className="login-page"
+            style={{
+                minHeight: '100vh',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                padding: '1rem'
+            }}
+            onClick={stopPropagation}
+        >
             <Container>
                 <Row className="justify-content-center">
                     <Col xs={12} sm={10} md={8} lg={6} xl={5}>
-                        <Card className="login-card">
+                        <Card 
+                            className="border-0 shadow-lg"
+                            style={{ borderRadius: '24px', overflow: 'hidden' }}
+                            onClick={stopPropagation}
+                        >
                             {/* Header */}
-                            <div className="login-header">
-                                <div className="login-logo">
-                                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-                                        <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
-                                        <polyline points="10 17 15 12 10 7"></polyline>
-                                        <line x1="15" y1="12" x2="3" y2="12"></line>
+                            <div 
+                                className="text-center py-4"
+                                style={{
+                                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+                                }}
+                            >
+                                <div 
+                                    style={{
+                                        width: '70px',
+                                        height: '70px',
+                                        background: 'rgba(255,255,255,0.2)',
+                                        borderRadius: '50%',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        margin: '0 auto 1rem',
+                                        backdropFilter: 'blur(10px)'
+                                    }}
+                                >
+                                    <svg width="35" height="35" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                                        <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+                                        <polyline points="10 17 15 12 10 7"/>
+                                        <line x1="15" y1="12" x2="3" y2="12"/>
                                     </svg>
                                 </div>
-                                <h3 className="login-title">Connexion</h3>
+                                <h3 className="text-white fw-bold mb-0">Connexion</h3>
                             </div>
 
-                            <div className="login-body">
-                                <Form onSubmit={handleSubmit} ref={formRef} onClick={stopPropagation}>
-                                    {/* ⚡🔥 Botones sociales con bloqueo de propagación */}
-                                    <div 
-                                        className="social-buttons-wrapper"
-                                        onClick={preventSocialClick}
-                                        onMouseDown={preventSocialClick}
+                            <Card.Body className="p-4 p-md-5" onClick={stopPropagation}>
+                                {error && (
+                                    <Alert variant="danger" className="mb-4" onClose={() => setError(null)} dismissible>
+                                        {error}
+                                    </Alert>
+                                )}
+
+                                {/* Botones sociales */}
+                                <div onClick={stopPropagation} onMouseDown={stopPropagation}>
+                                    <Loginfacegoogle />
+                                </div>
+
+                                {/* Divisor */}
+                                <div className="position-relative my-4">
+                                    <hr className="text-muted" />
+                                    <span 
+                                        className="position-absolute top-50 start-50 translate-middle bg-white px-3"
+                                        style={{ color: '#6c757d', fontSize: '0.85rem' }}
                                     >
-                                        <Loginfacegoogle />
-                                    </div>
+                                        ou continuer avec
+                                    </span>
+                                </div>
 
-                                    {/* Divisor */}
-                                    <div className="login-divider">
-                                        <hr />
-                                        <span>ou continuer avec</span>
-                                    </div>
-
+                                {/* Formulario */}
+                                <Form onSubmit={handleSubmit} onClick={stopPropagation}>
                                     {/* Email */}
-                                    <div className="form-group">
-                                        <label className="form-label">Adresse email</label>
-                                        <div className="input-icon-wrapper">
-                                            <div className="input-icon">
-                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                                                    <polyline points="22,6 12,13 2,6"></polyline>
-                                                </svg>
-                                            </div>
-                                            <input
+                                    <Form.Group className="mb-4">
+                                        <Form.Label className="fw-semibold text-secondary">Adresse email</Form.Label>
+                                        <div className="position-relative">
+                                            <span 
+                                                className="position-absolute start-0 top-0 h-100 d-flex align-items-center px-3"
+                                                style={{ color: '#667eea' }}
+                                            >
+                                                <Envelope size={18} />
+                                            </span>
+                                            <Form.Control
                                                 type="email"
                                                 name="email"
-                                                className="login-input"
                                                 value={email}
                                                 onChange={handleChangeInput}
                                                 onClick={stopPropagation}
                                                 onFocus={stopPropagation}
-                                                placeholder="votre@email.com"
-                                                autoComplete="email"
+                                                placeholder="exemple@email.com"
+                                                className="py-2 ps-5"
+                                                style={{ borderRadius: '12px', border: '1px solid #e0e0e0' }}
+                                                required
                                             />
                                         </div>
-                                    </div>
+                                    </Form.Group>
 
                                     {/* Password */}
-                                    <div className="form-group">
-                                        <label className="form-label">Mot de passe</label>
-                                        <div className={`input-icon-wrapper ${isRTL ? 'password-group-rtl' : 'password-group-ltr'}`}>
-                                            <div className="input-icon">
-                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                                                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                                                </svg>
-                                            </div>
-                                            <input
+                                    <Form.Group className="mb-3">
+                                        <Form.Label className="fw-semibold text-secondary">Mot de passe</Form.Label>
+                                        <div className="position-relative">
+                                            <span 
+                                                className="position-absolute start-0 top-0 h-100 d-flex align-items-center px-3"
+                                                style={{ color: '#667eea' }}
+                                            >
+                                                <Lock size={18} />
+                                            </span>
+                                            <Form.Control
                                                 type={typePass ? "text" : "password"}
                                                 name="password"
-                                                className="login-input"
                                                 value={password}
                                                 onChange={handleChangeInput}
                                                 onClick={stopPropagation}
                                                 onFocus={stopPropagation}
                                                 placeholder="••••••••"
-                                                autoComplete="current-password"
+                                                className="py-2 ps-5 pe-5"
+                                                style={{ borderRadius: '12px', border: '1px solid #e0e0e0' }}
+                                                required
                                             />
-                                            <button
-                                                type="button"
-                                                className="password-toggle-btn"
+                                            <span 
+                                                className="position-absolute end-0 top-0 h-100 d-flex align-items-center px-3"
+                                                style={{ cursor: 'pointer', color: '#667eea' }}
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     setTypePass(!typePass);
                                                 }}
                                             >
-                                                {typePass ? (
-                                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-                                                        <line x1="1" y1="1" x2="23" y2="23"></line>
-                                                    </svg>
-                                                ) : (
-                                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                                                        <circle cx="12" cy="12" r="3"></circle>
-                                                    </svg>
-                                                )}
-                                            </button>
+                                                {typePass ? <EyeSlash size={18} /> : <Eye size={18} />}
+                                            </span>
                                         </div>
+                                    </Form.Group>
+
+                                    {/* Forgot password */}
+                                    <div className="text-end mb-4">
+                                        <Link 
+                                            to="/forgot_password" 
+                                            style={{ color: '#667eea', fontSize: '0.85rem', textDecoration: 'none' }}
+                                            onMouseEnter={(e) => e.target.style.textDecoration = 'underline'}
+                                            onMouseLeave={(e) => e.target.style.textDecoration = 'none'}
+                                            onClick={stopPropagation}
+                                        >
+                                            Mot de passe oublié ?
+                                        </Link>
                                     </div>
 
-                                    {/* Forgot Password */}
-                                    <div className="forgot-link">
-                                        <Link to="/forgot_password">Mot de passe oublié ?</Link>
-                                    </div>
-
-                                    {/* Submit Button */}
-                                    <button
+                                    {/* Submit button */}
+                                    <Button
                                         type="submit"
-                                        className="login-submit-btn"
-                                        disabled={!(email && password)}
+                                        variant="primary"
+                                        disabled={loading || !email || !password}
+                                        className="w-100 py-2 fw-bold"
+                                        style={{
+                                            borderRadius: '12px',
+                                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                            border: 'none',
+                                            fontSize: '1rem'
+                                        }}
+                                        onClick={stopPropagation}
                                     >
-                                        Se connecter
-                                    </button>
+                                        {loading ? (
+                                            <Spinner as="span" animation="border" size="sm" />
+                                        ) : (
+                                            <>
+                                                Se connecter
+                                                <ArrowRight size={16} className="ms-2" />
+                                            </>
+                                        )}
+                                    </Button>
 
-                                    {/* Register Link */}
-                                    <div className="register-link">
-                                        Pas encore de compte ?{' '}
-                                        <Link to="/register">S'inscrire</Link>
+                                    {/* Register link */}
+                                    <div className="text-center mt-4">
+                                        <span className="text-muted">Pas encore de compte ? </span>
+                                        <Link 
+                                            to="/register" 
+                                            style={{ color: '#667eea', fontWeight: '600', textDecoration: 'none' }}
+                                            onMouseEnter={(e) => e.target.style.textDecoration = 'underline'}
+                                            onMouseLeave={(e) => e.target.style.textDecoration = 'none'}
+                                            onClick={stopPropagation}
+                                        >
+                                            S'inscrire
+                                        </Link>
                                     </div>
                                 </Form>
-                            </div>
+                            </Card.Body>
 
-                            <div className="login-footer">
-                                🔒 Tous droits réservés
-                            </div>
+                            <Card.Footer className="bg-white border-0 text-center pb-4">
+                                <small className="text-muted">
+                                    🔒 Connexion sécurisée
+                                </small>
+                            </Card.Footer>
                         </Card>
                     </Col>
                 </Row>
