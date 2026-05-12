@@ -1,7 +1,7 @@
 import React from 'react'
 import LeftSide from '../../components/message/LeftSide'
 import RightSide from '../../components/message/RightSide'
-
+ 
 const Conversation = () => {
     return (
         <div className="message d-flex">
@@ -12,6 +12,7 @@ const Conversation = () => {
             <div className="col-md-8 px-0">
                 <RightSide />
             </div>
+            
         </div>
     )
 }

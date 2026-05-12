@@ -3,10 +3,9 @@ import React from 'react';
 import { useHistory } from 'react-router-dom';
 import moment from 'moment';
 
-const VideoCard = ({ video, compact = false }) => {
+const VideoCard = ({ video }) => {
   const history = useHistory();
 
-  // Ir al video o categoría (comportamiento original)
   const handleVideoClick = (e) => {
     e.stopPropagation();
     sessionStorage.setItem('returnToFeed', window.location.pathname);
@@ -14,103 +13,148 @@ const VideoCard = ({ video, compact = false }) => {
     history.push(`/video/${video._id}`);
   };
 
-  // Ir al perfil del canal
-  const goToChannel = (e) => {
-    e.stopPropagation();
-    if (video.channel?._id) {
-      sessionStorage.setItem('returnToFeed', window.location.pathname);
-      sessionStorage.setItem('scrollPosition', window.scrollY);
-      history.push(`/channel/${video.channel._id}`);
-    }
-  };
-
-  const getRelativeDateShort = (date) => {
+  const formatDate = (date) => {
     moment.locale('fr');
     const diff = moment().diff(moment(date), 'days');
-    if (diff === 0) return 'aujourd\'hui';
-    if (diff < 7) return `il y a ${diff}j`;
-    return moment(date).format('DD/MM');
+    if (diff === 0) return "Aujourd'hui";
+    if (diff === 1) return "Hier";
+    if (diff < 7) return `Il y a ${diff} jours`;
+    return moment(date).format('DD/MM/YYYY');
   };
 
-  return (
-    <>
-      <div className="video-card" onClick={handleVideoClick}>
-        {/* THUMBNAIL */}
-        <div className="thumbnail-container">
-          <img 
-            src={video.thumbnail || '/video-placeholder.jpg'} 
-            alt={video.title}
-            className="thumbnail-img"
-            loading="lazy"
-          />
-          {video.duration > 0 && (
-            <span className="video-duration">
-              {Math.floor(video.duration / 60)}:{(video.duration % 60).toString().padStart(2, '0')}
-            </span>
-          )}
-          {video.price > 0 && (
-            <span className="price-badge">{video.price} DA</span>
-          )}
-        </div>
+  const categoryName = video.category?.name || (video.category && typeof video.category === 'object' ? video.category.name : null);
+  const price = video.price && video.price > 0 ? video.price : null;
 
-        {/* INFO CON AVATAR DEL CANAL */}
-        <div className="video-info">
-          {/* Canal: avatar + nombre cliqueable */}
-          {video.channel && (
-            <div className="channel-row" onClick={goToChannel}>
-              <img 
-                src={video.channel.avatar || '/default-avatar.png'} 
-                alt={video.channel.name}
-                className="channel-avatar"
-              />
-              <span className="channel-name">{video.channel.name}</span>
-            </div>
-          )}
-          <h3 className="video-title">{video.title}</h3>
-          <div className="video-meta">
-            {video.duration > 0 && (
-              <span className="meta-item">⏱️ {Math.floor(video.duration / 60)}:{(video.duration % 60).toString().padStart(2, '0')}</span>
-            )}
-            {video.price > 0 && (
-              <span className="meta-item price">💰 {video.price} DA</span>
-            )}
-            <span className="meta-item">📅 {getRelativeDateShort(video.createdAt)}</span>
-          </div>
-        </div>
+  return (
+    <div className="video-card-horizontal" onClick={handleVideoClick}>
+      {/* Columna izquierda: miniatura */}
+      <div className="video-thumbnail-col">
+        <img
+          src={video.thumbnail || '/video-placeholder.jpg'}
+          alt={video.title}
+          className="thumbnail-img"
+          loading="lazy"
+        />
+        {video.duration > 0 && (
+          <span className="duration-badge">
+            {Math.floor(video.duration / 60)}:{(video.duration % 60).toString().padStart(2, '0')}
+          </span>
+        )}
+        {price && <span className="price-badge">{price} DA</span>}
       </div>
 
+      {/* Columna derecha: información */}
+      <div className="video-info-col">
+        <h3 className="video-title">{video.title || 'Sin título'}</h3>
+        {categoryName && <div className="video-category">{categoryName}</div>}
+        {price && <div className="video-price">{price} DA</div>}
+        <div className="video-date">{formatDate(video.createdAt)}</div>
+      </div>
+
+      {/* Estilos internos */}
       <style>{`
-        /* ... tus estilos existentes ... */
-        /* Añade estos estilos para el canal */
-        .channel-row {
+        .video-card-horizontal {
           display: flex;
-          align-items: center;
-          gap: 8px;
-          margin-bottom: 8px;
+          gap: 12px;
+          background: #fff;
+          border-radius: 12px;
+          overflow: hidden;
           cursor: pointer;
-          width: fit-content;
+          transition: transform 0.2s, box-shadow 0.2s;
+          margin-bottom: 12px;
+          border: 1px solid #e0e0e0;
         }
-        .channel-avatar {
-          width: 28px;
-          height: 28px;
-          border-radius: 50%;
+        .video-card-horizontal:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        /* Columna miniatura */
+        .video-thumbnail-col {
+          position: relative;
+          flex: 0 0 160px;
+          aspect-ratio: 16 / 9;
+          background: #000;
+        }
+        .thumbnail-img {
+          width: 100%;
+          height: 100%;
           object-fit: cover;
+          display: block;
         }
-        .channel-name {
-          font-size: 13px;
-          font-weight: 500;
-          color: #0f0f0f;
+        .duration-badge {
+          position: absolute;
+          bottom: 6px;
+          right: 6px;
+          background: rgba(0,0,0,0.7);
+          color: white;
+          font-size: 11px;
+          padding: 2px 4px;
+          border-radius: 4px;
+          font-family: monospace;
         }
-        .channel-row:hover .channel-name {
-          text-decoration: underline;
+        .price-badge {
+          position: absolute;
+          top: 6px;
+          left: 6px;
+          background: #4caf50;
+          color: white;
+          font-size: 11px;
+          font-weight: bold;
+          padding: 2px 6px;
+          border-radius: 12px;
         }
-        /* Ajustes responsive */
-        @media (max-width: 768px) {
-          .channel-avatar { width: 24px; height: 24px; }
-          .channel-name { font-size: 12px; }
+        /* Columna información */
+        .video-info-col {
+          flex: 1;
+          padding: 8px 12px 8px 0;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          gap: 6px;
+        }
+        .video-title {
+          margin: 0;
+          font-size: 1rem;
+          font-weight: 600;
+          line-height: 1.3;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+          color: #212529;
+        }
+        .video-category {
+          font-size: 0.8rem;
+          color: #6c757d;
+          text-transform: uppercase;
+          letter-spacing: 0.3px;
+        }
+        .video-price {
+          font-size: 0.9rem;
+          font-weight: 700;
+          color: #2c7da0;
+        }
+        .video-date {
+          font-size: 0.7rem;
+          color: #adb5bd;
+        }
+        /* Responsive: en móviles la miniatura se reduce un poco */
+        @media (max-width: 576px) {
+          .video-thumbnail-col {
+            flex-basis: 120px;
+          }
+          .video-title {
+            font-size: 0.85rem;
+          }
+          .video-category, .video-price {
+            font-size: 0.7rem;
+          }
+          .video-date {
+            font-size: 0.6rem;
+          }
         }
       `}</style>
-    </>
+    </div>
   );
 };
 

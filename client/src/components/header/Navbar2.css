@@ -613,3 +613,13 @@
 .nb2-root * {
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
+
+/* Navbar2.css */
+.nb2-root {
+  transition: transform 0.3s ease-in-out;
+}
+
+/* Clase para ocultar el navbar (desliza hacia arriba) */
+.nb2-root.nb2-hidden {
+  transform: translateY(-100%);
+}

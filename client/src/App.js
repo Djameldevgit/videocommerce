@@ -37,7 +37,7 @@ import EditChannel from './pages/channel/EditChannel';
 import ChannelProfile from './pages/channel/ChannelProfile';
 import MisChannel from './pages/channel/MisChannel';
 import ChannelFeed from './pages/channel/ChannelFeed';
-
+ 
 // ============================================
 // ✅ SONIDO Y VIBRACIÓN - AUTOMÁTICO (sin esperar click)
 // ============================================
@@ -285,6 +285,8 @@ function AppContent() {
         <Route exact path="/" component={Home} />
         <Route exact path="/register" component={Register} />
         <Route exact path="/login" component={Login} />
+        
+
         <Route exact path="/bloqueos404" component={Bloqueos404} />
         <Route exact path="/notify" component={NotifyPage} />
         <Route exact path="/create-video-page" component={CreateVideoWizard} />

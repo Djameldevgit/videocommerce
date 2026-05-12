@@ -16,6 +16,7 @@ import { getChannelProfile, toggleFollowChannel, getChannelVideos } from '../../
 import { toggleSaveVideo, getSavedVideos, getLikedVideos } from '../../redux/actions/userVideoAction';
 import LoadMoreBtn from '../../components/LoadMoreBtn';
 import './ChannelProfile.css';
+import HeaderVideo from '../HeaderVideo';
 
 /* ────────────────────────────────────────────
    LOADING SPINNER
@@ -540,7 +541,7 @@ const ChannelProfile = () => {
       {getCurrentHasMore() && getCurrentVideos().length > 0 && (
         <LoadMoreBtn loading={loadingMore} loadMore={loadMoreVideos} />
       )}
-
+<HeaderVideo/>
     </div>
   );
 };

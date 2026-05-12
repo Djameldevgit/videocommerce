@@ -5,32 +5,12 @@ import { logout } from '../../redux/actions/authAction';
 import { useTranslation } from 'react-i18next';
 import { Link, useHistory } from 'react-router-dom';
 import Avatar from '../Avatar';
-import Card from 'react-bootstrap/Card';
+import { Navbar, Container, NavDropdown } from 'react-bootstrap';
 import {
-  FaPlusCircle,
-  FaStore,
-  FaTools,
-  FaShieldAlt,
-  FaUsers,
-  FaUserCog,
-  FaSignOutAlt,
-  FaInfoCircle,
-  FaSignInAlt,
-  FaUserPlus,
-  FaShareAlt,
-  FaGlobe,
-  FaLanguage,
-  FaRobot,
-  FaBars,
-  FaPlus,
-  FaSearch,
-  FaBell,
-  FaUserCircle,
-  FaDownload,
-  FaVideo
+  FaPlusCircle, FaStore, FaTools, FaShieldAlt, FaUsers, FaUserCog,
+  FaSignOutAlt, FaInfoCircle, FaSignInAlt, FaUserPlus, FaShareAlt,
+  FaBars, FaSearch, FaBell, FaUserCircle, FaDownload, FaVideo
 } from 'react-icons/fa';
-
-import { Navbar, Container, NavDropdown, Badge } from 'react-bootstrap';
 import VerifyModal from '../authAndVerify/VerifyModal';
 import DesactivateModal from '../authAndVerify/DesactivateModal';
 import MultiCheckboxModal from './MultiCheckboxModal.';
@@ -42,29 +22,31 @@ import './Navbar2.css';
 const Navbar2 = () => {
   const { auth, cart, notify, settings } = useSelector((state) => state);
   const dispatch = useDispatch();
-
   const { t } = useTranslation('navbar2');
   const history = useHistory();
 
-  const [isPWAInstalled,        setIsPWAInstalled]        = useState(false);
-  const [showInstallButton,     setShowInstallButton]      = useState(false);
-  const [showShareModal,        setShowShareModal]         = useState(false);
-  const [showVerifyModal,       setShowVerifyModal]        = useState(false);
-  const [showDeactivatedModal,  setShowDeactivatedModal]   = useState(false);
-  const [isMobile,              setIsMobile]               = useState(window.innerWidth < 700);
-  const [showFeaturesModal,     setShowFeaturesModal]      = useState(false);
-  const [showDrawer,            setShowDrawer]             = useState(false);
-  const [dropdownOpen,          setDropdownOpen]           = useState(false);
+  const [isPWAInstalled, setIsPWAInstalled] = useState(false);
+  const [showInstallButton, setShowInstallButton] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
+  const [showDeactivatedModal, setShowDeactivatedModal] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 700);
+  const [showFeaturesModal, setShowFeaturesModal] = useState(false);
+  const [showDrawer, setShowDrawer] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  // 🆕 Estados para scroll del navbar
+  const [isNavbarVisible, setIsNavbarVisible] = useState(true);
+  const [lastScrollY, setLastScrollY] = useState(0);
 
   const notifyDropdownRef = useRef(null);
-  const dropdownRef       = useRef(null);
+  const dropdownRef = useRef(null);
   const { dir, textAlign, isRTL, shouldIgnoreRTL } = useComponentDirection('Navbar2');
 
-  // ── Drawer ───────────────────────────────────────────
-  const handleDrawerOpen  = () => setShowDrawer(true);
+  const handleDrawerOpen = () => setShowDrawer(true);
   const handleDrawerClose = () => setShowDrawer(false);
 
-  // ── Resize ───────────────────────────────────────────
+  // Resize
   useEffect(() => {
     let tid;
     const onResize = () => {
@@ -75,16 +57,35 @@ const Navbar2 = () => {
     return () => { window.removeEventListener('resize', onResize); clearTimeout(tid); };
   }, []);
 
-  // ── PWA detection ────────────────────────────────────
+  // 🆕 Efecto de scroll para ocultar/mostrar navbar
+  useEffect(() => {
+    const controlNavbar = () => {
+      const currentScrollY = window.scrollY;
+      // Solo actuar si el scroll supera los 50px (evita fluctuaciones en el top)
+      if (currentScrollY > lastScrollY && currentScrollY > 50) {
+        // Scroll hacia abajo: ocultar
+        setIsNavbarVisible(false);
+      } else if (currentScrollY < lastScrollY) {
+        // Scroll hacia arriba: mostrar
+        setIsNavbarVisible(true);
+      }
+      setLastScrollY(currentScrollY);
+    };
+
+    window.addEventListener('scroll', controlNavbar, { passive: true });
+    return () => window.removeEventListener('scroll', controlNavbar);
+  }, [lastScrollY]);
+
+  // PWA detection
   useEffect(() => {
     if (window.matchMedia('(display-mode: standalone)').matches) setIsPWAInstalled(true);
-    const onAvail    = () => setShowInstallButton(true);
+    const onAvail = () => setShowInstallButton(true);
     const onInstalled = () => { setIsPWAInstalled(true); setShowInstallButton(false); };
     window.addEventListener('pwaInstallAvailable', onAvail);
-    window.addEventListener('pwaInstalled',        onInstalled);
+    window.addEventListener('pwaInstalled', onInstalled);
     return () => {
       window.removeEventListener('pwaInstallAvailable', onAvail);
-      window.removeEventListener('pwaInstalled',        onInstalled);
+      window.removeEventListener('pwaInstalled', onInstalled);
     };
   }, []);
 
@@ -107,17 +108,17 @@ const Navbar2 = () => {
       return installed;
     };
     if (!checkPWA()) {
-      const onAvail     = () => setShowInstallButton(true);
+      const onAvail = () => setShowInstallButton(true);
       const onInstalled = () => { setIsPWAInstalled(true); setShowInstallButton(false); };
       window.addEventListener('pwaInstallAvailable', onAvail);
-      window.addEventListener('pwaInstalled',        onInstalled);
+      window.addEventListener('pwaInstalled', onInstalled);
       const iv = setInterval(() => {
         if (checkPWA()) { clearInterval(iv); }
         else if (window.deferredPrompt && !showInstallButton) { setShowInstallButton(true); }
       }, 2000);
       return () => {
         window.removeEventListener('pwaInstallAvailable', onAvail);
-        window.removeEventListener('pwaInstalled',        onInstalled);
+        window.removeEventListener('pwaInstalled', onInstalled);
         clearInterval(iv);
       };
     }
@@ -136,12 +137,10 @@ const Navbar2 = () => {
     }
   };
 
-  // ── Auth handlers ─────────────────────────────────────
-  const handleLogout   = () => { setDropdownOpen(false); dispatch(logout()); setTimeout(() => { window.location.href = '/login'; }, 100); };
-  const handleLogin    = () => { setDropdownOpen(false); history.push('/login'); };
+  const handleLogout = () => { setDropdownOpen(false); dispatch(logout()); setTimeout(() => { window.location.href = '/login'; }, 100); };
+  const handleLogin = () => { setDropdownOpen(false); history.push('/login'); };
   const handleRegister = () => { setDropdownOpen(false); history.push('/register'); };
 
-  // ── Guard ─────────────────────────────────────────────
   if (!settings || Object.keys(settings).length === 0) {
     return (
       <nav className="navbar navbar-light bg-light nb2-fallback">
@@ -150,13 +149,10 @@ const Navbar2 = () => {
     );
   }
 
-  const totalItems           = (cart?.items && Array.isArray(cart.items))
-    ? cart.items.reduce((acc, item) => acc + (item?.quantity || 0), 0)
-    : 0;
-  const unreadNotifications  = notify?.data?.filter(n => n && !n.isRead).length || 0;
-  const isDark               = !!settings.style;
+  const totalItems = (cart?.items && Array.isArray(cart.items)) ? cart.items.reduce((acc, item) => acc + (item?.quantity || 0), 0) : 0;
+  const unreadNotifications = notify?.data?.filter(n => n && !n.isRead).length || 0;
+  const isDark = !!settings.style;
 
-  // ── MenuItem (unchanged) ──────────────────────────────
   const MenuItem = ({ icon: Icon, iconColor, to, onClick, children, danger = false }) => {
     const handleClick = (e) => {
       if (onClick) onClick(e);
@@ -164,20 +160,13 @@ const Navbar2 = () => {
       if (to) history.push(to);
     };
     return (
-      <NavDropdown.Item
-        as="button"
-        onClick={handleClick}
-        className={`nb2-menu-item${danger ? ' danger' : ''}`}
-      >
-        <span className="nb2-item-icon" style={{ color: iconColor }}>
-          <Icon />
-        </span>
+      <NavDropdown.Item as="button" onClick={handleClick} className={`nb2-menu-item${danger ? ' danger' : ''}`}>
+        <span className="nb2-item-icon" style={{ color: iconColor }}><Icon /></span>
         <span className="nb2-item-label">{children}</span>
       </NavDropdown.Item>
     );
   };
 
-  // ── Avatar trigger for dropdown ─────────────────────────
   const AvatarTrigger = (
     <div
       className={`nb2-avatar-trigger ${dropdownOpen ? 'open' : ''}`}
@@ -185,13 +174,13 @@ const Navbar2 = () => {
       style={{
         width: isMobile ? '38px' : '42px',
         height: isMobile ? '38px' : '42px',
-        cursor: 'pointer',
         borderRadius: '50%',
         overflow: 'hidden',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: 'transparent',
+        cursor: 'pointer',
       }}
       aria-label={t('userMenu') || 'Menú de usuario'}
       aria-expanded={dropdownOpen}
@@ -208,89 +197,52 @@ const Navbar2 = () => {
   return (
     <>
       <Navbar
-        className={`nb2-root${isDark ? ' dark' : ' light'}`}
+        className={`nb2-root${isDark ? ' dark' : ' light'} ${!isNavbarVisible ? 'nb2-hidden' : ''}`}
         fixed="top"
         expand="lg"
       >
-        <Container
-          fluid
-          className="align-items-center justify-content-between nb2-container"
-          style={{ padding: isMobile ? '0 12px' : '0 20px' }}
-        >
-          {/* ── Logo ── */}
+        <Container fluid className="align-items-center justify-content-between nb2-container" style={{ padding: isMobile ? '0 8px' : '0 20px' }}>
+          {/* Logo */}
           <div className="d-flex align-items-center" style={{ flex: '0 1 auto', minWidth: 0 }}>
-            <Link
-              to="/"
-              onDoubleClick={e => { e.preventDefault(); window.location.reload(); }}
-              className="nb2-logo-link"
-              title="Accueil — Double-clic pour recharger"
-            >
+            <Link to="/" onDoubleClick={e => { e.preventDefault(); window.location.reload(); }} className="nb2-logo-link" title="Accueil — Double-clic pour recharger">
               <div className="nb2-logo-box" style={{ width: isMobile ? '32px' : '40px', height: isMobile ? '32px' : '40px' }}>
-                <img
-                  src="/images/logo.png"
-                  alt="Logo"
-                  onError={e => { e.target.style.display = 'none'; }}
-                />
+                <img src="/images/logo.png" alt="Logo" onError={e => { e.target.style.display = 'none'; }} />
               </div>
             </Link>
-
             {!isMobile && (
-              <Link
-                to="/"
-                onDoubleClick={e => { e.preventDefault(); window.location.reload(); }}
-                className="nb2-brand-link"
-              >
-                <Navbar.Brand className="nb2-brand py-0 mb-0">
-                  {t('appName') || 'MarketPlace'}
-                </Navbar.Brand>
+              <Link to="/" onDoubleClick={e => { e.preventDefault(); window.location.reload(); }} className="nb2-brand-link">
+                <Navbar.Brand className="nb2-brand py-0 mb-0">{t('appName') || 'MarketPlace'}</Navbar.Brand>
               </Link>
             )}
           </div>
 
-          {/* ── Right actions ── */}
-          <div className="nb2-actions" style={{ gap: isMobile ? '6px' : '8px' }}>
-
-            {/* Search */}
-            <Link
-              to="/search"
-              className="nb2-btn"
-              style={{ width: isMobile ? '38px' : '42px', height: isMobile ? '38px' : '42px' }}
-              title={t('search') || 'Rechercher'}
-            >
+          {/* Acciones derecha */}
+          <div className="nb2-actions" style={{ gap: isMobile ? '12px' : '8px' }}>
+            <Link to="/search" className="nb2-btn" style={{ width: isMobile ? '38px' : '42px', height: isMobile ? '38px' : '42px' }} title={t('search') || 'Rechercher'}>
               <FaSearch size={isMobile ? 15 : 16} />
             </Link>
 
-            {/* Install PWA */}
+            {/* Botón crear video */}
+            <Link to="/create-video-page" className="nb2-btn" style={{ width: isMobile ? '38px' : '42px', height: isMobile ? '38px' : '42px' }} title={t('createVideo') || 'Crear video'}>
+              <FaVideo size={isMobile ? 17 : 19} style={{ color: '#FF0000' }} />
+            </Link>
+
             {showInstallButton && !isPWAInstalled && (
-              <button
-                className="nb2-btn nb2-btn--install"
-                onClick={handleInstallPWA}
-                style={{ width: isMobile ? '38px' : '42px', height: isMobile ? '38px' : '42px' }}
-                title={t('installPWA') || 'Installer l\'app'}
-              >
+              <button className="nb2-btn nb2-btn--install" onClick={handleInstallPWA} style={{ width: isMobile ? '38px' : '42px', height: isMobile ? '38px' : '42px' }} title={t('installPWA') || 'Installer l\'app'}>
                 <FaDownload size={isMobile ? 15 : 16} />
               </button>
             )}
 
-            {/* Notifications - Bell in YELLOW */}
             {auth.user && (
-              <div
-                className="nb2-btn nb2-btn--notify"
-                ref={notifyDropdownRef}
-                style={{ width: isMobile ? '38px' : '42px', height: isMobile ? '38px' : '42px' }}
-              >
+              <div className="nb2-btn nb2-btn--notify" ref={notifyDropdownRef} style={{ width: isMobile ? '38px' : '42px', height: isMobile ? '38px' : '42px' }}>
                 <Link to="/notify" className="nb2-notify-link">
                   <FaBell size={isMobile ? 17 : 19} style={{ color: '#FFC107' }} className={unreadNotifications > 0 ? 'has-notif' : ''} />
                 </Link>
-                {unreadNotifications > 0 && (
-                  <span className="nb2-badge">
-                    {unreadNotifications > 9 ? '9+' : unreadNotifications}
-                  </span>
-                )}
+                {unreadNotifications > 0 && <span className="nb2-badge">{unreadNotifications > 9 ? '9+' : unreadNotifications}</span>}
               </div>
             )}
 
-            {/* ── AVATAR DROPDOWN (replaces three dots) ── */}
+            {/* Dropdown de usuario */}
             <NavDropdown
               align="end"
               show={dropdownOpen}
@@ -299,129 +251,73 @@ const Navbar2 = () => {
               id="nav-user-dropdown"
               className="nb2-dropdown-root"
               ref={dropdownRef}
-              // Important: remove default arrow styling
               renderMenuOnMount
             >
               <div className="nb2-scroll-wrap">
                 {auth.user ? (
                   <>
-                    {/* User header */}
                     <div className="nb2-user-header">
-                      <div className="nb2-user-avatar">
-                        <Avatar src={auth.user.avatar} size="medium-avatar" />
-                      </div>
+                      <div className="nb2-user-avatar"><Avatar src={auth.user.avatar} size="medium-avatar" /></div>
                       <div className="nb2-user-info">
-                        <div className="nb2-user-name">
-                          {auth.user.username || auth.user.name || 'Utilisateur'}
-                        </div>
+                        <div className="nb2-user-name">{auth.user.username || auth.user.name || 'Utilisateur'}</div>
                         <div className="nb2-user-role">
-                          {auth.user.role === 'admin'              ? `👑 ${t('admin')     || 'Admin'}`
-                          : auth.user.role === 'Moderateur'        ? `🛡️ ${t('moderator') || 'Modérateur'}`
-                          : auth.user.role === 'Super-utilisateur' ? `⭐ ${t('superUser') || 'Super Utilisateur'}`
-                          :                                          `👤 ${t('user')      || 'Utilisateur'}`}
+                          {auth.user.role === 'admin' ? `👑 ${t('admin') || 'Admin'}` :
+                           auth.user.role === 'Moderateur' ? `🛡️ ${t('moderator') || 'Modérateur'}` :
+                           auth.user.role === 'Super-utilisateur' ? `⭐ ${t('superUser') || 'Super Utilisateur'}` :
+                           `👤 ${t('user') || 'Utilisateur'}`}
                         </div>
                       </div>
                     </div>
-
                     <NavDropdown.Divider />
-
-                    <MenuItem icon={FaVideo}     iconColor="#0A84FF" to="/create-video-page">
-                      Créer une vidéo
-                    </MenuItem>
-
+                    <MenuItem icon={FaVideo} iconColor="#0A84FF" to="/create-video-page">Créer une vidéo</MenuItem>
                     {auth.user.role === 'admin' && (
                       <>
-                        <MenuItem icon={FaShieldAlt} iconColor="#FF9F0A" to="/admin/posts">
-                          Approbation
-                        </MenuItem>
-                        <MenuItem icon={FaUsers}     iconColor="#34C759" to="/admindashboard">
-                          Admin dashboard
-                        </MenuItem>
+                        <MenuItem icon={FaShieldAlt} iconColor="#FF9F0A" to="/admin/posts">Approbation</MenuItem>
+                        <MenuItem icon={FaUsers} iconColor="#34C759" to="/admindashboard">Admin dashboard</MenuItem>
                       </>
                     )}
-
-                    <MenuItem icon={FaUserCircle} iconColor="#0A84FF" to={`/profile/${auth.user._id}`}>
-                      {t('profile') || 'Mon profil'}
-                    </MenuItem>
-
-                    <MenuItem icon={FaInfoCircle} iconColor="#7A7A86" to="/infoaplicacionn">
-                      {t('appInfo') || 'Informations'}
-                    </MenuItem>
-
+                    <MenuItem icon={FaUserCircle} iconColor="#0A84FF" to={`/profile/${auth.user._id}`}>{t('profile') || 'Mon profil'}</MenuItem>
+                    <MenuItem icon={FaInfoCircle} iconColor="#7A7A86" to="/infoaplicacionn">{t('appInfo') || 'Informations'}</MenuItem>
                     {auth.user.role === 'admin' && (
-                      <MenuItem icon={FaTools} iconColor="#7A7A86" to="/users/roles">
-                        {t('roles') || 'Rôles'}
-                      </MenuItem>
+                      <MenuItem icon={FaTools} iconColor="#7A7A86" to="/users/roles">{t('roles') || 'Rôles'}</MenuItem>
                     )}
-
-                    <MenuItem icon={FaShareAlt} iconColor="#FF9F0A" onClick={() => setShowShareModal(true)}>
-                      {t('shareApp') || 'Partager l\'app'}
-                    </MenuItem>
-
+                    <MenuItem icon={FaShareAlt} iconColor="#FF9F0A" onClick={() => setShowShareModal(true)}>{t('shareApp') || 'Partager l\'app'}</MenuItem>
                     {auth.user.role === 'admin' && (
                       <>
                         <NavDropdown.Divider />
-                        <div className="nb2-section-label">
-                          <FaStore size={11} />
-                          {t('storeManagement') || 'Boutiques'}
-                        </div>
-
-                        <MenuItem icon={FaPlusCircle} iconColor="#34C759"  to="/create-boutique">{t('createStore')  || 'Créer une boutique'}</MenuItem>
-                        <MenuItem icon={FaStore}      iconColor="#0A84FF"  to={`/boutique/${auth.user._id}`}>{t('myStore') || 'Ma boutique'}</MenuItem>
-                        <MenuItem icon={FaStore}      iconColor="#FF9F0A"  to="/boutiques">{t('allStores')  || 'Toutes les boutiques'}</MenuItem>
-                        <MenuItem icon={FaStore}      iconColor="#34C759"  to="/mes-boutiques">{t('myStoresList') || 'Mes boutiques'}</MenuItem>
-                        <MenuItem icon={FaUsers}      iconColor="#34C759"  to="/users">{t('users')  || 'Utilisateurs'}</MenuItem>
-                        <MenuItem icon={FaUserCog}    iconColor="#0A84FF"  to="/usersactionn">{t('userActions') || 'Actions utilisateur'}</MenuItem>
+                        <MenuItem icon={FaUsers} iconColor="#34C759" to="/users">{t('users') || 'Utilisateurs'}</MenuItem>
+                        <MenuItem icon={FaUserCog} iconColor="#0A84FF" to="/usersactionn">{t('userActions') || 'Actions utilisateur'}</MenuItem>
                       </>
                     )}
-
                     <NavDropdown.Divider />
-
-                    <MenuItem icon={FaSignOutAlt} iconColor="#FF3B30" onClick={handleLogout} danger>
-                      <strong>{t('logout') || 'Déconnexion'}</strong>
-                    </MenuItem>
+                    <MenuItem icon={FaSignOutAlt} iconColor="#FF3B30" onClick={handleLogout} danger><strong>{t('logout') || 'Déconnexion'}</strong></MenuItem>
                   </>
                 ) : (
                   <>
-                    <MenuItem icon={FaSignInAlt}  iconColor="#34C759" onClick={handleLogin}>
-                      {t('login') || 'Se connecter'}
-                    </MenuItem>
-                    <MenuItem icon={FaUserPlus}   iconColor="#0A84FF" onClick={handleRegister}>
-                      {t('register') || 'S\'inscrire'}
-                    </MenuItem>
-                    <MenuItem icon={FaInfoCircle} iconColor="#7A7A86" to="/infoaplicacionn">
-                      {t('appInfo') || 'Informations'}
-                    </MenuItem>
-                    <MenuItem icon={FaShareAlt}   iconColor="#FF9F0A" onClick={() => setShowShareModal(true)}>
-                      {t('shareApp') || 'Partager l\'app'}
-                    </MenuItem>
+                    <MenuItem icon={FaSignInAlt} iconColor="#34C759" onClick={handleLogin}>{t('login') || 'Se connecter'}</MenuItem>
+                    <MenuItem icon={FaUserPlus} iconColor="#0A84FF" onClick={handleRegister}>{t('register') || 'S\'inscrire'}</MenuItem>
+                    <MenuItem icon={FaInfoCircle} iconColor="#7A7A86" to="/infoaplicacionn">{t('appInfo') || 'Informations'}</MenuItem>
+                    <MenuItem icon={FaShareAlt} iconColor="#FF9F0A" onClick={() => setShowShareModal(true)}>{t('shareApp') || 'Partager l\'app'}</MenuItem>
                   </>
                 )}
               </div>
             </NavDropdown>
 
-            {/* Drawer hamburger */}
-            <button
-              onClick={handleDrawerOpen}
-              className="nb2-btn nb2-btn--menu"
-              style={{ width: isMobile ? '38px' : '42px', height: isMobile ? '38px' : '42px' }}
-              title={t('menu') || 'Drawer'}
-            >
+            <button onClick={handleDrawerOpen} className="nb2-btn nb2-btn--menu" style={{ width: isMobile ? '38px' : '42px', height: isMobile ? '38px' : '42px' }} title={t('menu') || 'Drawer'}>
               <FaBars size={isMobile ? 17 : 19} />
             </button>
           </div>
         </Container>
       </Navbar>
 
-      {/* Spacer */}
+      {/* Espaciador: mantiene el mismo alto para que el contenido no salte al ocultar el navbar */}
       <div style={{ height: isMobile ? '56px' : '64px' }} />
 
-      {/* Modals */}
-      <VerifyModal       show={showVerifyModal}        onClose={() => setShowVerifyModal(false)} />
-      <DesactivateModal  show={showDeactivatedModal}   onClose={() => setShowDeactivatedModal(false)} />
-      <MultiCheckboxModal show={showFeaturesModal}     onClose={() => setShowFeaturesModal(false)} />
-      <ShareAppModal     show={showShareModal}         onClose={() => setShowShareModal(false)} />
-      <Drawer            show={showDrawer}             onHide={handleDrawerClose} position="start" title={t('menu') || 'Menu'} user={auth.user} />
+      <VerifyModal show={showVerifyModal} onClose={() => setShowVerifyModal(false)} />
+      <DesactivateModal show={showDeactivatedModal} onClose={() => setShowDeactivatedModal(false)} />
+      <MultiCheckboxModal show={showFeaturesModal} onClose={() => setShowFeaturesModal(false)} />
+      <ShareAppModal show={showShareModal} onClose={() => setShowShareModal(false)} />
+      <Drawer show={showDrawer} onHide={handleDrawerClose} position="start" title={t('menu') || 'Menu'} user={auth.user} />
     </>
   );
 };

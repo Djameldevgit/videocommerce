@@ -102,10 +102,10 @@ url("./header.css"); */
 /* -------- Icons---------- */
 @import url("./icons.css");
 
-/* -------- Call Modal---------- @import url("./navbar2.css");*/
+/* -------- Call Modal----//@import url("./navbar2.css");------ @import url("./navbar2.css");*/
 @import url("./call_modal.css");
 
-@import url("./navbar2.css");
+
 @import url("./cart.css");
 @import url("./banco.css");
 @import url("./chekout.css");

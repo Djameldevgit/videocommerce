@@ -1,8 +1,12 @@
+// components/NotifyPage.jsx (versión definitiva)
 import React, { useState, useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
-import { Card, Button, Badge, Alert, Spinner, Image } from 'react-bootstrap';
-import { FaBell, FaCheckDouble, FaTrash, FaEye, FaUserPlus, FaHeart, FaComment, FaStore, FaBox, FaVideo } from 'react-icons/fa';
+import { Card, Button, Badge, Alert, Spinner, Image, Row, Col } from 'react-bootstrap';
+import { 
+  FaBell, FaCheckDouble, FaTrash, FaUserPlus, 
+  FaHeart, FaComment, FaStore, FaBox, FaVideo, FaEdit, FaCheckCircle 
+} from 'react-icons/fa';
 import { getNotifies, isReadNotify, deleteAllNotifies, NOTIFY_TYPES } from '../../redux/actions/notifyAction';
 import moment from 'moment';
 
@@ -10,56 +14,28 @@ const NotifyPage = () => {
   const dispatch = useDispatch();
   const { auth, notify, socket } = useSelector(state => state);
   const { data: notifies = [], loading = false } = notify;
-
   const [message, setMessage] = useState({ show: false, text: '', type: '' });
 
-  // ✅ Cargar notificaciones
   const loadNotifies = useCallback(() => {
-    if (auth?.token) {
-      dispatch(getNotifies(auth.token));
-    }
+    if (auth?.token) dispatch(getNotifies(auth.token));
   }, [dispatch, auth?.token]);
 
   useEffect(() => {
     loadNotifies();
   }, [loadNotifies]);
 
-  // ✅ ESCUCHAR NOTIFICACIONES EN TIEMPO REAL - TOTALMENTE BLINDADO
   useEffect(() => {
-    // ✅ Validación completa
-    if (!socket) return;
-    if (!auth) return;
-    if (!auth.user) return;
-    if (!auth.user._id) return;
-
-    const userId = auth.user._id; // Guardar en variable para evitar problemas
-
+    if (!socket || !auth?.user?._id) return;
+    const userId = auth.user._id;
     const handleNewNotify = (newNotify) => {
-      console.log('🔔 Nueva notificación recibida:', newNotify);
-      
-      // ✅ Validar que la notificación es para este usuario
-      if (newNotify && newNotify.recipients && Array.isArray(newNotify.recipients)) {
-        if (newNotify.recipients.includes(userId)) {
-          dispatch({
-            type: NOTIFY_TYPES.CREATE_NOTIFY,
-            payload: newNotify
-          });
-          
-          setMessage({ 
-            show: true, 
-            text: 'Nouvelle notification reçue', 
-            type: 'info' 
-          });
-          setTimeout(() => setMessage({ show: false, text: '', type: '' }), 3000);
-        }
+      if (newNotify?.recipients?.includes(userId)) {
+        dispatch({ type: NOTIFY_TYPES.CREATE_NOTIFY, payload: newNotify });
+        setMessage({ show: true, text: 'Nueva notificación', type: 'info' });
+        setTimeout(() => setMessage({ show: false, text: '', type: '' }), 3000);
       }
     };
-
     socket.on('createNotify', handleNewNotify);
-
-    return () => {
-      socket.off('createNotify', handleNewNotify);
-    };
+    return () => socket.off('createNotify', handleNewNotify);
   }, [socket, dispatch, auth]);
 
   const showMessage = (text, type) => {
@@ -67,69 +43,86 @@ const NotifyPage = () => {
     setTimeout(() => setMessage({ show: false, text: '', type: '' }), 3000);
   };
 
-  // ✅ Marcar como leída
   const handleMarkAsRead = async (notify) => {
-    if (!notify.isRead && auth?.token) {
-      await dispatch(isReadNotify({ msg: notify, auth }));
-    }
+    if (!notify.isRead && auth?.token) await dispatch(isReadNotify({ msg: notify, auth }));
   };
 
-  // ✅ Marcar todas como leídas
   const handleMarkAllAsRead = async () => {
     if (!auth?.token) return;
-    
-    const unreadNotifies = notifies.filter(n => !n.isRead);
-    for (const notify of unreadNotifies) {
-      await dispatch(isReadNotify({ msg: notify, auth }));
+    for (const n of notifies.filter(n => !n.isRead)) {
+      await dispatch(isReadNotify({ msg: n, auth }));
     }
-    showMessage('Toutes les notifications ont été marquées comme lues', 'success');
+    showMessage('Todas las notificaciones marcadas como leídas', 'success');
   };
 
-  // ✅ Eliminar todas las notificaciones
   const handleDeleteAll = async () => {
     if (!auth?.token) return;
-    if (!window.confirm('Supprimer toutes les notifications ? Cette action est irréversible.')) return;
-    
+    if (!window.confirm('¿Eliminar todas las notificaciones?')) return;
     await dispatch(deleteAllNotifies(auth.token));
-    showMessage('Toutes les notifications ont été supprimées', 'warning');
+    showMessage('Todas las notificaciones eliminadas', 'warning');
   };
 
-  // ✅ Obtener icono según tipo de notificación
   const getNotifyIcon = (type) => {
     switch (type) {
-      case 'follow':
-        return <FaUserPlus className="text-primary" size={18} />;
-      case 'like':
-        return <FaHeart className="text-danger" size={18} />;
-      case 'comment':
-        return <FaComment className="text-success" size={18} />;
-      case 'boutique':
-        return <FaStore className="text-warning" size={18} />;
-      case 'product':
-        return <FaBox className="text-info" size={18} />;
-      case 'video':
-        return <FaVideo className="text-purple" size={18} />;
-      case 'post':
-        return <FaBell className="text-primary" size={18} />;
-      case 'post_pending':
-        return <FaBell className="text-warning" size={18} />;
-      default:
-        return <FaBell className="text-secondary" size={18} />;
+      case 'follow': return <FaUserPlus className="text-primary" size={18} />;
+      case 'like': return <FaHeart className="text-danger" size={18} />;
+      case 'comment': return <FaComment className="text-success" size={18} />;
+      case 'video': return <FaVideo className="text-primary" size={18} />;
+      case 'video_edit': return <FaEdit className="text-warning" size={18} />;
+      case 'video_approve': return <FaCheckCircle className="text-success" size={18} />;
+      default: return <FaBell className="text-secondary" size={18} />;
     }
   };
 
-  // ✅ Formatear fecha
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    return moment(dateString).fromNow();
+  const formatDate = (dateString) => moment(dateString).fromNow();
+
+  // Determinar si la notificación tiene miniatura de video
+  const hasVideoThumbnail = (notify) => {
+    return notify.image && 
+           typeof notify.image === 'string' && 
+           (notify.image.startsWith('http') || notify.image.startsWith('/')) &&
+           !notify.image.includes('avatar');
   };
 
-  // ✅ MOSTRAR LOADER MIENTRAS NO HAY USUARIO
-  if (!auth || !auth.user || !auth.user._id) {
+  // Texto personalizado según tipo
+  const getActionText = (notify) => {
+    const videoTitle = notify.content || '';
+    const truncatedTitle = videoTitle.length > 40 ? videoTitle.substring(0, 40) + '...' : videoTitle;
+    
+    switch (notify.type) {
+      case 'like':
+        return `❤️ le gusta tu video ${truncatedTitle ? `"${truncatedTitle}"` : ''}`;
+      case 'comment':
+        return `💬 comentó en tu video ${truncatedTitle ? `"${truncatedTitle}"` : ''}`;
+      case 'follow':
+        return `➕ empezó a seguirte`;
+      case 'video':
+        return `📹 subió un nuevo video: "${truncatedTitle}"`;
+      case 'video_edit':
+        return `✏️ editó el video "${truncatedTitle}"`;
+      case 'video_approve':
+        return `✅ tu video "${truncatedTitle}" ha sido aprobado`;
+      default:
+        return notify.text || 'interactuó contigo';
+    }
+  };
+
+  // Construir URL de destino
+  const getTargetUrl = (notify) => {
+    if (notify.url) return notify.url;
+    // Si es notificación de video, intentar extraer ID del contenido de la URL o usar /video/id
+    if (notify.type === 'video' || notify.type === 'video_edit' || notify.type === 'video_approve') {
+      if (notify.url && notify.url.includes('/video/')) return notify.url;
+      if (notify.videoId) return `/video/${notify.videoId}`;
+    }
+    return '#';
+  };
+
+  if (!auth?.user?._id) {
     return (
       <Card className="border-0 shadow-sm text-center py-5">
         <Spinner animation="border" variant="primary" />
-        <p className="mt-3">Chargement de l'utilisateur...</p>
+        <p className="mt-3">Cargando usuario...</p>
       </Card>
     );
   }
@@ -138,12 +131,11 @@ const NotifyPage = () => {
     return (
       <Card className="border-0 shadow-sm text-center py-5">
         <Spinner animation="border" variant="primary" />
-        <p className="mt-3">Chargement des notifications...</p>
+        <p className="mt-3">Cargando notificaciones...</p>
       </Card>
     );
   }
 
-  // ✅ Estadísticas - Con validación
   const unreadCount = notifies.filter(n => n && !n.isRead).length;
 
   return (
@@ -160,36 +152,22 @@ const NotifyPage = () => {
             <div>
               <h5 className="mb-0 fw-bold">
                 <FaBell className="me-2" style={{ color: '#EC4899' }} />
-                Notifications
+                Notificaciones
                 {unreadCount > 0 && (
-                  <Badge bg="danger" className="ms-2 rounded-pill">
-                    {unreadCount} non lue(s)
-                  </Badge>
+                  <Badge bg="danger" className="ms-2 rounded-pill">{unreadCount} nuevas</Badge>
                 )}
               </h5>
-              <small className="text-muted">
-                {notifies.length} notification(s) au total
-              </small>
+              <small className="text-muted">{notifies.length} en total</small>
             </div>
             <div className="d-flex gap-2">
               {notifies.length > 0 && unreadCount > 0 && (
-                <Button
-                  size="sm"
-                  variant="outline-primary"
-                  onClick={handleMarkAllAsRead}
-                  title="Marquer tout comme lu"
-                >
-                  <FaCheckDouble className="me-1" /> Tout marquer lu
+                <Button size="sm" variant="outline-primary" onClick={handleMarkAllAsRead}>
+                  <FaCheckDouble className="me-1" /> Marcar todas leídas
                 </Button>
               )}
               {notifies.length > 0 && (
-                <Button
-                  size="sm"
-                  variant="outline-danger"
-                  onClick={handleDeleteAll}
-                  title="Supprimer toutes"
-                >
-                  <FaTrash className="me-1" /> Tout supprimer
+                <Button size="sm" variant="outline-danger" onClick={handleDeleteAll}>
+                  <FaTrash className="me-1" /> Eliminar todas
                 </Button>
               )}
             </div>
@@ -199,96 +177,63 @@ const NotifyPage = () => {
         {notifies.length === 0 ? (
           <Card.Body className="text-center py-5">
             <FaBell className="fs-1 text-muted mb-3 opacity-50" />
-            <h5 className="text-muted">Aucune notification</h5>
-            <p className="small text-muted">Vous serez notifié lorsqu'il y aura des activités</p>
+            <h5 className="text-muted">No hay notificaciones</h5>
+            <p className="small text-muted">Aparecerán aquí las actividades relevantes</p>
           </Card.Body>
         ) : (
           <div className="list-group list-group-flush">
             {notifies.map(notify => {
-              // ✅ Validar que notify existe
-              if (!notify || !notify._id) return null;
-              
+              if (!notify?._id) return null;
+              const avatarUrl = notify.user?.avatar || null;
+              const thumbnailUrl = hasVideoThumbnail(notify) ? notify.image : null;
+              const targetUrl = getTargetUrl(notify);
+              const actionText = getActionText(notify);
+
               return (
                 <Link
                   key={notify._id}
-                  to={notify.url || '#'}
+                  to={targetUrl}
                   className={`list-group-item list-group-item-action border-0 ${!notify.isRead ? 'bg-light' : ''}`}
-                  style={{
-                    padding: '16px 20px',
-                    transition: 'all 0.2s ease',
-                    cursor: 'pointer',
-                    textDecoration: 'none',
-                    borderBottom: '1px solid rgba(0,0,0,0.05)'
-                  }}
+                  style={{ padding: '16px 20px', textDecoration: 'none', borderBottom: '1px solid rgba(0,0,0,0.05)' }}
                   onClick={() => handleMarkAsRead(notify)}
                 >
-                  <div className="d-flex gap-3 align-items-start">
-                    {/* Avatar */}
-                    <div className="flex-shrink-0">
-                      {notify.user?.avatar ? (
-                        <Image
-                          src={notify.user.avatar}
-                          width="45"
-                          height="45"
-                          className="rounded-circle"
-                          style={{ objectFit: 'cover' }}
-                        />
+                  <Row className="align-items-center g-3">
+                    {/* Avatar del actor */}
+                    <Col xs="auto">
+                      {avatarUrl ? (
+                        <Image src={avatarUrl} width="48" height="48" className="rounded-circle" style={{ objectFit: 'cover' }} />
                       ) : (
-                        <div className="bg-secondary rounded-circle d-flex align-items-center justify-content-center" style={{ width: '45px', height: '45px' }}>
+                        <div className="bg-secondary rounded-circle d-flex align-items-center justify-content-center" style={{ width: '48px', height: '48px' }}>
                           {getNotifyIcon(notify.type)}
                         </div>
                       )}
-                    </div>
+                    </Col>
 
-                    {/* Contenido */}
-                    <div className="flex-grow-1">
-                      <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                    {/* Texto y fecha */}
+                    <Col xs className="px-0">
+                      <div className="d-flex flex-wrap justify-content-between align-items-start gap-1">
                         <div>
-                          <span className="fw-bold">
-                            {notify.user?.username || 'Utilisateur'}
-                          </span>
-                          <span className="text-muted ms-1">
-                            {notify.text || 'Vous a envoyé une notification'}
-                          </span>
+                          <strong>{notify.user?.username || 'Usuario'}</strong>{' '}
+                          <span className="text-muted">{actionText}</span>
                         </div>
-                        <small className="text-muted flex-shrink-0">
-                          {formatDate(notify.createdAt)}
-                        </small>
+                        <small className="text-muted flex-shrink-0 ms-2">{formatDate(notify.createdAt)}</small>
                       </div>
-                      
-                      {/* Contenido adicional */}
-                      {notify.content && (
-                        <p className="mb-1 text-muted small">
-                          "{notify.content.length > 50 
-                            ? notify.content.substring(0, 50) + '...' 
-                            : notify.content}"
-                        </p>
-                      )}
-                      
-                      {/* Imagen de la notificación */}
-                      {notify.image && (
+                      {!notify.isRead && <Badge bg="primary" pill className="mt-1">Nuevo</Badge>}
+                    </Col>
+
+                    {/* Miniatura del video (si existe) */}
+                    {thumbnailUrl && (
+                      <Col xs="auto">
                         <Image 
-                          src={notify.image} 
-                          width="40" 
-                          height="40" 
-                          className="rounded mt-2"
+                          src={thumbnailUrl} 
+                          width="70" 
+                          height="70" 
+                          className="rounded border"
                           style={{ objectFit: 'cover' }}
                         />
-                      )}
-                      
-                      {/* Indicador de no leído */}
-                      {!notify.isRead && (
-                        <Badge bg="primary" pill className="mt-2">
-                          Nouveau
-                        </Badge>
-                      )}
-                    </div>
-
-                    {/* Icono de acción */}
-                    <div className="flex-shrink-0">
-                      {getNotifyIcon(notify.type)}
-                    </div>
-                  </div>
+                      </Col>
+                    )}
+                  </Row>
                 </Link>
               );
             })}

@@ -466,13 +466,13 @@ const CategoryPage = () => {
           onClick={() => setVideoViewMode(VIDEO_VIEW_MODE.GRID)}
           style={{
             position: 'fixed',
-            top: '70px',
-            right: '10px',
+            top: '7px',
+            right: '150px',
             zIndex: 1001,
             background: 'rgba(0,0,0,0.6)',
             border: 'none',
             borderRadius: '8px',
-            padding: '8px 12px',
+            
             color: 'white',
             display: 'flex',
             alignItems: 'center',
@@ -482,7 +482,7 @@ const CategoryPage = () => {
           }}
         >
           <Grid3x3 size={18} />
-          Grille
+       
         </button>
 
         <div 

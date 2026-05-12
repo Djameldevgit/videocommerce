@@ -9,6 +9,7 @@ import { GLOBALTYPES } from '../../redux/actions/globalTypes';
 import Feed from '../video/Feed';
  
 import './ChannelFeed.css';  
+import HeaderVideo from '../HeaderVideo';
 
 const LoadingSpinner = () => (
   <div className="channel-feed-loading">
@@ -254,6 +255,8 @@ const ChannelFeed = () => {
           <span>Chargement...</span>
         </div>
       )}
+
+      <HeaderVideo/>
     </div>
   );
 };

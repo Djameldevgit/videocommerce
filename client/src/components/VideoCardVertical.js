@@ -5,7 +5,6 @@ import { useHistory } from 'react-router-dom';
 const VideoCardVertical = ({ video }) => {
   const history = useHistory();
 
-  // Ir a la categoría o al video (comportamiento original)
   const handleClick = () => {
     sessionStorage.setItem('returnToFeed', window.location.pathname);
     sessionStorage.setItem('scrollPosition', window.scrollY);
@@ -18,7 +17,6 @@ const VideoCardVertical = ({ video }) => {
     }
   };
 
-  // Ir al perfil del canal (sin propagar)
   const goToChannel = (e) => {
     e.stopPropagation();
     if (video.channel?._id) {
@@ -34,8 +32,6 @@ const VideoCardVertical = ({ video }) => {
   };
 
   const categoryName = video.category?.name || (video.category && typeof video.category === 'object' ? video.category.name : null);
-
-  // Usar datos del canal si existen, si no, fallback a los antiguos campos
   const channelName = video.channel?.name || video.nom_entreprise || 'Tienda';
   const channelActivity = video.channel?.activity || video.activite || 'Activité';
 
@@ -52,10 +48,9 @@ const VideoCardVertical = ({ video }) => {
           className="thumbnail-img"
         />
         <div className="info-overlay">
-          {/* Área cliqueable para el canal (anula el pointer-events: none del overlay) */}
           <div className="channel-info" onClick={goToChannel}>
             <div className="business-name">{channelName}</div>
-            <div className="activity">{channelActivity}</div>
+             
           </div>
           <div className="video-title">{video.title || 'Sin título'}</div>
           {formatPrice(video.price) && <div className="price">{formatPrice(video.price)}</div>}
@@ -67,7 +62,7 @@ const VideoCardVertical = ({ video }) => {
         .video-card-vertical {
           transition: transform 0.2s ease;
           background: transparent;
-          border-radius: 13px;
+          border-radius: 8px;          /* ← antes 13px */
           overflow: hidden;
           margin-bottom: 12px;
         }
@@ -82,8 +77,8 @@ const VideoCardVertical = ({ video }) => {
         .video-thumbnail-wrapper {
           position: relative;
           width: 100%;
-          aspect-ratio: 4 / 5.09;
-          border-radius: 13px;
+          aspect-ratio: 4 / 5.25;      /* ← antes 4/5.09, ahora ~10px más alto */
+          border-radius: 8px;          /* ← antes 13px */
           overflow: hidden;
           background: #0f0f0f;
         }
@@ -102,76 +97,75 @@ const VideoCardVertical = ({ video }) => {
           left: 0;
           right: 0;
           background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 60%, transparent 100%);
-          padding: 8px 8px 6px 8px;
+          padding: 10px 8px 8px 8px;
           color: white;
-          text-shadow: 0 1px 1px rgba(0,0,0,0.5);
-          pointer-events: none;   /* ← El overlay no intercepta clics */
+          text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+          pointer-events: none;
           z-index: 1;
         }
-        /* Hacemos que el área del canal sea cliqueable */
         .channel-info {
-          pointer-events: auto;    /* ← Anula el pointer-events para esta zona */
+          pointer-events: auto;
           cursor: pointer;
-          margin-bottom: 4px;
+          margin-bottom: 6px;
           display: inline-block;
         }
         .business-name {
-          font-size: 0.85rem;
+          font-size: 0.9rem;       /* ← aumentado */
           font-weight: 700;
-          line-height: 1.2;
+          line-height: 1.3;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
           margin-bottom: 2px;
         }
         .activity {
-          font-size: 0.7rem;
+          font-size: 0.75rem;      /* ← aumentado */
           font-weight: 500;
           color: #ffd966;
-          line-height: 1.2;
+          line-height: 1.3;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
-          margin-bottom: 3px;
+          margin-bottom: 4px;
         }
         .video-title {
-          font-size: 0.75rem;
-          line-height: 1.3;
+          font-size: 0.8rem;       /* ← aumentado */
+          font-weight: 500;
+          line-height: 1.4;
           display: -webkit-box;
           -webkit-line-clamp: 2;
           -webkit-box-orient: vertical;
           overflow: hidden;
-          margin-bottom: 3px;
+          margin-bottom: 4px;
         }
         .price {
-          font-size: 0.85rem;
-          font-weight: 600;
+          font-size: 0.9rem;       /* ← aumentado */
+          font-weight: 700;
           color: #4ade80;
-          margin-bottom: 2px;
+          margin-bottom: 3px;
         }
         .category {
-          font-size: 0.6rem;
+          font-size: 0.65rem;      /* ← aumentado */
           text-transform: uppercase;
-          letter-spacing: 0.3px;
-          opacity: 0.8;
-          line-height: 1.2;
+          letter-spacing: 0.4px;
+          opacity: 0.85;
+          line-height: 1.3;
         }
 
-        /* Ajustes para móviles */
         @media (max-width: 768px) {
           .info-overlay {
-            padding: 6px 6px 4px 6px;
+            padding: 8px 6px 6px 6px;
           }
+          .business-name { font-size: 0.85rem; }
+          .activity { font-size: 0.7rem; }
+          .video-title { font-size: 0.75rem; }
+          .price { font-size: 0.85rem; }
+          .category { font-size: 0.6rem; }
+        }
+        @media (max-width: 480px) {
           .business-name { font-size: 0.8rem; }
           .activity { font-size: 0.65rem; }
           .video-title { font-size: 0.7rem; }
-          .price { font-size: 0.8rem; }
-          .category { font-size: 0.55rem; }
-        }
-        @media (max-width: 480px) {
-          .business-name { font-size: 0.75rem; }
-          .activity { font-size: 0.6rem; }
-          .video-title { font-size: 0.65rem; }
         }
       `}</style>
     </div>
