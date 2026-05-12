@@ -19,10 +19,9 @@ const InputComment = ({ target, onReply, setOnReply, targetType, onCommentAdded 
             return
         }
 
-        // ✅ Si no hay token, redirigir al login
+        // Si pas de token, rediriger vers login
         if (!auth?.token) {
             console.error('❌ Utilisateur non connecté');
-            // Redirigir al login o mostrar mensaje
             window.location.href = '/login';
             return
         }
@@ -41,7 +40,7 @@ const InputComment = ({ target, onReply, setOnReply, targetType, onCommentAdded 
             tag: onReply?.user || null
         }
         
-        console.log('📤 Envoi commentaire:', newComment);
+        console.log('📤 Envoi du commentaire:', newComment);
         
         setContent('')
         
@@ -61,7 +60,7 @@ const InputComment = ({ target, onReply, setOnReply, targetType, onCommentAdded 
         if (setOnReply) setOnReply(false)
     }
 
-    // ✅ Mostrar input deshabilitado si no está logueado
+    // Afficher champ désactivé si l'utilisateur n'est pas connecté
     if (!auth?.token) {
         return (
             <form onSubmit={handleSubmit} style={{ 
@@ -95,7 +94,7 @@ const InputComment = ({ target, onReply, setOnReply, targetType, onCommentAdded 
                     }}
                     disabled
                 >
-                    Poster
+                    Publier
                 </button>
             </form>
         )
@@ -135,7 +134,7 @@ const InputComment = ({ target, onReply, setOnReply, targetType, onCommentAdded 
                 }}
                 disabled={!content.trim()}
             >
-                Poster
+                Publier
             </button>
         </form>
     )

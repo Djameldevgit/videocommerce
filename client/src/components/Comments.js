@@ -8,15 +8,15 @@ const Comments = ({ target, targetType }) => {
     const { auth } = useSelector(state => state)
     const [comments, setComments] = useState([])
     const [showComments, setShowComments] = useState([])
-    const [next, setNext] = useState(5)  // Mostrar 5 comentarios inicialmente
+    const [next, setNext] = useState(5)  // Afficher 5 commentaires initialement
     const [replyComments, setReplyComments] = useState([])
     const [refreshKey, setRefreshKey] = useState(0)
     const [loading, setLoading] = useState(true)
 
-    // ✅ Cargar comentarios desde el servidor
+    // Charger les commentaires depuis le serveur
     const loadComments = useCallback(async () => {
         if (!target?._id) {
-            console.log('❌ Comments: target._id no existe');
+            console.log('❌ Comments: target._id n\'existe pas');
             setLoading(false);
             return;
         }
@@ -25,15 +25,14 @@ const Comments = ({ target, targetType }) => {
         
         try {
             const token = auth.token;
-            console.log('📥 Cargando comentarios para:', target._id);
-            console.log('📥 Con token:', !!token);
+            console.log('📥 Chargement des commentaires pour:', target._id);
+            console.log('📥 Avec token:', !!token);
             
             const res = await getDataAPI(`comments?targetId=${target._id}&targetModel=${targetType || 'video'}`, token);
             
-            console.log('📥 Respuesta completa:', res.data);
+            console.log('📥 Réponse complète:', res.data);
             
             if (res.data.success) {
-                // ✅ Verificar estructura de datos
                 let allComments = [];
                 
                 if (res.data.data && res.data.data.comments) {
@@ -44,9 +43,9 @@ const Comments = ({ target, targetType }) => {
                     allComments = target.comments;
                 }
                 
-                console.log('📥 Total comentarios encontrados:', allComments.length);
+                console.log('📥 Nombre total de commentaires trouvés:', allComments.length);
                 
-                // Separar comentarios principales y respuestas
+                // Séparer les commentaires principaux et les réponses
                 const newCm = allComments.filter(cm => !cm.reply)
                 const newRep = allComments.filter(cm => cm.reply)
                 
@@ -54,8 +53,8 @@ const Comments = ({ target, targetType }) => {
                 setReplyComments(newRep)
                 setShowComments(newCm.slice(0, next))
             } else {
-                console.error('❌ Respuesta sin éxito:', res.data);
-                // Fallback a target.comments
+                console.error('❌ Réponse non réussie:', res.data);
+                // Fallback à target.comments
                 if (target.comments && Array.isArray(target.comments)) {
                     const newCm = target.comments.filter(cm => !cm.reply)
                     const newRep = target.comments.filter(cm => cm.reply)
@@ -65,7 +64,7 @@ const Comments = ({ target, targetType }) => {
                 }
             }
         } catch (err) {
-            console.error('❌ Error loading comments:', err);
+            console.error('❌ Erreur lors du chargement des commentaires:', err);
             // Fallback
             if (target.comments && Array.isArray(target.comments)) {
                 const newCm = target.comments.filter(cm => !cm.reply)
@@ -79,16 +78,16 @@ const Comments = ({ target, targetType }) => {
         }
     }, [target?._id, targetType, auth.token, next, target.comments])
 
-    // Cargar cuando cambia target o refreshKey
+    // Charger quand target ou refreshKey change
     useEffect(() => {
         loadComments()
     }, [loadComments, refreshKey])
 
-    // ✅ Función para refrescar después de acciones
+    // Fonction pour rafraîchir après les actions
     const handleRefresh = () => {
-        console.log('🔄 Refrescando comentarios...');
+        console.log('🔄 Rafraîchissement des commentaires...');
         setRefreshKey(prev => prev + 1);
-        setNext(5); // Resetear el contador
+        setNext(5); // Réinitialiser le compteur
     }
 
     if (!target || !target._id) {

@@ -1,5 +1,5 @@
-// pages/video/EditVideoWizard.jsx - VERSION FINALE (FR, 3 étapes, champs obligatoires nom_entreprise/activite/catégories/titre)
-import React, { useState, useEffect, useCallback,  useRef } from 'react';
+// EditVideoWizard.jsx - ACTUALIZADO (solo comerciales nuevos)
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useHistory, useParams } from 'react-router-dom';
 import { Button, Alert, Spinner, Card, ProgressBar, Badge, Form, Row, Col } from 'react-bootstrap';
@@ -12,7 +12,6 @@ import { GLOBALTYPES } from '../../redux/actions/globalTypes';
 import { videoUpload } from '../../utils/imageUpload';
 import { patchDataAPI } from '../../utils/fetchData';
 import './CreateVideoWizard.css';
-
 
 const EditVideoWizard = () => {
   const { id } = useParams();
@@ -30,7 +29,7 @@ const EditVideoWizard = () => {
   const [keepExistingVideo, setKeepExistingVideo] = useState(true);
   const [showCommercial, setShowCommercial] = useState(false);
 
-  // États du formulaire (une seule catégorie)
+  // Estado del formulario (SOLO CAMPOS NUEVOS)
   const [wizardData, setWizardData] = useState({
     // Vidéo
     videoSource: 'existing',
@@ -47,46 +46,38 @@ const EditVideoWizard = () => {
     // Champs obligatoires (Step 3)
     nom_entreprise: '',
     activite: '',
-    selectedCategory: '',        // ✅ UNIQUE category ID
+    selectedCategory: '',
     titre: '',
     description: '',
-    // Champs commerciaux optionnels
-    price: '',
-    wholesale: false,
-    minQuantity: 1,
-    phone: '',
-    email: '',
-    wilaya: '',
-    commune: '',
-    pickupOnly: false,
-    deliveryAvailable: false,
-    deliveryCost: 0,
-    stock: 0
+    // CAMPOS COMERCIALES NUEVOS
+    isCommercial: false,
+    saleType: '',
+    address: '',
+    mapUrl: ''
   });
 
   const isProActive = user?.isPro && (!user?.proExpiryDate || new Date(user.proExpiryDate) > new Date());
   const maxDuration = isProActive ? 60 : 30;
 
-  // Charger catégories
+  // Cargar categorías
   useEffect(() => {
     if (sliderCategories.length === 0) {
       dispatch(getSliderCategories());
     }
   }, [dispatch, sliderCategories.length]);
 
-  // Charger la vidéo existante
+  // Cargar video existente
   useEffect(() => {
     if (id) {
       dispatch(getVideoById(id));
     }
   }, [dispatch, id]);
 
-  // Remplir le formulaire avec les données de la vidéo
+  // Rellenar formulario con datos del video (mapeando campos antiguos a nuevos)
   useEffect(() => {
     if (video && !videoLoading) {
       console.log('📹 Édition vidéo:', video);
 
-      // Musique existante
       let existingMusic = null;
       if (video.music) {
         existingMusic = {
@@ -100,13 +91,21 @@ const EditVideoWizard = () => {
         };
       }
 
-      // ✅ Récupérer la catégorie unique (si ancien video.category ou video.categories[0])
       let initialCategory = '';
       if (video.category) {
         initialCategory = typeof video.category === 'object' ? video.category._id : video.category;
       } else if (video.categories && Array.isArray(video.categories) && video.categories.length > 0) {
         initialCategory = typeof video.categories[0] === 'object' ? video.categories[0]._id : video.categories[0];
       }
+
+      // Determinar si el video es comercial y mapear saleType desde campos antiguos
+      let initialSaleType = video.saleType || '';
+      if (!initialSaleType) {
+        if (video.wholesale && video.price && video.price > 0) initialSaleType = 'both';
+        else if (video.wholesale) initialSaleType = 'wholesale';
+        else if (video.price && video.price > 0) initialSaleType = 'retail';
+      }
+      const isCommercialVideo = !!initialSaleType;
 
       setWizardData({
         videoSource: 'existing',
@@ -123,17 +122,10 @@ const EditVideoWizard = () => {
         selectedCategory: initialCategory,
         titre: video.titre || video.title || '',
         description: video.description || '',
-        price: video.price || '',
-        wholesale: video.wholesale || false,
-        minQuantity: video.minQuantity || 1,
-        phone: video.phone || '',
-        email: video.email || '',
-        wilaya: video.wilaya || '',
-        commune: video.commune || '',
-        pickupOnly: video.pickupOnly || false,
-        deliveryAvailable: video.delivery?.available || false,
-        deliveryCost: video.delivery?.cost || 0,
-        stock: video.stock?.available || 0
+        isCommercial: isCommercialVideo,
+        saleType: initialSaleType,
+        address: video.address || '',
+        mapUrl: video.mapUrl || ''
       });
     }
   }, [video, videoLoading]);
@@ -143,7 +135,7 @@ const EditVideoWizard = () => {
     if (newData.videoFile) setKeepExistingVideo(false);
   }, []);
 
-  // Validation des étapes
+  // Validación de pasos
   const validateStep = useCallback((step) => {
     switch (step) {
       case 1:
@@ -156,7 +148,7 @@ const EditVideoWizard = () => {
           return false;
         }
         break;
-      case 2: // Musique - toujours valide
+      case 2:
         break;
       case 3:
         if (!wizardData.nom_entreprise.trim()) {
@@ -195,7 +187,7 @@ const EditVideoWizard = () => {
     window.scrollTo(0, 0);
   }, []);
 
-  // Soumettre les modifications
+  // Envío de modificaciones
   const handleSubmit = useCallback(async () => {
     if (!validateStep(3)) return;
 
@@ -206,7 +198,6 @@ const EditVideoWizard = () => {
     try {
       let videoUrl, videoPublicId, thumbnail, videoDuration;
 
-      // Upload nouvelle vidéo si changée
       if (!keepExistingVideo && wizardData.videoFile) {
         const result = await videoUpload(wizardData.videoFile, (progress) => setUploadProgress(progress));
         videoUrl = result.url;
@@ -220,7 +211,6 @@ const EditVideoWizard = () => {
         videoDuration = wizardData.videoDuration;
       }
 
-      // Musique
       let musicData = null;
       if (wizardData.selectedMusic) {
         musicData = {
@@ -234,42 +224,25 @@ const EditVideoWizard = () => {
         };
       }
 
-      // Préparer le payload (catégorie unique)
-      const hasCommercialData = !!(wizardData.price || wizardData.phone || wizardData.email || wizardData.wilaya || wizardData.stock);
-      const isCommercial = hasCommercialData;
+      // Preparar payload con los nuevos campos comerciales
+      const isCommercial = !!wizardData.saleType;
 
       const payload = {
         nom_entreprise: wizardData.nom_entreprise,
         activite: wizardData.activite,
         titre: wizardData.titre,
         description: wizardData.description,
-        category: wizardData.selectedCategory,   // ✅ UNIQUE ID
+        category: wizardData.selectedCategory,
         videoUrl,
         videoPublicId,
         thumbnail,
         duration: videoDuration,
         music: musicData,
         isCommercial,
-        price: wizardData.price ? parseFloat(wizardData.price) : 0,
-        wholesale: wizardData.wholesale,
-        minQuantity: wizardData.wholesale ? (wizardData.minQuantity || 1) : 1,
-        phone: wizardData.phone,
-        email: wizardData.email,
-        wilaya: wizardData.wilaya,
-        commune: wizardData.commune,
-        pickupOnly: wizardData.pickupOnly,
-        delivery: {
-          available: wizardData.deliveryAvailable,
-          cost: wizardData.deliveryCost ? parseFloat(wizardData.deliveryCost) : 0,
-          estimatedDays: 2,
-          zones: wizardData.wilaya ? [wizardData.wilaya] : []
-        },
-        stock: {
-          total: wizardData.stock ? parseInt(wizardData.stock) : 0,
-          available: wizardData.stock ? parseInt(wizardData.stock) : 0,
-          reserved: 0
-        },
-        tags: wizardData.wilaya ? [wizardData.wilaya, wizardData.commune, wizardData.wholesale ? 'gros' : 'détail'] : []
+        saleType: wizardData.saleType || null,
+        address: wizardData.address || '',
+        mapUrl: wizardData.mapUrl || '',
+        // Los campos antiguos ya no se envían
       };
 
       const res = await patchDataAPI(`videos/${id}`, payload, auth.token);
@@ -278,7 +251,7 @@ const EditVideoWizard = () => {
           type: GLOBALTYPES.ALERT,
           payload: { success: '✏️ Vidéo modifiée avec succès !' }
         });
-        dispatch(getCategoriesWithVideos(1, 2)); // refresh home
+        dispatch(getCategoriesWithVideos(1, 2));
         history.push('/');
       } else {
         setError(res.data.message || 'Erreur lors de la modification');
@@ -291,9 +264,7 @@ const EditVideoWizard = () => {
     }
   }, [wizardData, keepExistingVideo, id, auth.token, dispatch, history, validateStep]);
 
-  // ==================== RENDER DES ÉTAPES ====================
-
-  // Étape 1 : Vidéo (identique)
+  // Render paso 1 (sin cambios)
   const renderStep1 = () => (
     <div style={{ padding: '0 8px' }}>
       {keepExistingVideo && video && (
@@ -352,12 +323,12 @@ const EditVideoWizard = () => {
     </div>
   );
 
-  // Étape 3 : Infos avec sélecteur de catégorie unique
+  // Render paso 3 (solo se actualiza la sección comercial)
   const renderStep3 = () => (
     <div className="step3-container" style={{ padding: '0' }}>
       <h5 className="mb-4" style={{ color: 'white', fontWeight: 'bold' }}>📝 Détails de l'annonce</h5>
 
-      {/* 1. Nom entreprise */}
+      {/* Nom entreprise */}
       <div className="mb-3">
         <label className="form-label fw-bold" style={{ color: 'white' }}>Nom de l'entreprise *</label>
         <input
@@ -370,7 +341,7 @@ const EditVideoWizard = () => {
         />
       </div>
 
-      {/* 2. Activité */}
+      {/* Activité */}
       <div className="mb-3">
         <label className="form-label fw-bold" style={{ color: 'white' }}>Activité *</label>
         <textarea
@@ -383,7 +354,7 @@ const EditVideoWizard = () => {
         />
       </div>
 
-      {/* 3. Catégorie unique (select) */}
+      {/* Catégorie */}
       <div className="mb-3">
         <label className="form-label fw-bold" style={{ color: 'white' }}>Catégorie *</label>
         <select
@@ -403,7 +374,7 @@ const EditVideoWizard = () => {
         <small className="text-muted mt-1 d-block">Choisissez la catégorie principale de votre annonce</small>
       </div>
 
-      {/* 4. Titre */}
+      {/* Titre */}
       <div className="mb-3">
         <label className="form-label fw-bold" style={{ color: 'white' }}>Titre *</label>
         <input
@@ -431,7 +402,7 @@ const EditVideoWizard = () => {
         />
       </div>
 
-      {/* Section commerciale colapsable */}
+      {/* Section commerciale colapsable - ACTUALIZADA */}
       <div className="mt-4">
         <Button
           variant="outline-light"
@@ -445,80 +416,48 @@ const EditVideoWizard = () => {
 
         {showCommercial && (
           <div className="mt-3 p-3" style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '16px', animation: 'fadeIn 0.3s ease' }}>
-            <Row>
-              <Col md={6} className="mb-2">
-                <label className="form-label" style={{ color: 'white' }}>Prix (DA)</label>
-                <input type="number" className="form-control" placeholder="Ex: 2500"
-                  value={wizardData.price} onChange={(e) => updateWizardData({ price: e.target.value })}
-                  style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }} />
-              </Col>
-              <Col md={6} className="mb-2">
-                <label className="form-label" style={{ color: 'white' }}>Stock disponible</label>
-                <input type="number" className="form-control" placeholder="Ex: 50"
-                  value={wizardData.stock} onChange={(e) => updateWizardData({ stock: e.target.value })}
-                  style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }} />
-              </Col>
-            </Row>
-
-            <Form.Check type="switch" id="editWholesale" label="Vente en gros (quantité minimale)"
-              checked={wizardData.wholesale} onChange={(e) => updateWizardData({ wholesale: e.target.checked })}
-              className="mb-2" style={{ color: 'white' }} />
-            {wizardData.wholesale && (
-              <div className="mb-2 ms-4">
-                <label className="form-label" style={{ color: 'white' }}>Quantité minimum</label>
-                <input type="number" className="form-control" style={{ width: '150px', background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }}
-                  value={wizardData.minQuantity} onChange={(e) => updateWizardData({ minQuantity: e.target.value })} />
-              </div>
-            )}
-
-            <Row className="mt-2">
-              <Col md={6} className="mb-2">
-                <label className="form-label" style={{ color: 'white' }}>Téléphone</label>
-                <input type="tel" className="form-control" placeholder="0555 12 34 56"
-                  value={wizardData.phone} onChange={(e) => updateWizardData({ phone: e.target.value })}
-                  style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }} />
-              </Col>
-              <Col md={6} className="mb-2">
-                <label className="form-label" style={{ color: 'white' }}>Email</label>
-                <input type="email" className="form-control" placeholder="contact@boutique.com"
-                  value={wizardData.email} onChange={(e) => updateWizardData({ email: e.target.value })}
-                  style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }} />
-              </Col>
-            </Row>
-
-            <Row className="mt-2">
-              <Col md={6} className="mb-2">
-                <label className="form-label" style={{ color: 'white' }}>Wilaya</label>
-                <input type="text" className="form-control" placeholder="Ex: Alger"
-                  value={wizardData.wilaya} onChange={(e) => updateWizardData({ wilaya: e.target.value })}
-                  style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }} />
-              </Col>
-              <Col md={6} className="mb-2">
-                <label className="form-label" style={{ color: 'white' }}>Commune</label>
-                <input type="text" className="form-control" placeholder="Ex: Sidi M'Hamed"
-                  value={wizardData.commune} onChange={(e) => updateWizardData({ commune: e.target.value })}
-                  style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }} />
-              </Col>
-            </Row>
-
-            <Form.Check type="switch" id="editPickup" label="Retrait en magasin uniquement"
-              checked={wizardData.pickupOnly} onChange={(e) => updateWizardData({ pickupOnly: e.target.checked })}
-              className="mt-2" style={{ color: 'white' }} />
-            <Form.Check type="switch" id="editDelivery" label="Livraison disponible"
-              checked={wizardData.deliveryAvailable} onChange={(e) => updateWizardData({ deliveryAvailable: e.target.checked })}
-              className="mt-2" style={{ color: 'white' }} />
-            {wizardData.deliveryAvailable && (
-              <div className="mt-2 ms-4">
-                <label className="form-label" style={{ color: 'white' }}>Frais de livraison (DA)</label>
-                <input type="number" className="form-control" style={{ width: '150px', background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }}
-                  value={wizardData.deliveryCost} onChange={(e) => updateWizardData({ deliveryCost: e.target.value })} />
-              </div>
-            )}
+            {/* NUEVOS CAMPOS COMERCIALES */}
+            <div className="mb-3">
+              <label className="form-label fw-bold" style={{ color: 'white' }}>Type de vente</label>
+              <select
+                className="form-select"
+                value={wizardData.saleType}
+                onChange={(e) => updateWizardData({ saleType: e.target.value })}
+                style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }}
+              >
+                <option value="">Sélectionner (optionnel)</option>
+                <option value="retail">Vente au détail</option>
+                <option value="wholesale">Vente en gros</option>
+                <option value="both">Vente au détail et en gros</option>
+              </select>
+            </div>
+            <div className="mb-3">
+              <label className="form-label" style={{ color: 'white' }}>Adresse de la boutique</label>
+              <input
+                type="text"
+                className="form-control"
+                placeholder="Rue, numéro, ville, code postal"
+                value={wizardData.address}
+                onChange={(e) => updateWizardData({ address: e.target.value })}
+                style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }}
+              />
+            </div>
+            <div className="mb-3">
+              <label className="form-label" style={{ color: 'white' }}>Carte (URL Google Maps)</label>
+              <input
+                type="url"
+                className="form-control"
+                placeholder="https://maps.google.com/..."
+                value={wizardData.mapUrl}
+                onChange={(e) => updateWizardData({ mapUrl: e.target.value })}
+                style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }}
+              />
+            </div>
           </div>
         )}
       </div>
 
-      {/* Aperçu musique si existante */}
+      {/* Aperçu musique existante */}
       {wizardData.selectedMusic && (
         <div className="mt-4 p-3" style={{ background: 'rgba(102,126,234,0.2)', borderRadius: '12px' }}>
           <div className="d-flex align-items-center gap-2">
@@ -535,7 +474,7 @@ const EditVideoWizard = () => {
 
   const stepLabels = ['Vidéo', 'Musique', 'Infos'];
 
-  // États de chargement
+  // Estados de carga
   if (videoLoading && !video) {
     return (
       <div className="create-video-wizard" style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #1a1a2e, #16213e)', padding: '12px' }}>

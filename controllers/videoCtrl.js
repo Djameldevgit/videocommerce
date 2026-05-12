@@ -42,7 +42,6 @@ const createVideo = async (req, res) => {
     console.log("🔴 BODY RECIBIDO:", JSON.stringify(req.body, null, 2));
 
     const {
-      // Datos del video
       titre,
       title: receivedTitle,
       description,
@@ -52,12 +51,11 @@ const createVideo = async (req, res) => {
       thumbnail,
       duration,
       music,
-      // Comerciales
+      // Campos comerciales NUEVOS
       isCommercial,
-      price,
-      wholesale,
-      minQuantity,
-      stock,
+      saleType,      // 'retail', 'wholesale', 'both'
+      address,
+      mapUrl,
       // Canal
       channelId
     } = req.body;
@@ -93,7 +91,7 @@ const createVideo = async (req, res) => {
       return res.status(400).json({ success: false, message: `Catégorie invalide: ${category}` });
     }
 
-    // === OBTENER EL CANAL ===
+    // Obtener el canal
     let channel;
     if (channelId) {
       channel = await Channel.findById(channelId);
@@ -104,7 +102,6 @@ const createVideo = async (req, res) => {
         return res.status(403).json({ success: false, message: 'No eres dueño de este canal' });
       }
     } else {
-      // Si no se envía channelId, tomar el primer canal del usuario
       channel = await Channel.findOne({ owner: userId });
       if (!channel) {
         return res.status(400).json({ success: false, message: 'No tienes un canal. Crea uno primero.' });
@@ -117,7 +114,7 @@ const createVideo = async (req, res) => {
       owner: channel.owner
     });
 
-    // Validar campos comerciales (si aplica)
+    // Validar campos comerciales (si es video comercial)
     if (isCommercial) {
       if (!channel.wilaya || !channel.commune) {
         return res.status(400).json({
@@ -131,9 +128,16 @@ const createVideo = async (req, res) => {
           message: 'Le canal doit avoir au moins un moyen de contact (téléphone ou email)'
         });
       }
+      // Validar que se haya seleccionado un tipo de venta
+      if (!saleType || !['retail', 'wholesale', 'both'].includes(saleType)) {
+        return res.status(400).json({
+          success: false,
+          message: 'El tipo de venta es obligatorio: retail (detalle), wholesale (mayor) o both (ambos)'
+        });
+      }
     }
 
-    // Procesar música (mezcla de audio)
+    // Procesar música (mezcla de audio) - igual que original
     let finalVideoUrl = videoUrl;
     let finalThumbnail = thumbnail;
     let musicData = null;
@@ -166,7 +170,7 @@ const createVideo = async (req, res) => {
       musicData = { ...music, processed: false };
     }
 
-    // ✅ Crear el nuevo video con el channel correctamente asignado
+    // ✅ Crear el nuevo video con los campos actualizados
     const newVideo = new Video({
       title: finalTitle.trim(),
       description: description || '',
@@ -176,15 +180,15 @@ const createVideo = async (req, res) => {
       videoPublicId: videoPublicId,
       thumbnail: finalThumbnail,
       duration: duration || 0,
-      channel: channel._id,  // ← ¡CRUCIAL! Guardar el ID del canal
+      channel: channel._id,
       user: userId,
       music: musicData,
       tags: req.body.tags || [],
       isCommercial: isCommercial || false,
-      price: price || 0,
-      wholesale: wholesale || false,
-      minQuantity: wholesale ? (minQuantity || 1) : 1,
-      stock: stock || { total: 0, available: 0, reserved: 0 },
+      // Nuevos campos comerciales
+      saleType: isCommercial ? saleType : null,
+      address: address || '',
+      mapUrl: mapUrl || '',
       pendiente: isAdmin ? false : true
     });
 
@@ -194,11 +198,11 @@ const createVideo = async (req, res) => {
     // Incrementar contadores
     await Category.findByIdAndUpdate(categoryDoc._id, { $inc: { videoCount: 1 } });
     
-    // Actualizar totalVideos del canal (solo los aprobados)
+    // Actualizar totalVideos del canal
     channel.totalVideos = await Video.countDocuments({ channel: channel._id, pendiente: false, isActive: true });
     await channel.save();
 
-    // ✅ POBLAR COMPLETAMENTE para la respuesta
+    // Poblar respuesta
     const populatedVideo = await Video.findById(newVideo._id)
       .populate('channel', 'name avatar isVerified _id owner')
       .populate('category', 'name slug icon')
@@ -218,7 +222,6 @@ const createVideo = async (req, res) => {
     res.status(500).json({ success: false, message: error.message || 'Error al crear el video' });
   }
 };
-
 // ============================================
 // UPDATE VIDEO - VERSIÓN ACTUALIZADA
 // ============================================
@@ -236,12 +239,12 @@ const updateVideo = async (req, res) => {
       thumbnail,
       duration,
       isCommercial,
-      price,
-      wholesale,
-      minQuantity,
-      stock,
+      // Nuevos campos comerciales
+      saleType,
+      address,
+      mapUrl,
       tags,
-      channelId  // ← Permitir actualizar el canal también
+      channelId
     } = req.body;
 
     console.log("🔴 ========== UPDATE VIDEO ==========");
@@ -253,7 +256,6 @@ const updateVideo = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Video no encontrado' });
     }
 
-    // Obtener canal actual o nuevo
     let currentChannel = await Channel.findById(video.channel);
     if (!currentChannel) {
       return res.status(404).json({ success: false, message: 'Canal original no encontrado' });
@@ -266,7 +268,7 @@ const updateVideo = async (req, res) => {
       return res.status(403).json({ success: false, message: 'No autorizado' });
     }
 
-    // ✅ Si se envía un nuevo channelId, cambiar de canal
+    // Cambio de canal opcional
     let newChannel = null;
     if (channelId && channelId !== video.channel.toString()) {
       newChannel = await Channel.findById(channelId);
@@ -280,7 +282,7 @@ const updateVideo = async (req, res) => {
       console.log(`🔄 Canal cambiado: ${currentChannel.name} → ${newChannel.name}`);
     }
 
-    // Guardar categoría antigua para contador
+    // Guardar categoría antigua
     const oldCategoryId = video.category ? video.category.toString() : null;
     let newCategoryId = null;
 
@@ -292,7 +294,7 @@ const updateVideo = async (req, res) => {
       video.shortDescription = description ? description.substring(0, 300) : '';
     }
     if (thumbnail) video.thumbnail = thumbnail;
-    if (duration) video.duration = duration;
+    if (duration !== undefined) video.duration = duration;
     if (videoUrl) video.videoUrl = videoUrl;
     if (videoPublicId !== undefined) video.videoPublicId = videoPublicId;
     if (tags) video.tags = tags;
@@ -310,14 +312,38 @@ const updateVideo = async (req, res) => {
       video.category = newCategoryId;
     }
 
-    // 4. Actualizar campos comerciales
+    // 4. Actualizar campos comerciales (nuevos)
     if (isCommercial !== undefined) video.isCommercial = isCommercial;
-    if (price !== undefined) video.price = price;
-    if (wholesale !== undefined) video.wholesale = wholesale;
-    if (minQuantity !== undefined) video.minQuantity = minQuantity;
-    if (stock !== undefined) video.stock = stock;
+    
+    // Si el video es comercial, actualizamos saleType, address, mapUrl
+    // Si se cambia isCommercial a false, limpiamos esos campos
+    if (isCommercial === true) {
+      if (saleType !== undefined) {
+        if (!['retail', 'wholesale', 'both'].includes(saleType)) {
+          return res.status(400).json({ success: false, message: 'saleType inválido: debe ser retail, wholesale o both' });
+        }
+        video.saleType = saleType;
+      }
+      if (address !== undefined) video.address = address;
+      if (mapUrl !== undefined) video.mapUrl = mapUrl;
+    } else if (isCommercial === false) {
+      // Si ya no es comercial, limpiar los campos comerciales
+      video.saleType = null;
+      video.address = '';
+      video.mapUrl = '';
+    } else {
+      // Si no se envía isCommercial, actualizamos igualmente los campos si vienen
+      if (saleType !== undefined) {
+        if (!['retail', 'wholesale', 'both'].includes(saleType)) {
+          return res.status(400).json({ success: false, message: 'saleType inválido' });
+        }
+        video.saleType = saleType;
+      }
+      if (address !== undefined) video.address = address;
+      if (mapUrl !== undefined) video.mapUrl = mapUrl;
+    }
 
-    // 5. Manejo de música y mezcla de audio
+    // 5. Manejo de música (igual que original)
     const cleanUrlFromTransformations = (url) => {
       if (!url) return url;
       let cleanUrl = url;
@@ -389,7 +415,7 @@ const updateVideo = async (req, res) => {
       await Category.findByIdAndUpdate(oldCategoryId, { $inc: { videoCount: -1 } });
     }
 
-    // 8. Actualizar estadísticas de los canales (viejo y nuevo)
+    // 8. Actualizar estadísticas de los canales
     if (currentChannel) {
       await currentChannel.updateStats();
     }
@@ -399,7 +425,7 @@ const updateVideo = async (req, res) => {
       await currentChannel.updateStats();
     }
 
-    // 9. ✅ POBLAR COMPLETAMENTE para la respuesta
+    // 9. Poblar respuesta
     const updatedVideo = await Video.findById(video._id)
       .populate('channel', 'name avatar isVerified _id owner')
       .populate('category', 'name slug icon')
@@ -876,7 +902,7 @@ const getVideoById = async (req, res) => {
     // ✅ CORREGIDO: Poblar channel
     const video = await Video.findById(id)
       .populate('user', 'username avatar isPro')
-      .populate('channel', 'name avatar isVerified _id owner')  // ← Poblar canal
+      .populate('channel', 'name avatar isVerified _id owner wilaya commune phone email')  // ← Poblar canal
       .populate('comments.user', 'username avatar')
       .lean();
     

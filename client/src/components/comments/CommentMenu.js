@@ -1,5 +1,3 @@
-// 📂 components/comments/CommentMenu.jsx
-
 import React, { useState, useRef, useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { deleteComment } from '../../redux/actions/commentAction'
@@ -10,7 +8,6 @@ const CommentMenu = ({target, comment, setOnEdit, targetType, onDelete}) => {
     const { auth, socket } = useSelector(state => state)
     const dispatch = useDispatch()
 
-    // Cerrar dropdown al hacer clic fuera
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -21,36 +18,31 @@ const CommentMenu = ({target, comment, setOnEdit, targetType, onDelete}) => {
         return () => document.removeEventListener('mousedown', handleClickOutside)
     }, [])
 
-   // 📂 components/comments/CommentMenu.jsx
-// Modificar handleRemove para agregar confirmación
-
-const handleRemove = () => {
-    // ✅ Agregar mensaje de confirmación
-    const confirmDelete = window.confirm('¿Eliminar este comentario?')
-    if (!confirmDelete) return
-    
-    setShowDropdown(false)
-    if(onDelete) {
-        onDelete()
-    } else {
-        if(target?.user?._id === auth.user?._id || comment.user?._id === auth.user?._id){
-            dispatch(deleteComment({target, auth, comment, socket, targetType}))
+    const handleRemove = () => {
+        const confirmDelete = window.confirm('Supprimer ce commentaire ?')
+        if (!confirmDelete) return
+        
+        setShowDropdown(false)
+        if(onDelete) {
+            onDelete()
+        } else {
+            if(target?.user?._id === auth.user?._id || comment.user?._id === auth.user?._id){
+                dispatch(deleteComment({target, auth, comment, socket, targetType}))
+            }
         }
     }
-}
+
     const handleEdit = () => {
         setShowDropdown(false)
         setOnEdit(true)
     }
 
-    // Verificar si puede mostrar el menú
     const isTargetOwner = target?.user?._id === auth.user?._id
     const isCommentOwner = comment.user?._id === auth.user?._id
     const isAdmin = auth.user?.role === 'admin' || auth.user?.role === 'moderator'
     
     const canShowMenu = isTargetOwner || isCommentOwner || isAdmin
 
-    // Si no puede mostrar el menú, no renderizar nada
     if (!canShowMenu) return null
 
     return (
@@ -87,7 +79,6 @@ const handleRemove = () => {
                         overflow: 'hidden'
                     }}
                 >
-                    {/* Mostrar opción de editar solo si es dueño del comentario o admin */}
                     {(isCommentOwner || isAdmin) && (
                         <div 
                             className="dropdown-item"
@@ -104,11 +95,10 @@ const handleRemove = () => {
                             onMouseLeave={(e) => e.currentTarget.style.background = '#fff'}
                         >
                             <span className="material-icons" style={{ fontSize: '18px' }}>create</span>
-                            <span>Edit</span>
+                            <span>Modifier</span>
                         </div>
                     )}
                     
-                    {/* Mostrar opción de eliminar si es dueño del comentario, dueño del target o admin */}
                     {(isCommentOwner || isTargetOwner || isAdmin) && (
                         <div 
                             className="dropdown-item"
@@ -126,7 +116,7 @@ const handleRemove = () => {
                             onMouseLeave={(e) => e.currentTarget.style.background = '#fff'}
                         >
                             <span className="material-icons" style={{ fontSize: '18px' }}>delete_outline</span>
-                            <span>Delete</span>
+                            <span>Supprimer</span>
                         </div>
                     )}
                 </div>
@@ -148,7 +138,6 @@ const handleRemove = () => {
                     min-width: 120px;
                     overflow: hidden;
                 }
-                /* Tema oscuro */
                 [data-theme="dark"] .comment-dropdown-menu {
                     background: #2d2d2d;
                     color: #fff;

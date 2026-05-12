@@ -1,13 +1,13 @@
-// components/Video/DetailVideoPage.jsx - VERSIÓN MODIFICADA (fondo blanco, sin mapa, campo-valor en misma fila)
+// components/Video/DetailVideoPage.jsx - VERSIÓN CON BOTÓN PARA MAPA
 import React, { useState, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useParams, useHistory } from 'react-router-dom';
 import { Button, Badge, Card } from 'react-bootstrap';
 import {
   Heart, HeartFill, Eye, Clock, Share, Bookmark, BookmarkFill,
-  ArrowLeft, Chat, VolumeUp, VolumeMute, CheckCircle,
-  Trash, ShieldLock, CameraReels, HourglassSplit, SendCheck,
-  GeoAlt, Telephone, Envelope, Truck, Box, Tag, Building, Whatsapp
+  ArrowLeft, VolumeUp, VolumeMute, CheckCircle,
+  Trash, ShieldLock, HourglassSplit, SendCheck,
+  GeoAlt, Tag, Building, Map
 } from 'react-bootstrap-icons';
 import { getVideoById, likeVideo } from '../../redux/actions/videoAction';
 import { aprobarVideo, eliminarVideo } from '../../redux/actions/videoApproveAction';
@@ -15,7 +15,6 @@ import VideoActions from './VideoActions';
 import { GLOBALTYPES } from '../../redux/actions/globalTypes';
 import moment from 'moment';
 import 'moment/locale/fr';
-import VideoComments from './VideoCommentsSheet';
 import './css/video.css';
 import './DetailVideoPage.css';
 
@@ -26,12 +25,10 @@ const DetailVideoPage = () => {
   const { auth, socket } = useSelector(state => state);
   const { currentVideo: video, loading } = useSelector(state => state.video || {});
   
-  // Estados (sin cambios)
+  // Estados
   const [liked, setLiked] = useState(false);
   const [likesCount, setLikesCount] = useState(0);
   const [saved, setSaved] = useState(false);
-  const [commentsCount, setCommentsCount] = useState(0);
-  const [showComments, setShowComments] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [progress, setProgress] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
@@ -46,9 +43,10 @@ const DetailVideoPage = () => {
   const isAdmin = auth.user?.role === 'admin' || auth.user?.role === 'moderator';
   const isOwner = video?.user?._id === auth.user?._id;
   const isPending = video?.pendiente === true;
-  const isCommercial = video?.isCommercial === true || (video?.price > 0 || video?.wilaya || video?.phone);
+  // Nuevo: comercial si tiene saleType o isCommercial
+  const isCommercial = video?.isCommercial === true || (video?.saleType && video.saleType !== '');
   
-  // Efectos (sin cambios)
+  // Efectos
   useEffect(() => {
     if (id) dispatch(getVideoById(id));
   }, [dispatch, id]);
@@ -57,7 +55,6 @@ const DetailVideoPage = () => {
     if (video && !video.pendiente) {
       setLiked(video.liked || false);
       setLikesCount(video.likes?.length || 0);
-      setCommentsCount(video.comments?.length || 0);
     }
   }, [video]);
 
@@ -186,60 +183,41 @@ const DetailVideoPage = () => {
     return num.toString();
   };
 
+  // Traducción del saleType
+  const getSaleTypeLabel = (type) => {
+    switch (type) {
+      case 'retail': return 'Vente au détail';
+      case 'wholesale': return 'Vente en gros';
+      case 'both': return 'Vente au détail et en gros';
+      default: return type;
+    }
+  };
+
   // ============================================
-  // SECCIÓN COMERCIAL MODIFICADA
-  // - Fondo blanco
-  // - Sin mapa
-  // - Campor y valor en la misma fila (usando grid flexible)
-  // - Sin padding extra
+  // SECCIÓN COMERCIAL CON NUEVOS CAMPOS + BOTÓN MAPA
   // ============================================
   const renderCommercialInfo = () => {
     if (!isCommercial) return null;
     
-    // Datos a mostrar en pares (etiqueta, valor, icono)
     const items = [];
-    if (video?.price !== undefined) {
+    
+    if (video?.saleType) {
       items.push({
         icon: <Tag size={16} />,
-        label: 'Prix',
-        value: video.price > 0 ? `${video.price.toLocaleString()} DA` : 'Prix sur devis',
-        sub: video?.wholesale && video?.minQuantity > 1 ? `Minimum: ${video.minQuantity} unités` : null
+        label: 'Type de vente',
+        value: getSaleTypeLabel(video.saleType)
       });
     }
-    if (video?.stock?.available > 0) {
-      items.push({
-        icon: <Box size={16} />,
-        label: 'Stock',
-        value: `${video.stock.available} unités`
-      });
-    }
-    if (video?.wilaya || video?.commune) {
+    
+    if (video?.address) {
       items.push({
         icon: <GeoAlt size={16} />,
-        label: 'Localisation',
-        value: `${video.commune ? `${video.commune}, ` : ''}${video.wilaya || ''}`
+        label: 'Adresse',
+        value: video.address
       });
     }
-    if (video?.phone) {
-      items.push({
-        icon: <Telephone size={16} />,
-        label: 'Téléphone',
-        value: video.phoneHidden && !isOwner && !isAdmin ? (
-          <button className="btn-show-phone" onClick={() => dispatch({ type: GLOBALTYPES.ALERT, payload: { info: 'Connectez-vous pour voir le numéro' } })}>
-            🔒 Voir le numéro
-          </button>
-        ) : (
-          <a href={`tel:${video.phone}`} className="phone-link">{video.phone}</a>
-        )
-      });
-    }
-    if (video?.email) {
-      items.push({
-        icon: <Envelope size={16} />,
-        label: 'Email',
-        value: <a href={`mailto:${video.email}`} className="email-link">{video.email}</a>
-      });
-    }
+    
+   
     
     if (items.length === 0) return null;
     
@@ -249,11 +227,6 @@ const DetailVideoPage = () => {
           <h5 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600 }}>
             <Tag size={18} style={{ marginRight: '8px' }} /> Informations commerciales
           </h5>
-          <div className="commercial-badges" style={{ display: 'flex', gap: '8px' }}>
-            {video?.wholesale && <span className="badge bg-secondary">Vente en gros</span>}
-            {video?.pickupOnly && <span className="badge bg-secondary">Retrait en magasin</span>}
-            {video?.delivery?.available && <span className="badge bg-secondary">Livraison disponible</span>}
-          </div>
         </div>
         
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '16px' }}>
@@ -272,39 +245,50 @@ const DetailVideoPage = () => {
               </div>
               <div style={{ flex: 1, textAlign: 'right', color: '#222', wordBreak: 'break-word' }}>
                 {item.value}
-                {item.sub && <div style={{ fontSize: '0.75rem', color: '#777', marginTop: '4px' }}>{item.sub}</div>}
               </div>
             </div>
           ))}
         </div>
         
-        {/* Botones de contacto - Sin mapa */}
+        {/* Botones de acción: Partager y Ver mapa */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginTop: '20px', justifyContent: 'center' }}>
-          {video?.phone && !video.phoneHidden && (
-            <a href={`tel:${video.phone}`} className="btn btn-outline-primary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-              <Telephone size={16} /> Appeler
-            </a>
-          )}
-          {video?.phone && (
-            <a href={`https://wa.me/${video.phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" className="btn btn-outline-success btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-              <Whatsapp size={16} /> WhatsApp
-            </a>
-          )}
-          {video?.email && (
-            <a href={`mailto:${video.email}`} className="btn btn-outline-secondary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-              <Envelope size={16} /> Email
-            </a>
-          )}
           <button className="btn btn-outline-info btn-sm" onClick={handleShare} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
             <Share size={16} /> Partager
           </button>
+          
+          {/* Botón para ver en el mapa - solo si hay address o datos de canal */}
+          {(video?.address || video?.channel?.wilaya || video?.channel?.commune) && (
+            <button 
+              className="btn btn-outline-primary btn-sm" 
+              onClick={() => {
+                history.push('/map', {
+                  shopData: {
+                    nombretienda: video?.title || video?.nom_entreprise || 'Boutique',
+                    address: video?.address || '',
+                    wilaya: video?.channel?.wilaya || '',
+                    commune: video?.channel?.commune || '',
+                    mobile: video?.channel?.phone || '',
+                    email: video?.channel?.email || '',
+                    typesVente: getSaleTypeLabel(video?.saleType),
+                    proprietaire: video?.user?.username,
+                    presentacion: video?.description,
+                    mapUrl: video?.mapUrl,
+                    images: video?.images || []
+                  }
+                });
+              }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+            >
+              <Map size={16} /> Voir sur la carte
+            </button>
+          )}
         </div>
       </div>
     );
   };
 
   // ============================================
-  // PANTALLAS DE ESTADO (sin cambios)
+  // PANTALLAS DE ESTADO
   // ============================================
   if (loading && !video) {
     return (
@@ -359,7 +343,7 @@ const DetailVideoPage = () => {
   }
 
   // ============================================
-  // VIDEO PRINCIPAL (sin cambios en estructura)
+  // VIDEO PRINCIPAL
   // ============================================
   return (
     <div className="tiktok-container" style={{ backgroundColor: '#ffffff' }}>
@@ -447,15 +431,6 @@ const DetailVideoPage = () => {
 
           {video?.pendiente === false && (
             <div className="tiktok-action-item">
-              <button className="tiktok-action-btn" onClick={() => setShowComments(!showComments)}>
-                <Chat size={24} />
-              </button>
-              <p className="tiktok-action-count">{formatNumber(commentsCount)}</p>
-            </div>
-          )}
-
-          {video?.pendiente === false && (
-            <div className="tiktok-action-item">
               <button className="tiktok-action-btn" onClick={handleSave}>
                 {saved ? <BookmarkFill size={24} color="#ffd700" /> : <Bookmark size={24} />}
               </button>
@@ -502,18 +477,8 @@ const DetailVideoPage = () => {
         </div>
       </div>
 
-      {/* Sección comercial modificada */}
+      {/* Sección comercial con botón de mapa */}
       {renderCommercialInfo()}
-
-      {video?.pendiente === false && (
-        <div className={`tiktok-comments-panel ${showComments ? 'open' : ''}`}>
-          <div className="tiktok-comments-header">
-            <h6 className="tiktok-comments-title">{commentsCount} commentaires</h6>
-            <button className="tiktok-close-comments" onClick={() => setShowComments(false)}>✕</button>
-          </div>
-          <VideoComments videoId={video?._id} comments={video?.comments || []} totalComments={commentsCount} />
-        </div>
-      )}
     </div>
   );
 };

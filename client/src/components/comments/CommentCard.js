@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import Avatar from '../Avatar'
 import { Link } from 'react-router-dom'
 import moment from 'moment'
+import 'moment/locale/fr' // Importa la localización francesa
 
 import LikeButton from '../LikeButton'
 import { useSelector, useDispatch } from 'react-redux'
@@ -13,6 +14,9 @@ const CommentCard = ({children, comment, target, targetType, commentId, onCommen
     const { auth, theme } = useSelector(state => state)
     const dispatch = useDispatch()
 
+    // Forcer la langue française pour moment
+    moment.locale('fr')
+
     const [content, setContent] = useState('')
     const [readMore, setReadMore] = useState(false)
 
@@ -21,7 +25,6 @@ const CommentCard = ({children, comment, target, targetType, commentId, onCommen
     const [loadLike, setLoadLike] = useState(false)
 
     const [onReply, setOnReply] = useState(false)
-
 
     useEffect(() => {
         setContent(comment.content)
@@ -110,7 +113,7 @@ const CommentCard = ({children, comment, target, targetType, commentId, onCommen
                             {
                                 content.length > 100 &&
                                 <span className="readMore" onClick={() => setReadMore(!readMore)}>
-                                    {readMore ? 'Hide content' : 'Read more'}
+                                    {readMore ? 'Masquer le contenu' : 'Lire la suite'}
                                 </span>
                             }
                         </div>
@@ -123,7 +126,7 @@ const CommentCard = ({children, comment, target, targetType, commentId, onCommen
                         </small>
 
                         <small className="font-weight-bold mr-3">
-                            {comment.likes?.length || 0} likes
+                            {comment.likes?.length || 0} {comment.likes?.length === 1 ? 'j\'aime' : 'j\'aime'}
                         </small>
 
                         {
@@ -131,17 +134,17 @@ const CommentCard = ({children, comment, target, targetType, commentId, onCommen
                             ? <>
                                 <small className="font-weight-bold mr-3"
                                 onClick={handleUpdate}>
-                                    update
+                                    Modifier
                                 </small>
                                 <small className="font-weight-bold mr-3"
                                 onClick={() => setOnEdit(false)}>
-                                    cancel
+                                    Annuler
                                 </small>
                             </>
 
                             : <small className="font-weight-bold mr-3"
                             onClick={handleReply}>
-                                {onReply ? 'cancel' :'reply'}
+                                {onReply ? 'Annuler' : 'Répondre'}
                             </small>
                         }
                         
@@ -151,15 +154,15 @@ const CommentCard = ({children, comment, target, targetType, commentId, onCommen
 
 
                 <div className="d-flex align-items-center mx-2" style={{cursor: 'pointer'}}>
-    <CommentMenu 
-        target={target}      // ✅ Debe ser target, no post
-        comment={comment} 
-        setOnEdit={setOnEdit} 
-        targetType={targetType}
-        onDelete={handleDelete}
-    />
-    <LikeButton isLike={isLike} handleLike={handleLike} handleUnLike={handleUnLike} />
-</div>
+                    <CommentMenu 
+                        target={target}
+                        comment={comment} 
+                        setOnEdit={setOnEdit} 
+                        targetType={targetType}
+                        onDelete={handleDelete}
+                    />
+                    <LikeButton isLike={isLike} handleLike={handleLike} handleUnLike={handleUnLike} />
+                </div>
             </div> 
             
             {

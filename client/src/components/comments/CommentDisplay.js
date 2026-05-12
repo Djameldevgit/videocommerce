@@ -39,13 +39,13 @@ const CommentDisplay = ({comment, target, targetType, replyCm, onCommentDeleted,
                         replyCm.length - next > 0
                         ? <div style={{cursor: 'pointer', color: 'crimson'}}
                         onClick={() => setNext(next + 10)}>
-                            See more comments...
+                            Voir plus de commentaires...
                         </div>
 
                         : replyCm.length > 1 &&
                         <div style={{cursor: 'pointer', color: 'crimson'}}
                         onClick={() => setNext(1)}>
-                            Hide comments...
+                            Masquer les commentaires...
                         </div>
                     }
                 </div>

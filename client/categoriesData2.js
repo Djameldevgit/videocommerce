@@ -1,35 +1,35 @@
-//  node categoriesData2.js
-// Crea carpetas y placeholders de iconos para TODAS las categorías (18 slugs exactos, ordenados)
+// node categoriesData2.js
+// Crea carpetas y placeholders de iconos para TODAS las categorías (19 slugs exactos, ordenados)
 const fs = require('fs');
 const path = require('path');
 
 // ✅ Ruta base - /public/categories/ (desde la raíz del proyecto)
-// El script debe ejecutarse desde la raíz del proyecto (donde está la carpeta public)
 const basePath = path.join(process.cwd(), 'public', 'categories');
 
 console.log('📁 Ruta base calculada:', basePath);
 console.log('📁 Directorio actual:', process.cwd());
 
-// 📋 LISTA COMPLETA DE SLUGS - ORDEN CORRECTO (18 categorías, sin duplicados)
+// 📋 LISTA COMPLETA DE SLUGS - ORDEN CORRECTO (19 categorías)
 const mainCategories = [
-  'agence',                    // 1. Agence
-  'immobilier',                // 2. Immobilier
-  'vehicules',                 // 3. Automobiles & Véhicules
-  'pieces-detachees',          // 4. Pièces détachées
-  'telephones',                // 5. Téléphones & Accessoires
-  'informatique',              // 6. Informatique
-  'electromenager',            // 7. Électroménager & Électronique
-  'vetements-mode',            // 8. Vêtements & Mode
-  'sante-beaute',              // 9. Santé & Beauté
-  'meubles-maison',            // 10. Meubles & Maison
-  'loisirs-divertissements',   // 11. Loisirs & Divertissements
-  'sport',                     // 12. Sport
-  'emploi',                    // 13. Emploi
-  'materiaux-equipement',      // 14. Matériaux & Équipement
-  'alimentaires',              // 15. Alimentaires
-  'voyages',                   // 16. Voyages
-  'services',                  // 17. Services
-  'publicite'                  // 18. Publicité
+  'agence',
+  'immobilier',
+  'vehicules',
+  'pieces-detachees',
+  'telephones',
+  'informatique',
+  'electromenager',
+  'vetements-mode',
+  'sante-beaute',
+  'meubles-maison',
+  'loisirs-divertissements',
+  'sport',
+  'emploi',
+  'materiaux-equipement',
+  'alimentaires',
+  'voyages',
+  'services',
+  'publicite',
+  'art'                       // ← NUEVA CATEGORÍA
 ];
 
 // Mapeo de slug a nombre legible
@@ -51,7 +51,8 @@ const categoryNames = {
   'alimentaires': 'Alimentaires',
   'voyages': 'Voyages',
   'services': 'Services',
-  'publicite': 'Publicité'
+  'publicite': 'Publicité',
+  'art': 'Art'                // ← NUEVO
 };
 
 // Colores asociados a cada categoría
@@ -73,7 +74,8 @@ const categoryColors = {
   'alimentaires': '#27AE60',
   'voyages': '#2980B9',
   'services': '#16A085',
-  'publicite': '#FF9800'
+  'publicite': '#FF9800',
+  'art': '#E91E63'            // ← NUEVO
 };
 
 // Función para crear carpetas y placeholders
@@ -81,7 +83,6 @@ function createCategoryIcons(basePath, slugs) {
   console.log('\n📁 Creando estructura en:', basePath);
   console.log('='.repeat(60));
 
-  // Verificar si la carpeta public existe
   const publicPath = path.join(process.cwd(), 'public');
   if (!fs.existsSync(publicPath)) {
     console.log(`⚠️ La carpeta 'public' no existe, creándola...`);
@@ -112,7 +113,6 @@ function createCategoryIcons(basePath, slugs) {
     const iconPath = path.join(categoryPath, iconFile);
     
     if (!fs.existsSync(iconPath)) {
-      // Crear un placeholder PNG vacío (1x1 pixel transparente en base64)
       const emptyPngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
       const emptyPngBuffer = Buffer.from(emptyPngBase64, 'base64');
       fs.writeFileSync(iconPath, emptyPngBuffer);

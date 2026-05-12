@@ -13,58 +13,66 @@ const getActionType = (targetType) => {
     return types[targetType] || VIDEO_TYPES
 }
 
-export const createComment = ({target, newComment, auth, socket, targetType}) => async (dispatch) => {
+export const createComment = ({target, newComment, auth, socket, targetType, videoData}) => async (dispatch) => {
     console.log('🎬 createComment action - targetType:', targetType);
     console.log('🎬 createComment action - target._id:', target?._id);
     console.log('🎬 createComment action - auth.token existe:', !!auth.token);
     
-    // ✅ Verificar que el token existe
     if (!auth.token) {
         console.error('❌ No hay token en createComment');
         return;
     }
     
-    const newTarget = {...target, comments: [...(target.comments || []), newComment]}
-    const TYPES = getActionType(targetType)
+    const newTarget = {...target, comments: [...(target.comments || []), newComment]};
+    const TYPES = getActionType(targetType);
     
-    dispatch({ type: TYPES.UPDATE_VIDEO, payload: newTarget })
+    dispatch({ type: TYPES.UPDATE_VIDEO, payload: newTarget });
 
     try {
         const data = {
             ...newComment, 
             targetId: target._id, 
-            targetModel: targetType || 'video',  // ✅ Por defecto 'video'
+            targetModel: targetType || 'video',
             targetUserId: target.user?._id
-        }
+        };
         
         console.log('📤 Enviando a API:', { url: 'comment', data });
-        
-        const res = await postDataAPI('comment', data, auth.token)
-        
+        const res = await postDataAPI('comment', data, auth.token);
         console.log('📥 Respuesta API:', res.data);
 
-        const newData = {...res.data.newComment, user: auth.user}
-        const updatedTarget = {...target, comments: [...(target.comments || []), newData]}
-        dispatch({ type: TYPES.UPDATE_VIDEO, payload: updatedTarget })
+        const newData = {...res.data.newComment, user: auth.user};
+        const updatedTarget = {...target, comments: [...(target.comments || []), newData]};
+        dispatch({ type: TYPES.UPDATE_VIDEO, payload: updatedTarget });
 
-        if(socket) socket.emit('createCommentVideo', updatedTarget)
+        if (socket) socket.emit('createCommentVideo', updatedTarget);
 
+        // ✅ OBTENER IMAGEN del video (igual que en likeVideo)
+        let imageUrl = '';
+        if (videoData?.thumbnail) {
+            imageUrl = videoData.thumbnail;
+        } else if (target.thumbnail) {
+            imageUrl = target.thumbnail;
+        } else if (target.images && target.images[0]?.url) {
+            imageUrl = target.images[0].url;
+        }
+        
+        // ✅ Usar videoData?.thumbnail para la notificación (prioridad)
         const msg = {
             id: res.data.newComment._id,
             text: newComment.reply ? 'vous a mentionné dans un commentaire.' : 'a commenté votre vidéo.',
             recipients: newComment.reply ? [newComment.tag._id] : [target.user?._id],
             url: `/video/${target._id}`,
-            content: target.title || target.content || '', 
-            image: target.thumbnail || target.images?.[0]?.url || ''
-        }
+            content: target.title || target.content || '',
+            image: imageUrl,   // ← MISMO CAMPO que likeVideo
+        };
 
-        dispatch(createNotify({msg, auth, socket}))
+        dispatch(createNotify({msg, auth, socket}));
         
     } catch (err) {
         console.error('❌ Error en createComment:', err.response?.data || err.message);
-        dispatch({ type: GLOBALTYPES.ALERT, payload: {error: err.response?.data?.msg || err.message} })
+        dispatch({ type: GLOBALTYPES.ALERT, payload: {error: err.response?.data?.msg || err.message} });
     }
-}
+};
 
 export const updateComment = ({comment, target, content, auth, targetType}) => async (dispatch) => {
     const newComments = EditData(target.comments, comment._id, {...comment, content})

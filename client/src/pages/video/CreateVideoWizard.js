@@ -1,4 +1,4 @@
-// components/Video/CreateVideoWizard.jsx - VERSIÓN FINAL CON VALIDACIÓN DEL CANAL
+// CreateVideoWizard.jsx - ACTUALIZADO (solo comerciales nuevos)
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useHistory } from 'react-router-dom';
@@ -47,17 +47,17 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
     titre: '',
     description: '',
     category: '',
-    price: '',
-    wholesale: false,
-    minQuantity: 1,
-    stock: 0
+    // NUEVOS CAMPOS COMERCIALES
+    saleType: '',      // 'retail', 'wholesale', 'both'
+    address: '',
+    mapUrl: ''
   });
 
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
 
   const isProActive = user?.isPro && (!user?.proExpiryDate || new Date(user.proExpiryDate) > new Date());
-  const maxDuration = isProActive ? 60 : 30;
+  const maxDuration = isProActive ? 60 : 60;
 
   // === Cargar categorías
   useEffect(() => {
@@ -110,7 +110,7 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
 
   // Validar que el canal tenga datos comerciales completos (si vamos a publicar video comercial)
   const validateChannelForCommercial = () => {
-    const hasCommercialData = !!(wizardData.price || wizardData.wholesale || wizardData.stock);
+    const hasCommercialData = !!wizardData.saleType; // si tiene tipo de venta, es comercial
     if (!hasCommercialData) return true; // Video no comercial, no necesita esos campos
 
     if (!selectedChannel?.wilaya || !selectedChannel?.commune) {
@@ -230,8 +230,7 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
 
     setSubmitting(true);
 
-    const hasCommercialData = !!(wizardData.price || wizardData.wholesale || wizardData.stock);
-    const isCommercial = hasCommercialData;
+    const isCommercial = !!wizardData.saleType; // Hay tipo de venta seleccionado
 
     const payload = {
       channelId: selectedChannelId,
@@ -251,10 +250,9 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
         volume: wizardData.musicVolume
       } : null,
       isCommercial,
-      price: wizardData.price ? parseFloat(wizardData.price) : 0,
-      wholesale: wizardData.wholesale,
-      minQuantity: wizardData.wholesale ? (wizardData.minQuantity || 1) : 1,
-      stock: wizardData.stock ? parseInt(wizardData.stock) : 0,
+      saleType: wizardData.saleType || null,
+      address: wizardData.address || '',
+      mapUrl: wizardData.mapUrl || '',
       tags: []
     };
 
@@ -275,7 +273,7 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
     }
   };
 
-  // Render paso 1
+  // Render paso 1 (sin cambios)
   const renderStep1 = () => (
     <div className="step1-container" style={{ padding: '0 8px', minHeight: '60vh', display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '40px', marginBottom: '20px', padding: '10px 0' }}>
@@ -303,7 +301,7 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
         <div className="video-preview-full" style={{ marginTop: '15px', position: 'relative', borderRadius: '16px', overflow: 'hidden', background: '#000' }}>
           <video src={wizardData.videoPreview} controls style={{ width: '100%', maxHeight: '50vh', objectFit: 'contain' }} />
           <Badge bg="dark" style={{ position: 'absolute', bottom: '8px', right: '8px', opacity: 0.8 }}>⏱️ {Math.floor(wizardData.videoDuration)}s</Badge>
-          <Button variant="danger" size="sm" style={{ position: 'absolute', top: '8px', right: '8px', borderRadius: '30px' }} onClick={clearVideo}>
+          <Button variant="danger" size="sm" style={{ position: 'absolute', top: '8px', right: '8px', borderRadius: '60px' }} onClick={clearVideo}>
             <X size={14} className="me-1" /> Changer
           </Button>
         </div>
@@ -321,7 +319,7 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
     </div>
   );
 
-  // Render paso 3 (información del video)
+  // Render paso 3 (solo se actualiza la sección comercial interna)
   const renderStep3 = () => {
     // Verificar si el canal seleccionado tiene datos incompletos (para mostrar advertencia)
     const hasCommercialDataOpen = showCommercial;
@@ -394,7 +392,7 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
           />
         </div>
 
-        {/* Section commerciale simplificada */}
+        {/* Section commerciale colapsable - ACTUALIZADA */}
         <div className="mt-4">
           <Button
             variant="outline-light"
@@ -426,30 +424,33 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
                 </Alert>
               )}
 
-              <Row>
-                <Col md={6} className="mb-2">
-                  <label className="form-label" style={{ color: 'white' }}>Prix (DA)</label>
-                  <input type="number" className="form-control" placeholder="Ex: 2500"
-                    value={wizardData.price} onChange={(e) => updateWizardData({ price: e.target.value })}
-                    style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }} />
-                </Col>
-                <Col md={6} className="mb-2">
-                  <label className="form-label" style={{ color: 'white' }}>Stock disponible</label>
-                  <input type="number" className="form-control" placeholder="Ex: 50"
-                    value={wizardData.stock} onChange={(e) => updateWizardData({ stock: e.target.value })}
-                    style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }} />
-                </Col>
-              </Row>
-              <Form.Check type="switch" id="wholesale" label="Vente en gros (quantité minimale)"
-                checked={wizardData.wholesale} onChange={(e) => updateWizardData({ wholesale: e.target.checked })}
-                className="mb-2" style={{ color: 'white' }} />
-              {wizardData.wholesale && (
-                <div className="mb-2 ms-4">
-                  <label className="form-label" style={{ color: 'white' }}>Quantité minimum</label>
-                  <input type="number" className="form-control" style={{ width: '150px', background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }}
-                    value={wizardData.minQuantity} onChange={(e) => updateWizardData({ minQuantity: e.target.value })} />
-                </div>
-              )}
+              {/* CAMPOS COMERCIALES NUEVOS */}
+              <div className="mb-3">
+                <label className="form-label fw-bold" style={{ color: 'white' }}>Type de vente</label>
+                <select
+                  className="form-select"
+                  value={wizardData.saleType}
+                  onChange={(e) => updateWizardData({ saleType: e.target.value })}
+                  style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }}
+                >
+                  <option value="">Sélectionner (optionnel)</option>
+                  <option value="retail">Vente au détail</option>
+                  <option value="wholesale">Vente en gros</option>
+                  <option value="both">Vente au détail et en gros</option>
+                </select>
+              </div>
+              <div className="mb-3">
+                <label className="form-label" style={{ color: 'white' }}>Adresse de la boutique</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Rue, numéro, ville, code postal"
+                  value={wizardData.address}
+                  onChange={(e) => updateWizardData({ address: e.target.value })}
+                  style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white' }}
+                />
+              </div>
+             
             </div>
           )}
         </div>
@@ -468,7 +469,7 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
 
   const stepLabels = ['Vidéo', 'Musique', 'Infos'];
 
-  // Render condicional (todos los hooks ya ejecutados)
+  // Render condicional
   if (channelsLoading) {
     return (
       <div className="text-center py-5" style={{ background: '#1a1a2e', minHeight: '100vh', color: 'white' }}>

@@ -17,23 +17,23 @@ const videoSchema = new mongoose.Schema({
     
     // ============ RELACIONES ============
     channel: { type: mongoose.Schema.Types.ObjectId, ref: 'Channel', required: true },
-    user: { type: mongoose.Schema.Types.ObjectId, ref: 'user', required: true }, // opcional: owner directo
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'user', required: true },
     category: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', required: true },
     
-    // ============ INFORMACIÓN COMERCIAL (específica del video/producto) ============
+    // ============ INFORMACIÓN COMERCIAL ============
     isCommercial: { type: Boolean, default: false, index: true },
-    price: { type: Number, default: 0, min: 0 },
-    wholesale: { type: Boolean, default: false },
-    minQuantity: { type: Number, default: 1, min: 1 },
-    stock: {
-        total: { type: Number, default: 0, min: 0 },
-        available: { type: Number, default: 0, min: 0 },
-        reserved: { type: Number, default: 0, min: 0 }
+    
+    // 🔥 NUEVO: Tipo de venta (detalle, mayor, ambos)
+    saleType: {
+        type: String,
+        enum: ['retail', 'wholesale', 'both'],
+        required: false,  // Opcional, solo si el video es comercial
+        default: null
     },
     
-    // ============ UBICACIÓN O INFO EXTRA (si el video es un evento puntual) ============
-    // Opcional: puedes añadir campos de ubicación temporal si un video necesita mostrar una dirección diferente a la del canal
-    // Pero por ahora no los incluyo para mantener limpio.
+    // ============ UBICACIÓN DE LA TIENDA (opcional) ============
+    address: { type: String, default: '' },        // Dirección física
+    mapUrl: { type: String, default: '' },         // URL de Google Maps o embed
     
     // ============ ESTADÍSTICAS ============
     views: { type: Number, default: 0, min: 0 },
@@ -56,20 +56,17 @@ const videoSchema = new mongoose.Schema({
     
     // ============ SCORES ============
     engagementScore: { type: Number, default: 0 },
-    conversionRate: { type: Number, default: 0 },
-    
-    // ============ PRODUCTOS RELACIONADOS ============
-    relatedProducts: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Video' }]
+    conversionRate: { type: Number, default: 0 }
     
 }, { timestamps: true });
 
-// Índices
+// Índices (eliminado el índice de price)
 videoSchema.index({ channel: 1, createdAt: -1 });
 videoSchema.index({ category: 1, isCommercial: 1 });
-videoSchema.index({ price: 1 });
 videoSchema.index({ title: 'text', description: 'text' });
+videoSchema.index({ saleType: 1 }); // útil para filtrar por tipo de venta
 
-// Métodos (los conservamos, ajustando donde haga falta)
+// Métodos (sin referencias a stock/price)
 videoSchema.methods.isCommercialVideo = function() {
     return this.isCommercial === true;
 };
@@ -82,7 +79,6 @@ videoSchema.methods.incrementViews = async function(userId = null) {
         if (!exists) this.uniqueViews.push(userId);
     }
     await this.save();
-    // Opcional: actualizar estadísticas del canal
     const Channel = mongoose.model('Channel');
     const channel = await Channel.findById(this.channel);
     if (channel) await channel.updateStats();
@@ -102,7 +98,6 @@ videoSchema.methods.toggleLike = async function(userId) {
     }
     this.updateEngagementScore();
     await this.save();
-    // Actualizar estadísticas del canal (totalLikes)
     const Channel = mongoose.model('Channel');
     const channel = await Channel.findById(this.channel);
     if (channel) await channel.updateStats();
@@ -118,15 +113,13 @@ videoSchema.methods.updateEngagementScore = function() {
     this.engagementScore = Math.min((totalEngagement / totalViews) * 100, 100);
 };
 
-// ... (el resto de métodos como updateWatchTime, share, incrementConversion, etc. se mantienen igual pero referenciando this.channel si necesitan actualizar el canal)
+// Métodos que podrías necesitar (watchTime, share, etc.) se mantienen igual
+// ... (agrega aquí los que ya tenías, sin tocar precio/stock)
 
+// Pre-save: eliminado el ajuste de stock
 videoSchema.pre('save', function(next) {
     if (this.isModified('views') || this.isModified('likes') || this.isModified('comments') || this.isModified('shares')) {
         this.updateEngagementScore();
-    }
-    // Asegurar stock
-    if (this.stock && this.stock.total !== undefined && this.stock.available === undefined) {
-        this.stock.available = this.stock.total;
     }
     next();
 });

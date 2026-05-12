@@ -24,7 +24,7 @@ import EditVideoWizard from './pages/video/EditVideoWizard';
 import usePushNotifications from './pages/notiy/UsePushNotifications';
 //import UserVideoPage from './pages/video/userVideo/[userId]';     
 //import UserFeed from './pages/video/userVideo/UserFeed';  <Route exact path="/video/userFeed/:userId" component={UserFeed} />
- 
+
 import InfoUserVideo from './pages/video/userVideo/InfoUserVideo';
 import TrendingVideos from './pages/video/TrendingVideos';
 import CreateImageWizard from './pages/video/CreateImageWizard';
@@ -37,7 +37,8 @@ import EditChannel from './pages/channel/EditChannel';
 import ChannelProfile from './pages/channel/ChannelProfile';
 import MisChannel from './pages/channel/MisChannel';
 import ChannelFeed from './pages/channel/ChannelFeed';
- 
+import Map from './pages/Map';
+
 // ============================================
 // ✅ SONIDO Y VIBRACIÓN - AUTOMÁTICO (sin esperar click)
 // ============================================
@@ -58,7 +59,7 @@ const initAudio = () => {
 // ✅ FORZAR DESBLOQUEO DE AUDIO (se intenta al recibir notificación)
 const forceUnlockAudio = () => {
   if (audioUnlocked || !audioElement) return;
-  
+
   try {
     audioElement.volume = 0;
     const promise = audioElement.play();
@@ -81,12 +82,12 @@ const forceUnlockAudio = () => {
 // ✅ Reproducir sonido (ahora se intenta siempre)
 const playSound = () => {
   if (!audioElement) return;
-  
+
   // Intentar desbloquear si es necesario
   if (!audioUnlocked) {
     forceUnlockAudio();
   }
-  
+
   try {
     audioElement.currentTime = 0;
     audioElement.volume = 0.8;
@@ -98,7 +99,7 @@ const playSound = () => {
         audioElement.play().then(() => {
           audioElement.pause();
           audioElement.volume = 0.8;
-        }).catch(() => {});
+        }).catch(() => { });
       }
     });
   } catch (error) {
@@ -127,7 +128,7 @@ function AppContent() {
     initAudio();
     setIsReady(true);
   }, []);
-  
+
   // ✅ Detectar interacción del usuario para desbloquear audio (solo primera vez)
   useEffect(() => {
     const handleInteraction = () => {
@@ -135,10 +136,10 @@ function AppContent() {
         forceUnlockAudio();
       }
     };
-    
+
     window.addEventListener('click', handleInteraction);
     window.addEventListener('touchstart', handleInteraction);
-    
+
     return () => {
       window.removeEventListener('click', handleInteraction);
       window.removeEventListener('touchstart', handleInteraction);
@@ -152,10 +153,10 @@ function AppContent() {
         Notification.requestPermission();
       }
     };
-    
+
     window.addEventListener('click', requestPermission);
     window.addEventListener('touchstart', requestPermission);
-    
+
     return () => {
       window.removeEventListener('click', requestPermission);
       window.removeEventListener('touchstart', requestPermission);
@@ -168,34 +169,34 @@ function AppContent() {
 
     const socket = io();
     dispatch({ type: GLOBALTYPES.SOCKET, payload: socket });
-    
+
     return () => socket.close();
   }, [dispatch]);
 
   // ✅ NOTIFICACIONES: Sonido + Vibración AUTOMÁTICA
   useEffect(() => {
     if (!notify.data || notify.data.length === 0 || !isReady) return;
-    
+
     const latest = notify.data[0];
-    
+
     if (latest._id !== lastNotifyId.current) {
       lastNotifyId.current = latest._id;
-      
+
       const title = latest.text || 'Nouvelle notification';
       const body = latest.content || `${latest.user?.username || 'Quelqu\'un'} a interagi`;
       const icon = latest.image || latest.user?.avatar || '/icon-web-01.png';
       const url = latest.url || '/';
-      
+
       // ✅ Para PWA instalada - usar Service Worker
       if (isPWAInstalled && 'serviceWorker' in navigator) {
         sendLocalNotification(title, body, url, icon);
       }
-      
+
       // ✅ SONIDO Y VIBRACIÓN
       console.log('🔔 Notificación recibida, reproduciendo sonido...');
       playSound();
       vibratePhone([200, 100, 200]);
-      
+
       // ✅ Notificación del sistema (si está permitido)
       if (Notification.permission === 'granted' && !isPWAInstalled) {
         try {
@@ -207,25 +208,25 @@ function AppContent() {
             tag: `notify-${latest._id}`,
             silent: false
           };
-          
+
           const notification = new Notification(title, notificationOptions);
-          
+
           notification.onclick = () => {
             window.focus();
             if (url) window.location.href = url;
           };
-          
+
           notification.onerror = (err) => {
             console.log('❌ Error en notificación:', err);
           };
-          
+
         } catch (notifError) {
           console.log('⚠️ Error creando notificación:', notifError.message);
         }
       }
     }
   }, [notify.data, isReady, isPWAInstalled, sendLocalNotification]);
-  
+
   // ✅ Determinar si se debe mostrar el Navbar2
   const shouldShowNavbar = (pathname) => {
     // Rutas fijas que NO son categorías (donde SÍ queremos navbar)
@@ -243,7 +244,7 @@ function AppContent() {
       '/users/dashboard',
       '/users/roles'
     ];
-    
+
     // Prefijos de rutas que también deben mostrar navbar
     const prefixes = [
       '/edit-video/',
@@ -254,11 +255,11 @@ function AppContent() {
       '/message/',
       '/profile/'
     ];
-    
+
     // Si es ruta exacta o empieza con algún prefijo → mostrar navbar
     if (explicitRoutes.includes(pathname)) return true;
     if (prefixes.some(prefix => pathname.startsWith(prefix))) return true;
-    
+
     // En cualquier otro caso (típicamente rutas de categoría) → ocultar navbar
     return false;
   };
@@ -277,7 +278,7 @@ function AppContent() {
     <div className="App">
       {/* Renderizado condicional del navbar según la ruta actual */}
       {shouldShowNavbar(location.pathname) && <Navbar2 />}
-      
+
       <div id="google_translate_element" style={{ display: 'none' }} />
       {auth.token && <SocketClient />}
 
@@ -285,22 +286,22 @@ function AppContent() {
         <Route exact path="/" component={Home} />
         <Route exact path="/register" component={Register} />
         <Route exact path="/login" component={Login} />
-        
+
 
         <Route exact path="/bloqueos404" component={Bloqueos404} />
         <Route exact path="/notify" component={NotifyPage} />
         <Route exact path="/create-video-page" component={CreateVideoWizard} />
         <Route path="/edit-video/:id" component={EditVideoWizard} />
         <Route exact path="/video/:id" component={DetailVideoPage} />
-         
+
         <Route exact path="/video/userVideo/:userId/info" component={InfoUserVideo} />
         <Route exact path="/videos/trending" component={TrendingVideos} />
         <Route path="/channel/new" component={CreateChannel} />
-  <Route exact  path="/channel/:channelId/settings" component={EditChannel}  />
-  <Route exact path="/channel/:channelId" component={ChannelProfile}   />
-  <Route exact path="/my-channels" component={MisChannel} />
-  <Route path="/video/channelFeed/:channelId" component={ChannelFeed} />
-
+        <Route exact path="/channel/:channelId/settings" component={EditChannel} />
+        <Route exact path="/channel/:channelId" component={ChannelProfile} />
+        <Route exact path="/my-channels" component={MisChannel} />
+        <Route path="/video/channelFeed/:channelId" component={ChannelFeed} />
+        <Route exact path="/map" component={Map} />
         <Route path="/create-image-page" component={CreateImageWizard} />
         <Route path="/edit-image/:id" component={EditImageWizard} />
         <Route exact path="/admindashboard" component={AdminDashboard} />
