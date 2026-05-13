@@ -1,83 +1,172 @@
-// components/VideoCardVertical.jsx - VERSIÓN CON CSS NORMAL
-import React, { useState, useEffect, useRef } from 'react';
+// components/VideoCardVertical.jsx
+// 🔥 NIVEL DIOS - SOLO 1 AUTOPLAY REAL EN GRID ANDROID / PC
+// Sistema:
+// ✅ solo un reel reproduce en toda la pantalla
+// ✅ el más cercano al centro viewport gana
+// ✅ scroll ultra fluido
+// ✅ ideal marketplace VideoCommerce
+
+import React, { useState, useEffect, useRef, memo } from 'react';
 import { useHistory } from 'react-router-dom';
 import { VolumeMute, VolumeUp } from 'react-bootstrap-icons';
 import { useSelector } from 'react-redux';
-import './VideoCardVertical.css'; // ✅ Importar CSS externo
- 
+import './VideoCardVertical.css';
+
+// ===============================
+// 🔥 MANAGER GLOBAL
+// ===============================
+const registry = new Map();
+let currentWinner = null;
+let ticking = false;
+
+function updateWinner() {
+  const centerY = window.innerHeight / 2;
+
+  let bestId = null;
+  let bestDistance = Infinity;
+
+  registry.forEach((item, id) => {
+    const rect = item.element.getBoundingClientRect();
+
+    // ignorar fuera de pantalla
+    if (rect.bottom < 0 || rect.top > window.innerHeight) return;
+
+    const cardCenter = rect.top + rect.height / 2;
+    const distance = Math.abs(centerY - cardCenter);
+
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestId = id;
+    }
+  });
+
+  if (bestId !== currentWinner) {
+    currentWinner = bestId;
+
+    registry.forEach((item, id) => {
+      item.setWinner(id === currentWinner);
+    });
+  }
+}
+
+function requestWinnerUpdate() {
+  if (ticking) return;
+
+  ticking = true;
+
+  requestAnimationFrame(() => {
+    updateWinner();
+    ticking = false;
+  });
+}
+
+// ===============================
+// COMPONENTE
+// ===============================
 const VideoCardVertical = ({ video }) => {
   const history = useHistory();
-  
-  // Obtener el modo de reproducción desde Redux
-  const { videoPlaybackMode = 'live' } = useSelector(state => state.videoMode || { videoPlaybackMode: 'live' });
+
+  const { videoPlaybackMode = 'live' } = useSelector(
+    state => state.videoMode || { videoPlaybackMode: 'live' }
+  );
+
   const isLiveMode = videoPlaybackMode === 'live';
-  
-  const [isVisible, setIsVisible] = useState(false);
+
+  const [isWinner, setIsWinner] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
-  const [showVolumeBtn, setShowVolumeBtn] = useState(false);
-  const videoRef = useRef(null);
+
   const containerRef = useRef(null);
+  const videoRef = useRef(null);
 
-  const videoUrl = video.videoUrl;
+  const idRef = useRef(video._id);
 
-  // Observer para detectar visibilidad (solo en modo live)
+  // ===============================
+  // REGISTRO GLOBAL
+  // ===============================
   useEffect(() => {
     if (!isLiveMode) return;
-    
-    const currentContainer = containerRef.current;
-    if (!currentContainer) return;
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          const visible = entry.isIntersecting;
-          setIsVisible(visible);
-        });
-      },
-      { threshold: 0.3, rootMargin: '50px' }
-    );
+    const element = containerRef.current;
+    if (!element) return;
 
-    observer.observe(currentContainer);
-    return () => observer.unobserve(currentContainer);
+    registry.set(idRef.current, {
+      element,
+      setWinner: setIsWinner
+    });
+
+    requestWinnerUpdate();
+
+    window.addEventListener('scroll', requestWinnerUpdate, {
+      passive: true
+    });
+
+    window.addEventListener('resize', requestWinnerUpdate);
+
+    return () => {
+      registry.delete(idRef.current);
+
+      window.removeEventListener(
+        'scroll',
+        requestWinnerUpdate
+      );
+
+      window.removeEventListener(
+        'resize',
+        requestWinnerUpdate
+      );
+    };
   }, [isLiveMode]);
 
-  // Controlar reproducción (solo en modo live)
+  // ===============================
+  // CONTROL PLAYBACK
+  // ===============================
   useEffect(() => {
     if (!isLiveMode) return;
-    if (!videoRef.current || !videoUrl) return;
 
-    if (isVisible) {
-      videoRef.current.muted = isMuted;
-      videoRef.current.play().catch(error => {
-        console.log(`Error playing: ${error.message}`);
-      });
+    const player = videoRef.current;
+    if (!player) return;
+
+    if (isWinner) {
+      player.muted = isMuted;
+
+      player.play().catch(() => {});
     } else {
-      videoRef.current.pause();
+      player.pause();
+      player.currentTime = 0;
     }
-  }, [isVisible, videoUrl, isMuted, isLiveMode]);
+  }, [isWinner, isMuted, isLiveMode]);
 
-  // Mostrar botón de volumen solo en modo live y visible
-  useEffect(() => {
-    if (isLiveMode && isVisible) {
-      setShowVolumeBtn(true);
-    } else {
-      setShowVolumeBtn(false);
-    }
-  }, [isLiveMode, isVisible]);
-
-  const toggleMute = (e) => {
+  // ===============================
+  // AUDIO
+  // ===============================
+  const toggleMute = e => {
     e.stopPropagation();
-    if (videoRef.current && isLiveMode) {
-      const newMutedState = !isMuted;
-      videoRef.current.muted = newMutedState;
-      setIsMuted(newMutedState);
-    }
+
+    const player = videoRef.current;
+    if (!player) return;
+
+    const next = !isMuted;
+
+    player.muted = next;
+    setIsMuted(next);
   };
 
+  // ===============================
+  // NAV
+  // ===============================
   const handleClick = () => {
-    sessionStorage.setItem('returnToFeed', window.location.pathname);
-    sessionStorage.setItem('scrollPosition', window.scrollY);
+    sessionStorage.setItem(
+      'returnToFeed',
+      window.location.pathname
+    );
+
+    sessionStorage.setItem(
+      'scrollPosition',
+      window.scrollY
+    );
+
     const categorySlug = video.category?.slug;
+
     if (categorySlug) {
       history.push(`/${categorySlug}/1`);
     } else {
@@ -85,48 +174,72 @@ const VideoCardVertical = ({ video }) => {
     }
   };
 
-  const goToChannel = (e) => {
+  const goToChannel = e => {
     e.stopPropagation();
+
     if (video.channel?._id) {
       history.push(`/channel/${video.channel._id}`);
     }
   };
 
-  const formatPrice = (price) => {
+  const formatPrice = price => {
     if (!price || price === 0) return null;
-    return new Intl.NumberFormat('fr-DZ').format(price) + ' DA';
+
+    return (
+      new Intl.NumberFormat('fr-DZ').format(price) +
+      ' DA'
+    );
   };
 
-  const channelName = video.channel?.name || video.nom_entreprise || 'Tienda';
+  const channelName =
+    video.channel?.name ||
+    video.nom_entreprise ||
+    'Tienda';
 
-  // Modo estático: solo mostrar thumbnail
+  // ===============================
+  // STATIC MODE
+  // ===============================
   if (!isLiveMode) {
     return (
-      <div className="video-card-vertical static-mode" onClick={handleClick}>
+      <div
+        className="video-card-vertical static-mode"
+        onClick={handleClick}
+      >
         <div className="video-thumbnail-wrapper">
           <img
-            src={video.thumbnail || '/video-placeholder.jpg'}
+            src={video.thumbnail}
             alt={video.title}
             className="thumbnail-img"
           />
-          {video.duration > 0 && (
-            <div className="duration-badge">
-              {Math.floor(video.duration / 60)}:{Math.floor(video.duration % 60).toString().padStart(2, '0')}
-            </div>
-          )}
+
           <div className="info-overlay">
-            <div className="channel-info" onClick={goToChannel}>
-              <div className="business-name">{channelName}</div>
+            <div
+              className="channel-info"
+              onClick={goToChannel}
+            >
+              <div className="business-name">
+                {channelName}
+              </div>
             </div>
-            <div className="video-title">{video.title || 'Sin título'}</div>
-            {formatPrice(video.price) && <div className="price">{formatPrice(video.price)}</div>}
+
+            <div className="video-title">
+              {video.title}
+            </div>
+
+            {formatPrice(video.price) && (
+              <div className="price">
+                {formatPrice(video.price)}
+              </div>
+            )}
           </div>
         </div>
       </div>
     );
   }
 
-  // Modo live: con autoplay al scroll y botón de sonido
+  // ===============================
+  // LIVE MODE
+  // ===============================
   return (
     <div
       ref={containerRef}
@@ -136,55 +249,62 @@ const VideoCardVertical = ({ video }) => {
       <div className="video-thumbnail-wrapper">
         <video
           ref={videoRef}
-          src={videoUrl}
-          poster={video.thumbnail || '/video-placeholder.jpg'}
+          src={video.videoUrl}
+          poster={video.thumbnail}
           muted={isMuted}
-          loop
-          playsInline
           preload="metadata"
+          playsInline
           className="video-element"
           style={{
-            opacity: isVisible ? 1 : 0,
-            transition: 'opacity 0.2s ease'
+            opacity: isWinner ? 1 : 0
           }}
         />
-        
+
         <img
-          src={video.thumbnail || '/video-placeholder.jpg'}
+          src={video.thumbnail}
           alt={video.title}
           className="thumbnail-img"
           style={{
-            opacity: isVisible ? 0 : 1,
-            transition: 'opacity 0.2s ease'
+            opacity: isWinner ? 0 : 1
           }}
         />
-        
-        {showVolumeBtn && (
+
+        {isWinner && (
           <button
             className="volume-btn"
             onClick={toggleMute}
-            title={isMuted ? "Activar sonido" : "Silenciar"}
           >
-            {isMuted ? <VolumeMute size={18} /> : <VolumeUp size={18} />}
+            {isMuted ? (
+              <VolumeMute size={18} />
+            ) : (
+              <VolumeUp size={18} />
+            )}
           </button>
         )}
-        
-        {video.duration > 0 && (
-          <div className="duration-badge">
-            {Math.floor(video.duration / 60)}:{Math.floor(video.duration % 60).toString().padStart(2, '0')}
-          </div>
-        )}
-        
+
         <div className="info-overlay">
-          <div className="channel-info" onClick={goToChannel}>
-            <div className="business-name">{channelName}</div>
+          <div
+            className="channel-info"
+            onClick={goToChannel}
+          >
+            <div className="business-name">
+              {channelName}
+            </div>
           </div>
-          <div className="video-title">{video.title || 'Sin título'}</div>
-          {formatPrice(video.price) && <div className="price">{formatPrice(video.price)}</div>}
+
+          <div className="video-title">
+            {video.title}
+          </div>
+
+          {formatPrice(video.price) && (
+            <div className="price">
+              {formatPrice(video.price)}
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 };
 
-export default VideoCardVertical;
+export default memo(VideoCardVertical);

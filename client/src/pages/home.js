@@ -1,26 +1,31 @@
-// src/pages/Home.jsx - CON TOGGLE DE MODO DE VIDEO
-import React, { useEffect, useCallback, useRef, useState } from 'react';
+ 
+import React, {
+  useEffect,
+  useCallback,
+  useMemo,
+  useState
+} from 'react';
+
 import { useDispatch, useSelector } from 'react-redux';
 import { useHistory } from 'react-router-dom';
 import { Spinner } from 'react-bootstrap';
 import InfiniteScroll from 'react-infinite-scroll-component';
+
 import HomeSlider from '../components/HomeSlider';
 import CategorySection from '../components/CategorySection';
- 
- import VideoModeToggle from './VideoModeToggle';
 
-import { getSliderCategories, getCategoriesWithVideos } from '../redux/actions/categoryAction';
+import {
+  getSliderCategories,
+  getCategoriesWithVideos
+} from '../redux/actions/categoryAction';
 
- 
 const Home = () => {
   const dispatch = useDispatch();
   const history = useHistory();
-  const { theme = 'light' } = useSelector(state => state.theme || {});
-  
-  const [hasMore, setHasMore] = useState(true);
-  const [page, setPage] = useState(1);
-  const [allCategories, setAllCategories] = useState([]);
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
+
+  const { theme = 'light' } = useSelector(
+    state => state.theme || {}
+  );
 
   const {
     sliderCategories = [],
@@ -28,150 +33,229 @@ const Home = () => {
     categoriesWithVideos = [],
     loadingCategoriesWithVideos = false,
     hasMoreCategoriesWithVideos = true,
-    currentCategoriesPage = 1,
+    currentCategoriesPage = 1
   } = useSelector(state => state.category || {});
 
-  // Sincronizar estado local con Redux
-  useEffect(() => {
-    if (categoriesWithVideos.length > 0) {
-      setAllCategories(categoriesWithVideos);
-      setHasMore(hasMoreCategoriesWithVideos);
-      setPage(currentCategoriesPage);
-      setIsInitialLoad(false);
-      
-      console.log('📊 Categorías cargadas:', categoriesWithVideos.length);
-    }
-  }, [categoriesWithVideos, hasMoreCategoriesWithVideos, currentCategoriesPage]);
+  const [isInitialLoad, setIsInitialLoad] =
+    useState(true);
 
-  // Carga inicial
+  // ===============================
+  // CARGA INICIAL
+  // ===============================
   useEffect(() => {
-    console.log('🚀 [HOME] Iniciando carga inicial...');
-    
-    if (sliderCategories.length === 0 && !sliderLoading) {
+    if (
+      sliderCategories.length === 0 &&
+      !sliderLoading
+    ) {
       dispatch(getSliderCategories());
     }
-    
-    if (isInitialLoad && !loadingCategoriesWithVideos) {
+
+    if (
+      categoriesWithVideos.length === 0 &&
+      !loadingCategoriesWithVideos
+    ) {
       dispatch(getCategoriesWithVideos(1, 3));
     }
   }, []);
 
-  // Scroll infinito
-  const fetchMoreCategories = useCallback(() => {
-    if (!hasMore || loadingCategoriesWithVideos) return;
-    const nextPage = page + 1;
-    dispatch(getCategoriesWithVideos(nextPage, 3));
-  }, [hasMore, loadingCategoriesWithVideos, page, dispatch]);
-
-  // Función para el slider
-  const handleCategoryClick = useCallback((category) => {
-    const slug = category?.slug || category;
-    
-    if (!slug) {
-      console.error('❌ [HOME] No se pudo obtener el slug:', category);
-      return;
-    }
-    
-    console.log('🖱️ [HOME] Click en categoría:', slug);
-    
-    sessionStorage.setItem('returnToFeed', 'true');
-    sessionStorage.setItem('scrollPosition', window.scrollY);
-    history.push(`/${slug}/1`);
-  }, [history]);
-
-  const handleViewMore = (slug, categoryName) => {
-    sessionStorage.setItem('returnToFeed', 'true');
-    sessionStorage.setItem('scrollPosition', window.scrollY);
-    history.push(`/${slug}/1`, { fromHome: true, categoryName });
-  };
-
-  // Restaurar scroll
+  // ===============================
+  // FIN CARGA INICIAL
+  // ===============================
   useEffect(() => {
-    const pos = sessionStorage.getItem('scrollPosition');
-    if (pos) {
-      setTimeout(() => {
-        window.scrollTo(0, parseInt(pos));
-        sessionStorage.removeItem('scrollPosition');
-      }, 150);
+    if (categoriesWithVideos.length > 0) {
+      setIsInitialLoad(false);
     }
+  }, [categoriesWithVideos.length]);
+
+  // ===============================
+  // DATA DIRECTA REDUX
+  // ===============================
+  const allCategories = useMemo(
+    () => categoriesWithVideos,
+    [categoriesWithVideos]
+  );
+
+  const hasMore = hasMoreCategoriesWithVideos;
+  const page = currentCategoriesPage;
+
+  // ===============================
+  // LOAD MORE
+  // ===============================
+  const fetchMoreCategories = useCallback(() => {
+    if (
+      loadingCategoriesWithVideos ||
+      !hasMore
+    )
+      return;
+
+    dispatch(
+      getCategoriesWithVideos(page + 1, 3)
+    );
+  }, [
+    dispatch,
+    loadingCategoriesWithVideos,
+    hasMore,
+    page
+  ]);
+
+  // ===============================
+  // CLICK SLIDER
+  // ===============================
+  const handleCategoryClick = useCallback(
+    category => {
+      const slug =
+        category?.slug || category;
+
+      if (!slug) return;
+
+      sessionStorage.setItem(
+        'returnToFeed',
+        'true'
+      );
+
+      sessionStorage.setItem(
+        'scrollPosition',
+        window.scrollY
+      );
+
+      history.push(`/${slug}/1`);
+    },
+    [history]
+  );
+
+  // ===============================
+  // VIEW MORE
+  // ===============================
+  const handleViewMore = useCallback(
+    (slug, categoryName) => {
+      sessionStorage.setItem(
+        'returnToFeed',
+        'true'
+      );
+
+      sessionStorage.setItem(
+        'scrollPosition',
+        window.scrollY
+      );
+
+      history.push(`/${slug}/1`, {
+        fromHome: true,
+        categoryName
+      });
+    },
+    [history]
+  );
+
+  // ===============================
+  // RESTORE SCROLL
+  // ===============================
+  useEffect(() => {
+    const pos =
+      sessionStorage.getItem(
+        'scrollPosition'
+      );
+
+    if (!pos) return;
+
+    requestAnimationFrame(() => {
+      window.scrollTo(
+        0,
+        parseInt(pos, 10)
+      );
+
+      sessionStorage.removeItem(
+        'scrollPosition'
+      );
+    });
   }, []);
 
-  const isLoading = isInitialLoad && loadingCategoriesWithVideos && allCategories.length === 0;
-  
+  // ===============================
+  // LOADING FIRST
+  // ===============================
+  const isLoading =
+    isInitialLoad &&
+    loadingCategoriesWithVideos &&
+    allCategories.length === 0;
+
   if (isLoading) {
     return (
-      <div className={`home-loading ${theme}`}>
-        <Spinner animation="border" variant="primary" />
-        <p>Cargando categorías...</p>
+      <div
+        className={`home-loading ${theme}`}
+      >
+        <Spinner
+          animation="border"
+          variant="primary"
+        />
+        <p>
+          Chargement des catégories...
+        </p>
       </div>
     );
   }
 
+  // ===============================
+  // RENDER
+  // ===============================
   return (
     <div className={`home-root ${theme}`}>
       <header className="home-header">
         <HomeSlider
           categories={sliderCategories}
-          onCategoryClick={handleCategoryClick}
+          onCategoryClick={
+            handleCategoryClick
+          }
         />
-        
-        {/* ✅ Toggle de modo de video - posicionado debajo del slider */}
-        <div className="video-mode-wrapper">
-          <VideoModeToggle />
-        </div>
       </header>
 
       <InfiniteScroll
-        dataLength={allCategories.length}
+        dataLength={
+          allCategories.length
+        }
         next={fetchMoreCategories}
-        hasMore={hasMore && !loadingCategoriesWithVideos}
+        hasMore={
+          hasMore &&
+          !loadingCategoriesWithVideos
+        }
         loader={
           <div className="home-loader">
-            <Spinner animation="border" size="sm" />
-            <span>Cargando más...</span>
+            <Spinner
+              animation="border"
+              size="sm"
+            />
+            <span>
+              Chargement...
+            </span>
           </div>
         }
         endMessage={
-          allCategories.length > 0 && (
+          allCategories.length >
+            0 && (
             <div className="home-end-msg">
-              <p>✨ ¡Has visto todas las categorías! ✨</p>
+              <p>
+                ✨ Toutes les
+                catégories ont été
+                chargées ✨
+              </p>
             </div>
           )
         }
       >
-        {allCategories.map((category, idx) => {
-          const videos = category.videos || [];
-          
-          return (
-            <React.Fragment key={category._id}>
-              <CategorySection
-                category={category}
-                videos={videos}
-                onViewMore={handleViewMore}
-              />
-              {idx < allCategories.length - 1 && <div className="home-divider" />}
-            </React.Fragment>
-          );
-        })}
+        {allCategories.map(
+          category => (
+            <CategorySection
+              key={category._id}
+              category={category}
+              videos={
+                category.videos ||
+                []
+              }
+              onViewMore={
+                handleViewMore
+              }
+            />
+          )
+        )}
       </InfiniteScroll>
-
-      {/* ✅ Estilos para el toggle */}
-      <style jsx>{`
-        .video-mode-wrapper {
-          display: flex;
-          justify-content: flex-end;
-          padding: 12px 16px;
-          margin-top: 8px;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        
-        @media (max-width: 768px) {
-          .video-mode-wrapper {
-            padding: 8px 12px;
-            margin-top: 4px;
-          }
-        }
-      `}</style>
     </div>
   );
 };

@@ -1,232 +1,115 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
+import './HomeSlider.css';
+const HomeSlider = ({
+  categories = [],
+  onCategoryClick,
+  activeCategoryId = null
+}) => {
+  const [internalActiveId, setInternalActiveId] = useState(null);
+  const [failedImages, setFailedImages] = useState({});
 
-const HomeSlider = ({ categories = [], onCategoryClick, activeCategoryId = null }) => {
-    const [internalActiveId, setInternalActiveId] = useState(null);
-    const activeId = activeCategoryId !== undefined ? activeCategoryId : internalActiveId;
-    const [failedImages, setFailedImages] = useState({});
-  
-    const handleImageError = (categoryId, imageUrl) => {
+  const activeId =
+    activeCategoryId ?? internalActiveId;
+
+  // ===============================
+  // IMAGE RESOLVER OPTIMIZADO
+  // ===============================
+  const getImageUrl = useCallback(
+    (category) => {
+      if (!category) return null;
+
+      const slugUrl = `/categories/${category.slug}/${category.slug}.png`;
+
+      return category.imageUrl || slugUrl;
+    },
+    []
+  );
+
+  // ===============================
+  // CLICK OPTIMIZADO
+  // ===============================
+  const handleClick = useCallback(
+    (cat) => {
+      setInternalActiveId(cat._id);
+      onCategoryClick?.(cat);
+    },
+    [onCategoryClick]
+  );
+
+  // ===============================
+  // ERROR IMAGES OPTIMIZADO
+  // ===============================
+  const handleImageError = useCallback(
+    (id, url) => {
       setFailedImages(prev => ({
         ...prev,
-        [categoryId]: [...(prev[categoryId] || []), imageUrl],
+        [id]: true
       }));
-    };
-  
-    const getImageUrl = (category) => {
-      if (!category) return null;
-      const defaultUrl = category.imageUrl || (category.slug ? `/categories/${category.slug}/${category.slug}.png` : null);
-      if (defaultUrl && failedImages[category._id]?.includes(defaultUrl)) return null;
-      if (category.imageUrl && !failedImages[category._id]?.includes(category.imageUrl)) return category.imageUrl;
-      if (category.slug) {
-        const slugUrl = `/categories/${category.slug}/${category.slug}.png`;
-        if (!failedImages[category._id]?.includes(slugUrl)) return slugUrl;
-      }
-      return null;
-    };
-  
-    const handleClick = (cat) => {
-      setInternalActiveId(cat._id);
-      if (onCategoryClick) onCategoryClick(cat);
-    };
-  
-    if (!categories || categories.length === 0) return null;
-  
-    return (
-      <>
-        <style>
-          {`
-            .catslider-row {
-              display: flex;
-              gap: 24px;
-              overflow-x: auto;
-              padding: 16px 8px 24px;
-              scrollbar-width: thin;
-              -webkit-overflow-scrolling: touch;
-            }
-            .catslider-row::-webkit-scrollbar {
-              height: 4px;
-            }
-            .catslider-row::-webkit-scrollbar-track {
-              background: #f0f0f0;
-              border-radius: 10px;
-            }
-            .catslider-row::-webkit-scrollbar-thumb {
-              background: #fe2c55;
-              border-radius: 10px;
-            }
-            .catslider-item {
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-              gap: 8px;
-              background: none;
-              border: none;
-              cursor: pointer;
-              transition: all 0.2s ease;
-              padding: 0;
-              min-width: 70px;
-            }
-            .catslider-item:hover {
-              transform: translateY(-4px);
-            }
-            .catslider-ring {
-              position: relative;
-              width: 70px;
-              height: 70px;
-              border-radius: 50%;
-              background: linear-gradient(135deg, #f5f5f5, #fff);
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-              transition: all 0.2s ease;
-            }
-            .catslider-item.active .catslider-ring {
-              background: linear-gradient(135deg, #fe2c55, #ff6b8a);
-              box-shadow: 0 4px 12px rgba(254, 44, 85, 0.3);
-            }
-            .catslider-inner {
-              width: 60px;
-              height: 60px;
-              border-radius: 50%;
-              background: white;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              overflow: hidden;
-              transition: all 0.2s ease;
-            }
-            .catslider-item.active .catslider-inner {
-              background: #fff;
-              transform: scale(0.95);
-            }
-            .catslider-inner img {
-              width: 100%;
-              height: 100%;
-              object-fit: cover;
-            }
-            .catslider-initial {
-              font-size: 28px;
-              font-weight: 600;
-              color: #fe2c55;
-            }
-            .catslider-dot {
-              position: absolute;
-              bottom: -2px;
-              right: -2px;
-              width: 16px;
-              height: 16px;
-              background: #fe2c55;
-              border-radius: 50%;
-              border: 2px solid white;
-              opacity: 0;
-              transition: opacity 0.2s ease;
-            }
-            .catslider-item.active .catslider-dot {
-              opacity: 1;
-            }
-            .catslider-label {
-              font-size: 12px;
-              font-weight: 500;
-              color: #666;
-              transition: color 0.2s ease;
-              text-align: center;
-              max-width: 80px;
-              overflow: hidden;
-              text-overflow: ellipsis;
-              white-space: nowrap;
-            }
-            .catslider-item.active .catslider-label {
-              color: #fe2c55;
-              font-weight: 600;
-            }
+    },
+    []
+  );
 
-            /* Tablets */
-            @media (max-width: 768px) {
-              .catslider-row {
-                gap: 12px;
-                padding: 12px 8px 20px;
-              }
-              .catslider-ring {
-                width: 60px;
-                height: 60px;
-              }
-              .catslider-inner {
-                width: 52px;
-                height: 52px;
-              }
-              .catslider-initial {
-                font-size: 24px;
-              }
-              .catslider-label {
-                font-size: 11px;
-              }
-            }
+  // ===============================
+  // MEMO CATEGORIES (CRÍTICO)
+  // ===============================
+  const renderedCategories = useMemo(
+    () =>
+      categories.map(cat => {
+        const imageUrl = getImageUrl(cat);
+        const isActive = activeId === cat._id;
+        const initial = cat.name?.[0] || '?';
 
-            /* Móviles (ancho hasta 480px) - Ajustado para que quepan 5 iconos */
-            @media (max-width: 480px) {
-              .catslider-row {
-                gap: 8px;
-                padding: 12px 8px 20px;
-              }
-              .catslider-item {
-                min-width: 55px;
-              }
-              .catslider-ring {
-                width: 55px;
-                height: 55px;
-              }
-              .catslider-inner {
-                width: 48px;
-                height: 48px;
-              }
-              .catslider-initial {
-                font-size: 22px;
-              }
-              .catslider-label {
-                font-size: 10px;
-                max-width: 60px;
-              }
-            }
-          `}
-        </style>
-  
-        <div className="catslider-row" role="navigation" aria-label="Filtrar por categoría">
-          {categories.map((cat) => {
-            const imageUrl = getImageUrl(cat);
-            const hasImage = imageUrl !== null;
-            const isActive = activeId === cat._id;
-            const initial = cat.name?.charAt(0).toUpperCase() || '?';
-  
-            return (
-              <button
-                key={cat._id}
-                className={`catslider-item${isActive ? ' active' : ''}`}
-                onClick={() => handleClick(cat)}
-                aria-pressed={isActive}
-              >
-                <div className="catslider-ring">
-                  <div className="catslider-inner">
-                    {hasImage ? (
-                      <img
-                        src={imageUrl}
-                        alt={cat.name}
-                        onError={() => handleImageError(cat._id, imageUrl)}
-                        loading="lazy"
-                      />
-                    ) : (
-                      <span className="catslider-initial">{initial}</span>
-                    )}
-                  </div>
-                  <span className="catslider-dot" aria-hidden="true" />
-                </div>
-                <span className="catslider-label">{cat.name}</span>
-              </button>
-            );
-          })}
-        </div>
-      </>
-    );
+        return (
+          <button
+            key={cat._id}
+            className={`catslider-item ${isActive ? 'active' : ''}`}
+            onClick={() => handleClick(cat)}
+          >
+            <div className="catslider-ring">
+              <div className="catslider-inner">
+
+                {imageUrl && !failedImages[cat._id] ? (
+                  <img
+                    src={imageUrl}
+                    alt={cat.name}
+                    loading="lazy"
+                    onError={() =>
+                      handleImageError(cat._id, imageUrl)
+                    }
+                  />
+                ) : (
+                  <span className="catslider-initial">
+                    {initial}
+                  </span>
+                )}
+              </div>
+
+              <span className="catslider-dot" />
+            </div>
+
+            <span className="catslider-label">
+              {cat.name}
+            </span>
+          </button>
+        );
+      }),
+    [
+      categories,
+      activeId,
+      failedImages,
+      handleClick,
+      getImageUrl,
+      handleImageError
+    ]
+  );
+
+  if (!categories?.length) return null;
+
+  return (
+    <div className="catslider-row">
+      {renderedCategories}
+    </div>
+  );
 };
 
-export default HomeSlider;
+export default React.memo(HomeSlider);
