@@ -1,5 +1,5 @@
-// components/CategorySection.jsx
-import React from 'react';
+// components/CategorySection.jsx - VERSIÓN CORREGIDA
+import React, { useState, useEffect, useRef } from 'react';
 import { useHistory } from 'react-router-dom';
 import { Container, Row, Col, Button } from 'react-bootstrap';
 import { ArrowRight, CameraVideo, PlusCircle } from 'react-bootstrap-icons';
@@ -7,18 +7,37 @@ import VideoCardVertical from './VideoCardVertical';
 
 const CategorySection = ({ category, videos, onViewMore }) => {
   const history = useHistory();
+  const sectionRef = useRef(null);
   
-  // videos puede ser undefined o null, asegurarnos
   const videoList = videos || [];
   const hasVideos = videoList.length > 0;
   
+  // ✅ SOLO PARA LOG - no condicionar renderizado
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry.isIntersecting) {
+          console.log(`📂 Sección visible: ${category.name}`);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (sectionRef.current) {
+      observer.observe(sectionRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [category.name]);
+
+  // ✅ SIEMPRE renderizar VideoCardVertical, sin condicional
   return (
-    <section className="category-section py-4">
+    <section ref={sectionRef} className="category-section py-4">
       <Container>
-        {/* Header de categoría - SIEMPRE visible */}
+        {/* Header de categoría */}
         <div className="d-flex justify-content-between align-items-center mb-3">
           <div className="d-flex align-items-center gap-2">
-            {/* Icono de la categoría si existe */}
             {category.icon && (
               <div className="category-icon-wrapper">
                 <img 
@@ -44,9 +63,8 @@ const CategorySection = ({ category, videos, onViewMore }) => {
           </Button>
         </div>
         
-        {/* Contenido: Grid de videos O Empty State */}
+        {/* ✅ SIEMPRE renderizar los videos, sin skeleton condicional */}
         {hasVideos ? (
-          /* ✅ Grid de videos: 2 por fila en móvil, 4 en tablet, 6 en desktop */
           <Row className="g-3">
             {videoList.slice(0, 6).map(video => (
               <Col key={video._id} xs={6} md={4} lg={2}>
@@ -55,7 +73,7 @@ const CategorySection = ({ category, videos, onViewMore }) => {
             ))}
           </Row>
         ) : (
-          /* ✅ Empty State - Cuando no hay videos */
+          /* Empty State */
           <div className="text-center py-5 bg-light rounded-4" style={{ backgroundColor: '#f8f9fa' }}>
             <div className="mb-3">
               <div 

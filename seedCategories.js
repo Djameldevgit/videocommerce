@@ -1,4 +1,4 @@
-// node seedCategories.js - VERSIÓN QUE ELIMINA Y RECREA (para agregar "art")
+// node seedCategories.js - VERSIÓN QUE ELIMINA Y RECREA (con "Art" y "Social")
 require('dotenv').config();
 const mongoose = require('mongoose');
 const Category = require('./models/categoryModel');
@@ -6,7 +6,7 @@ const Category = require('./models/categoryModel');
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/VideoCommerce';
 const mongooseOptions = { useNewUrlParser: true, useUnifiedTopology: true };
 
-// ✅ CATEGORÍAS EN EL ORDEN CORRECTO (con "Art" al final, order 19)
+// ✅ CATEGORÍAS EN EL ORDEN CORRECTO (con "Art" y "Réseaux sociaux" al final)
 const categoriesData = [
   { slug: 'agence', name: 'Agence', order: 1, icon: '🏢' },
   { slug: 'immobilier', name: 'Immobilier', order: 2, icon: '🏠' },
@@ -26,10 +26,11 @@ const categoriesData = [
   { slug: 'voyages', name: 'Voyages', order: 16, icon: '✈️' },
   { slug: 'services', name: 'Services', order: 17, icon: '🛠️' },
   { slug: 'publicite', name: 'Publicité', order: 18, icon: '📢' },
-  { slug: 'art', name: 'Art', order: 19, icon: '🎨' }  // ← Al final
+  { slug: 'art', name: 'Art', order: 19, icon: '🎨' },
+  { slug: 'reseaux-sociaux', name: 'Réseaux sociaux', order: 20, icon: '📱' }  // ← NUEVA CATEGORÍA SOCIAL
 ];
 
-// Colores para cada categoría (incluyendo 'art')
+// Colores para cada categoría (incluyendo 'art' y 'reseaux-sociaux')
 const categoryColors = {
   'agence': '#4A90E2',
   'immobilier': '#50B5A9',
@@ -49,7 +50,8 @@ const categoryColors = {
   'voyages': '#2980B9',
   'services': '#16A085',
   'publicite': '#FF9800',
-  'art': '#E84393'   // Rosa/ Magenta para arte
+  'art': '#E84393',        // Rosa/Magenta para arte
+  'reseaux-sociaux': '#00CED1'  // Turquesa/Dark Turquoise para redes sociales
 };
 
 const seedCategories = async () => {
@@ -58,7 +60,7 @@ const seedCategories = async () => {
     console.log('✅ Conectado a MongoDB');
     console.log('📂 Base de datos:', mongoose.connection.db.databaseName);
 
-    // 🔥 ELIMINAR TODAS LAS CATEGORÍAS EXISTENTES (para que la nueva aparezca)
+    // 🔥 ELIMINAR TODAS LAS CATEGORÍAS EXISTENTES
     const deleteResult = await Category.deleteMany({});
     console.log(`🗑️ Eliminadas ${deleteResult.deletedCount} categorías anteriores`);
 

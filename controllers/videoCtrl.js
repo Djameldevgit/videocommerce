@@ -51,7 +51,7 @@ const createVideo = async (req, res) => {
       thumbnail,
       duration,
       music,
-      // Campos comerciales NUEVOS
+      // Campos comerciales
       isCommercial,
       saleType,      // 'retail', 'wholesale', 'both'
       address,
@@ -62,33 +62,62 @@ const createVideo = async (req, res) => {
 
     const userId = req.user._id;
     const user = await User.findById(userId);
+    
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Utilisateur non trouvé' 
+      });
+    }
+
     const isAdmin = user.role === 'admin';
     const isProValid = user.isPro && (!user.proExpiryDate || new Date(user.proExpiryDate) > new Date());
 
-    // Validar duración
-    const MAX_DURATION_FREE = 60;
-    const MAX_DURATION_PRO = 60;
-    const maxAllowed = (isProValid || isAdmin) ? MAX_DURATION_PRO : MAX_DURATION_FREE;
-    if (duration && duration > maxAllowed) {
+    // ✅ LÍMITE DE DURACIÓN: 60 SEGUNDOS PARA TODOS
+    const MAX_VIDEO_DURATION = 60; // 1 minuto máximo
+    
+    console.log(`📊 Validando duración: ${duration}s / Máximo: ${MAX_VIDEO_DURATION}s`);
+    console.log(`👤 Usuario: ${user.email}, Role: ${user.role}, isPro: ${isProValid}, isAdmin: ${isAdmin}`);
+    
+    if (duration && duration > MAX_VIDEO_DURATION) {
+      console.log(`❌ VIDEO RECHAZADO: ${duration}s > ${MAX_VIDEO_DURATION}s`);
       return res.status(400).json({
         success: false,
-        message: `La durée maximale est de ${maxAllowed} secondes`
+        message: `⏱️ La durée maximale est de ${MAX_VIDEO_DURATION} secondes (1 minute). Ta vidéo dure ${Math.floor(duration)} secondes.`
       });
     }
 
     // Validar título
     const finalTitle = titre || receivedTitle;
     if (!finalTitle || !finalTitle.trim()) {
-      return res.status(400).json({ success: false, message: 'Le titre est obligatoire' });
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Le titre est obligatoire' 
+      });
     }
 
     // Validar categoría
     if (!category) {
-      return res.status(400).json({ success: false, message: 'La catégorie est obligatoire' });
+      return res.status(400).json({ 
+        success: false, 
+        message: 'La catégorie est obligatoire' 
+      });
     }
+    
     const categoryDoc = await validateAndGetCategory(category);
     if (!categoryDoc) {
-      return res.status(400).json({ success: false, message: `Catégorie invalide: ${category}` });
+      return res.status(400).json({ 
+        success: false, 
+        message: `Catégorie invalide: ${category}` 
+      });
+    }
+
+    // Validar videoUrl
+    if (!videoUrl) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'La vidéo est obligatoire' 
+      });
     }
 
     // Obtener el canal
@@ -96,58 +125,71 @@ const createVideo = async (req, res) => {
     if (channelId) {
       channel = await Channel.findById(channelId);
       if (!channel) {
-        return res.status(404).json({ success: false, message: 'Canal no encontrado' });
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Canal non trouvé' 
+        });
       }
       if (channel.owner.toString() !== userId.toString() && !isAdmin) {
-        return res.status(403).json({ success: false, message: 'No eres dueño de este canal' });
+        return res.status(403).json({ 
+          success: false, 
+          message: 'Vous n\'êtes pas propriétaire de ce canal' 
+        });
       }
     } else {
       channel = await Channel.findOne({ owner: userId });
       if (!channel) {
-        return res.status(400).json({ success: false, message: 'No tienes un canal. Crea uno primero.' });
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Vous n\'avez pas de canal. Créez-en un d\'abord.' 
+        });
       }
     }
 
-    console.log('📺 Canal seleccionado:', {
+    console.log('📺 Canal sélectionné:', {
       id: channel._id,
       name: channel.name,
       owner: channel.owner
     });
 
     // Validar campos comerciales (si es video comercial)
-    if (isCommercial) {
+    if (isCommercial === true || isCommercial === 'true') {
+      // Validar wilaya y commune
       if (!channel.wilaya || !channel.commune) {
         return res.status(400).json({
           success: false,
-          message: 'Pour les vidéos commerciales, le canal doit avoir wilaya et commune'
+          message: 'Pour les vidéos commerciales, le canal doit avoir une wilaya et une commune'
         });
       }
+      
+      // Validar contacto
       if (!channel.phone && !channel.email) {
         return res.status(400).json({
           success: false,
           message: 'Le canal doit avoir au moins un moyen de contact (téléphone ou email)'
         });
       }
-      // Validar que se haya seleccionado un tipo de venta
+      
+      // Validar tipo de venta
       if (!saleType || !['retail', 'wholesale', 'both'].includes(saleType)) {
         return res.status(400).json({
           success: false,
-          message: 'El tipo de venta es obligatorio: retail (detalle), wholesale (mayor) o both (ambos)'
+          message: 'Le type de vente est obligatoire: retail (détail), wholesale (gros) ou both (les deux)'
         });
       }
     }
 
-    // Procesar música (mezcla de audio) - igual que original
+    // Procesar música (mezcla de audio)
     let finalVideoUrl = videoUrl;
     let finalThumbnail = thumbnail;
     let musicData = null;
 
     if (music && music.audioPublicId && videoPublicId) {
-      console.log("🎵 PROCESANDO MEZCLA DE AUDIO...");
+      console.log("🎵 TRAITEMENT DU MIX AUDIO...");
       try {
         const formattedAudioId = music.audioPublicId.replace(/\//g, ':');
         const uploadIndex = videoUrl.indexOf('/upload/');
-        if (uploadIndex === -1) throw new Error('URL inválida');
+        if (uploadIndex === -1) throw new Error('URL invalide');
         const base = videoUrl.substring(0, uploadIndex + 8);
         const pathAndFile = videoUrl.substring(uploadIndex + 8);
         const transformation = `l_audio:${formattedAudioId},fl_layer_apply`;
@@ -162,15 +204,16 @@ const createVideo = async (req, res) => {
           volume: music.volume || 70,
           processed: true
         };
+        console.log("✅ Mix audio réussi");
       } catch (err) {
-        console.error('❌ Error en mezcla de audio:', err);
+        console.error('❌ Erreur dans le mix audio:', err);
         musicData = { ...music, processed: false, error: err.message };
       }
     } else if (music && music.audioUrl) {
       musicData = { ...music, processed: false };
     }
 
-    // ✅ Crear el nuevo video con los campos actualizados
+    // ✅ CREAR EL VIDEO
     const newVideo = new Video({
       title: finalTitle.trim(),
       description: description || '',
@@ -184,32 +227,36 @@ const createVideo = async (req, res) => {
       user: userId,
       music: musicData,
       tags: req.body.tags || [],
-      isCommercial: isCommercial || false,
-      // Nuevos campos comerciales
-      saleType: isCommercial ? saleType : null,
+      isCommercial: isCommercial === true || isCommercial === 'true' ? true : false,
+      // Campos comerciales
+      saleType: (isCommercial === true || isCommercial === 'true') ? saleType : null,
       address: address || '',
       mapUrl: mapUrl || '',
       pendiente: isAdmin ? false : true
     });
 
     await newVideo.save();
-    console.log('✅ Video guardado con channel:', newVideo.channel);
+    console.log('✅ Vidéo sauvegardée avec canal:', newVideo.channel);
 
-    // Incrementar contadores
+    // Incrementar contador de videos en la categoría
     await Category.findByIdAndUpdate(categoryDoc._id, { $inc: { videoCount: 1 } });
     
     // Actualizar totalVideos del canal
-    channel.totalVideos = await Video.countDocuments({ channel: channel._id, pendiente: false, isActive: true });
+    channel.totalVideos = await Video.countDocuments({ 
+      channel: channel._id, 
+      pendiente: false, 
+      isActive: true 
+    });
     await channel.save();
 
-    // Poblar respuesta
+    // Poblar respuesta con datos relacionados
     const populatedVideo = await Video.findById(newVideo._id)
-      .populate('channel', 'name avatar isVerified _id owner')
+      .populate('channel', 'name avatar isVerified _id owner wilaya commune phone email')
       .populate('category', 'name slug icon')
       .populate('user', 'username avatar');
 
-    console.log(`✅ Video creado: ${populatedVideo._id}`);
-    console.log(`   Canal: ${populatedVideo.channel.name || 'NO CHANNEL'}`);
+    console.log(`✅ Vidéo créée: ${populatedVideo._id}`);
+    console.log(`   Canal: ${populatedVideo.channel.name || 'SANS CANAL'}`);
 
     res.status(201).json({
       success: true,
@@ -218,10 +265,16 @@ const createVideo = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Error en createVideo:', error);
-    res.status(500).json({ success: false, message: error.message || 'Error al crear el video' });
+    console.error('❌ Erreur dans createVideo:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: error.message || 'Erreur lors de la création de la vidéo' 
+    });
   }
 };
+
+
+    // Resto del código igual...
 // ============================================
 // UPDATE VIDEO - VERSIÓN ACTUALIZADA
 // ============================================
@@ -445,6 +498,8 @@ const updateVideo = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+
 const deleteVideo = async (req, res) => {
   try {
     const { id } = req.params;

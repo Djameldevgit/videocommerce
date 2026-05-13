@@ -1,12 +1,14 @@
-// src/pages/Home.jsx - VERSIÓN CORREGIDA
+// src/pages/Home.jsx - CON TOGGLE DE MODO DE VIDEO
 import React, { useEffect, useCallback, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useHistory } from 'react-router-dom';
 import { Spinner } from 'react-bootstrap';
 import InfiniteScroll from 'react-infinite-scroll-component';
 import HomeSlider from '../components/HomeSlider';
- 
 import CategorySection from '../components/CategorySection';
+ 
+ import VideoModeToggle from './VideoModeToggle';
+
 import { getSliderCategories, getCategoriesWithVideos } from '../redux/actions/categoryAction';
 
  
@@ -61,11 +63,8 @@ const Home = () => {
     dispatch(getCategoriesWithVideos(nextPage, 3));
   }, [hasMore, loadingCategoriesWithVideos, page, dispatch]);
 
-  // ============================================
-  // 🎯 FUNCIÓN CORREGIDA PARA EL SLIDER
-  // ============================================
+  // Función para el slider
   const handleCategoryClick = useCallback((category) => {
-    // Obtener el slug correctamente (puede ser objeto o string)
     const slug = category?.slug || category;
     
     if (!slug) {
@@ -75,11 +74,8 @@ const Home = () => {
     
     console.log('🖱️ [HOME] Click en categoría:', slug);
     
-    // Guardar posición de scroll
     sessionStorage.setItem('returnToFeed', 'true');
     sessionStorage.setItem('scrollPosition', window.scrollY);
-    
-    // Navegar a la página de la categoría
     history.push(`/${slug}/1`);
   }, [history]);
 
@@ -118,6 +114,11 @@ const Home = () => {
           categories={sliderCategories}
           onCategoryClick={handleCategoryClick}
         />
+        
+        {/* ✅ Toggle de modo de video - posicionado debajo del slider */}
+        <div className="video-mode-wrapper">
+          <VideoModeToggle />
+        </div>
       </header>
 
       <InfiniteScroll
@@ -153,6 +154,24 @@ const Home = () => {
           );
         })}
       </InfiniteScroll>
+
+      {/* ✅ Estilos para el toggle */}
+      <style jsx>{`
+        .video-mode-wrapper {
+          display: flex;
+          justify-content: flex-end;
+          padding: 12px 16px;
+          margin-top: 8px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        @media (max-width: 768px) {
+          .video-mode-wrapper {
+            padding: 8px 12px;
+            margin-top: 4px;
+          }
+        }
+      `}</style>
     </div>
   );
 };

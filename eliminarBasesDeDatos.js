@@ -1,4 +1,4 @@
-// node eliminarBasesDeDatos.js
+// node eliminarBasesDeDatos.js    escribir  ELIMINAR para confirmar
 require('dotenv').config();
 const mongoose = require('mongoose');
 

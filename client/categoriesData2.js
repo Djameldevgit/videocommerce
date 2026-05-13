@@ -1,5 +1,5 @@
 // node categoriesData2.js
-// Crea carpetas y placeholders de iconos para TODAS las categorías (19 slugs exactos, ordenados)
+// Crea carpetas y placeholders de iconos para TODAS las categorías (20 slugs exactos, ordenados)
 const fs = require('fs');
 const path = require('path');
 
@@ -9,7 +9,7 @@ const basePath = path.join(process.cwd(), 'public', 'categories');
 console.log('📁 Ruta base calculada:', basePath);
 console.log('📁 Directorio actual:', process.cwd());
 
-// 📋 LISTA COMPLETA DE SLUGS - ORDEN CORRECTO (19 categorías)
+// 📋 LISTA COMPLETA DE SLUGS - ORDEN CORRECTO (20 categorías - con Réseaux sociaux al final)
 const mainCategories = [
   'agence',
   'immobilier',
@@ -29,7 +29,8 @@ const mainCategories = [
   'voyages',
   'services',
   'publicite',
-  'art'                       // ← NUEVA CATEGORÍA
+  'art',
+  'reseaux-sociaux'           // ← NUEVA CATEGORÍA SOCIAL
 ];
 
 // Mapeo de slug a nombre legible
@@ -52,7 +53,8 @@ const categoryNames = {
   'voyages': 'Voyages',
   'services': 'Services',
   'publicite': 'Publicité',
-  'art': 'Art'                // ← NUEVO
+  'art': 'Art',
+  'reseaux-sociaux': 'Réseaux sociaux'     // ← NUEVO
 };
 
 // Colores asociados a cada categoría
@@ -75,7 +77,8 @@ const categoryColors = {
   'voyages': '#2980B9',
   'services': '#16A085',
   'publicite': '#FF9800',
-  'art': '#E91E63'            // ← NUEVO
+  'art': '#E84393',            // Rosa/Magenta
+  'reseaux-sociaux': '#00CED1'  // Turquesa para redes sociales
 };
 
 // Función para crear carpetas y placeholders
