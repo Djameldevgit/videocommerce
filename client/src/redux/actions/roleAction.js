@@ -1,6 +1,6 @@
 import { patchDataAPI } from "../../utils/fetchData";
 import { GLOBALTYPES } from './globalTypes';
-import { createNotify } from './notifyAction'; // ✅ Importar createNotify
+import { createNotify } from './notifyAction';
 
 export const ROLES_TYPES = {
   LOADING: 'LOADING',
@@ -8,9 +8,132 @@ export const ROLES_TYPES = {
   USER_PRO: 'USER_PRO',
   MODERADOR_ROLE: 'MODERADOR_ROLE',
   ADMIN_ROLE: 'ADMIN_ROLE',
-  UPDATE_ROLE: 'UPDATE_ROLE'
+  UPDATE_ROLE: 'UPDATE_ROLE',
+  UPDATE_PLAN: 'UPDATE_PLAN'
 }
 
+// ============================================
+// ✅ CORREGIDO: updateUserPlan con thunk
+// ============================================
+export const updateUserPlan = (userId, planId, token, auth) => {
+  return async (dispatch) => {
+    try {
+      dispatch({ type: ROLES_TYPES.LOADING, payload: true });
+      
+      console.log('📤 updateUserPlan action called:', { userId, planId });
+      
+      const res = await patchDataAPI(`admin/update-plan/${userId}`, { planId }, token);
+      
+      console.log('✅ updateUserPlan response:', res.data);
+      
+      dispatch({
+        type: ROLES_TYPES.UPDATE_PLAN,
+        payload: { userId, planId, user: res.data.user }
+      });
+      
+      // Si el usuario modificado es el que está logueado
+      if (auth?.user && auth.user._id === userId) {
+        dispatch({
+          type: GLOBALTYPES.AUTH,
+          payload: {
+            ...auth,
+            user: {
+              ...auth.user,
+              channelPlan: planId,
+              channelPlanExpiresAt: res.data.user?.channelPlanExpiresAt
+            }
+          }
+        });
+      }
+      
+      dispatch({ 
+        type: GLOBALTYPES.ALERT, 
+        payload: { success: `Plan mis à jour: ${planId}` } 
+      });
+      
+      dispatch({ type: ROLES_TYPES.LOADING, payload: false });
+      
+      return res.data;
+    } catch (err) {
+      console.error('❌ updateUserPlan error:', err);
+      dispatch({
+        type: GLOBALTYPES.ALERT,
+        payload: { error: err.response?.data?.msg || err.message }
+      });
+      dispatch({ type: ROLES_TYPES.LOADING, payload: false });
+    }
+  };
+};
+
+// ============================================
+// ✅ CORREGIDO: userPro con thunk
+// ============================================
+export const userPro = (user, auth, socket, planId = 'basic') => {
+  return async (dispatch) => {
+    try {
+      dispatch({ type: ROLES_TYPES.LOADING, payload: true });
+
+      const res = await patchDataAPI(`user/${user._id}/roleuserpro`, { 
+        role: 'userpro',
+        planId: planId
+      }, auth.token);
+
+      const updatedUser = res.data.user;
+      
+      dispatch({
+        type: ROLES_TYPES.USER_PRO,
+        payload: { 
+          user: { ...user, role: 'userpro', channelPlan: planId },
+          res: res.data 
+        }
+      });
+
+      // Si el usuario modificado es el mismo que está logueado
+      if (auth.user && auth.user._id === user._id) {
+        dispatch({
+          type: GLOBALTYPES.AUTH,
+          payload: {
+            ...auth,
+            user: {
+              ...auth.user,
+              role: 'userpro',
+              channelPlan: planId
+            }
+          }
+        });
+      }
+
+      // Notificar al usuario
+      if (user._id !== auth.user?._id) {
+        const msg = {
+          id: auth.user._id,
+          text: `⭐ Vous avez été promu Utilisateur Pro avec le plan ${planId === 'basic' ? 'Basic' : planId === 'pro' ? 'Pro' : 'Business'}`,
+          recipients: [user._id],
+          url: `/profile/${user._id}`,
+          content: `Nouveau rôle: Utilisateur Pro - Plan: ${planId}`,
+          image: user.avatar,
+          type: 'role'
+        };
+        dispatch(createNotify({ msg, auth, socket }));
+      }
+
+      dispatch({ type: GLOBALTYPES.ALERT, payload: { success: res.data.msg } });
+      dispatch({ type: ROLES_TYPES.LOADING, payload: false });
+    } catch (err) {
+      console.error('❌ userPro error:', err);
+      dispatch({
+        type: GLOBALTYPES.ALERT,
+        payload: { error: err.response?.data?.msg || err.message }
+      });
+      dispatch({ type: ROLES_TYPES.LOADING, payload: false });
+    }
+  };
+};
+
+// ============================================
+// ✅ NUEVA ACCIÓN: ACTUALIZAR PLAN SOLAMENTE
+// ============================================
+ 
 // ============================================
 // ✅ ACTUALIZAR ROL CON NOTIFICACIÓN (FUNCIÓN UNIFICADA)
 // ============================================
@@ -123,41 +246,7 @@ export const roleuserautenticado = (user, auth, socket) => async (dispatch) => {
 // ============================================
 // ✅ ROLE SUPERUSER CON NOTIFICACIÓN
 // ============================================
-export const userPro = (user, auth, socket) => async (dispatch) => {
-  try {
-    dispatch({ type: ROLES_TYPES.LOADING, payload: true });
-
-    const res = await patchDataAPI(`user/${user._id}/roleuserpro`, { role: 'userpro' }, auth.token);
-
-    dispatch({
-      type: ROLES_TYPES.USER_PRO,
-      payload: { user: { ...user, role: 'userpro' } }
-    });
-
-    // ✅ Notificar al usuario cuyo rol cambió
-    if (user._id !== auth.user?._id) {
-      const msg = {
-        id: auth.user._id,
-        text: '⭐ Vous avez été promu utilizateur Pro',
-        recipients: [user._id],
-        url: `/profile/${user._id}`,
-        content: `Nouveau rôle: utilizateur Pro`,
-        image: user.avatar,
-        type: 'role'
-      };
-      dispatch(createNotify({ msg, auth, socket }));
-    }
-
-    dispatch({ type: GLOBALTYPES.ALERT, payload: { success: res.data.msg } });
-    dispatch({ type: ROLES_TYPES.LOADING, payload: false });
-  } catch (err) {
-    dispatch({
-      type: GLOBALTYPES.ALERT,
-      payload: { error: err.response?.data?.msg || err.message }
-    });
-    dispatch({ type: ROLES_TYPES.LOADING, payload: false });
-  }
-};
+ 
 
 // ============================================
 // ✅ ROLE MODERADOR CON NOTIFICACIÓN

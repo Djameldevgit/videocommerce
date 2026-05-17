@@ -11,9 +11,17 @@ const userSchema = new mongoose.Schema({
     // ============ ROLES Y PERMISOS ============
     role: {
         type: String,
-        enum: ['user', 'moderator', 'admin'],
-        default: 'admin'
+        enum: ['user', 'moderator', 'userPro','admin'],
+        default: 'user'
     },
+
+    channelPlan: {
+        type: String,
+        enum: ['free', 'basic', 'pro', 'business'],
+        default: 'free'
+      },
+      channelPlanExpiresAt: Date,
+      channelPlanAutoRenew: { type: Boolean, default: false },
     assignedCategories: { type: [String], default: [], index: true },
     assignedSubCategories: { type: [String], default: [], index: true },
     

@@ -1,4 +1,4 @@
-// src/pages/Profile.jsx
+// src/pages/Profile.jsx (parte corregida)
 import React, { useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useParams, useHistory } from 'react-router-dom';
@@ -19,16 +19,31 @@ import {
   Camera,
   FileText,
   ChevronRight,
-  Tv
+  Tv,
+  ArrowUpCircle
 } from 'react-bootstrap-icons';
 import Info from '../../components/profile/Info';
 import { getProfileUsers } from '../../redux/actions/profileAction';
-
+import useUserPlan from '../../components/useUserPlan';
+ 
 const Profile = () => {
   const { profile, auth } = useSelector(state => state);
   const dispatch = useDispatch();
   const history = useHistory();
   const { id } = useParams();
+  
+  // ✅ Obtener información del plan del usuario (valores directos)
+  const { 
+    currentPlan, 
+    planName, 
+    planLimits, 
+    isUserPro, 
+    hasActivePlan,      // ✅ Esto es un booleano ahora
+    getDaysRemaining,   // ✅ Esto es un número ahora
+    isExpired,          // ✅ Esto es un booleano ahora
+    planColor,
+    planIcon
+  } = useUserPlan();
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -107,36 +122,148 @@ const Profile = () => {
     history.push('/my-channels');
   };
 
+  // ✅ Renderizar badge du plan
+  const renderPlanBadge = () => {
+    if (!isUserPro && currentPlan === 'free') {
+      return (
+        <div className="plan-badge free">
+          <span>🆓</span>
+          <span>Plan Gratuit</span>
+          <Button 
+            size="sm" 
+            variant="primary" 
+            className="ms-2 upgrade-badge-btn"
+            onClick={() => history.push('/userpro')}
+          >
+            ⬆️ Upgrade
+          </Button>
+        </div>
+      );
+    }
+    
+    return (
+      <div className="plan-badge" style={{ backgroundColor: `${planColor}15`, borderColor: planColor }}>
+        <span style={{ color: planColor }}>{planIcon}</span>
+        <span style={{ color: planColor }}>Plan {planName}</span>
+        {isUserPro && hasActivePlan && getDaysRemaining > 0 && (
+          <span className="plan-days-badge" style={{ color: planColor }}>
+            ({getDaysRemaining} jours restants)
+          </span>
+        )}
+        {isExpired && (
+          <span className="plan-expired-badge">⚠️ Expiré</span>
+        )}
+      </div>
+    );
+  };
+
+  // ✅ Renderizar límites del plan
+  const renderPlanLimits = () => {
+    if (!isOwnProfile) return null;
+    
+    const maxChannels = planLimits?.maxChannels || 1;
+    const maxVideos = planLimits?.maxVideos || 5;
+    const maxDuration = planLimits?.maxDuration || 20;
+    
+    return (
+      <Card className="plan-limits-card mt-3">
+        <Card.Body className="p-3">
+          <h6 className="fw-bold mb-2">
+            📋 Votre abonnement {planName}
+          </h6>
+          <div className="plan-features-list">
+            <div className="feature-item">
+              <span>📺 Canaux maximum:</span>
+              <strong>{maxChannels === 'unlimited' ? '∞ Illimité' : maxChannels}</strong>
+            </div>
+            <div className="feature-item">
+              <span>📹 Vidéos maximum:</span>
+              <strong>{maxVideos === 'unlimited' ? '∞ Illimité' : maxVideos}</strong>
+            </div>
+            <div className="feature-item">
+              <span>⏱️ Durée max par vidéo:</span>
+              <strong>{maxDuration} secondes</strong>
+            </div>
+            <div className="feature-item">
+              <span>🎬 Qualité HD:</span>
+              <strong>{planLimits?.canUpload ? '✅ Oui' : '❌ Non'}</strong>
+            </div>
+            <div className="feature-item">
+              <span>📊 Analytiques:</span>
+              <strong>{planLimits?.canAccessAnalytics ? '✅ Oui' : '❌ Non'}</strong>
+            </div>
+            <div className="feature-item">
+              <span>🎵 Musique:</span>
+              <strong>{planLimits?.canAddMusic ? '✅ Oui' : '❌ Non'}</strong>
+            </div>
+          </div>
+          
+          {!isUserPro && (
+            <Button 
+              variant="primary" 
+              size="sm" 
+              className="mt-3 w-100"
+              onClick={() => history.push('/userpro')}
+            >
+              <ArrowUpCircle size={14} className="me-1" />
+              Passer à UserPro
+            </Button>
+          )}
+          
+          {isUserPro && currentPlan !== 'business' && (
+            <Button 
+              variant="warning" 
+              size="sm" 
+              className="mt-3 w-100"
+              onClick={() => history.push('/userpro')}
+            >
+              🚀 Passer au plan supérieur
+            </Button>
+          )}
+        </Card.Body>
+      </Card>
+    );
+  };
+
+  // ✅ Renderizar badge de plan en el header del perfil (Info component)
+  // Esto se pasa como prop al componente Info o se muestra directamente
+
   return (
     <div className="profile-page">
       <Container className="py-4">
         {/* En-tête avec boutons d'action */}
-        {isOwnProfile && (
-          <div className="action-buttons">
-            <Button
-              variant="outline-primary"
-              onClick={() => history.push('/profile/settings')}
-              className="rounded-pill action-btn"
-            >
-              <Pencil size={16} className="me-2" />
-              Modifier le profil
-            </Button>
-            <Button
-              variant="primary"
-              onClick={handleNavigateChannels}
-              className="rounded-pill action-btn"
-            >
-              <Tv size={16} className="me-2" />
-              Mes chaînes
-            </Button>
-          </div>
-        )}
+        <div className="action-header">
+          {isOwnProfile && (
+            <div className="action-buttons">
+              <Button
+                variant="outline-primary"
+                onClick={() => history.push('/profile/settings')}
+                className="rounded-pill action-btn"
+              >
+                <Pencil size={16} className="me-2" />
+                Modifier le profil
+              </Button>
+              <Button
+                variant="primary"
+                onClick={handleNavigateChannels}
+                className="rounded-pill action-btn"
+              >
+                <Tv size={16} className="me-2" />
+                Mes chaînes
+              </Button>
+            </div>
+          )}
+          {renderPlanBadge()}
+        </div>
 
-        {/* Info du profil (avatar, nom, bio, etc.) */}
+        {/* Info du profil */}
         <Info auth={auth} profile={profile} dispatch={dispatch} id={id} />
 
-        {/* Statistiques modernisées */}
-        <Row className="g-3 mb-5">
+        {/* Límites del plan */}
+        {renderPlanLimits()}
+
+        {/* Statistiques */}
+        <Row className="g-3 mb-5 mt-2">
           <Col xs={6} md={4}>
             <Card className="stats-card h-100">
               <Card.Body className="d-flex align-items-center">
@@ -276,20 +403,23 @@ const Profile = () => {
         </div>
       </Container>
 
-      {/* Styles améliorés et responsifs */}
       <style jsx="true">{`
         .profile-page {
           min-height: 100vh;
           background: linear-gradient(135deg, #f8f9fa 0%, #f1f3f5 100%);
           padding-bottom: 2rem;
         }
-
-        /* Boutons d'action */
-        .action-buttons {
+        .action-header {
           display: flex;
-          justify-content: flex-end;
+          justify-content: space-between;
+          align-items: center;
+          flex-wrap: wrap;
           gap: 12px;
           margin-bottom: 1.5rem;
+        }
+        .action-buttons {
+          display: flex;
+          gap: 12px;
           flex-wrap: wrap;
         }
         .action-btn {
@@ -299,22 +429,49 @@ const Profile = () => {
           display: inline-flex;
           align-items: center;
         }
-        .action-btn:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+        .plan-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 6px 14px;
+          border-radius: 30px;
+          border: 1px solid;
+          font-size: 13px;
+          font-weight: 500;
+          background: white;
         }
-
-        /* Cartes statistiques */
+        .plan-badge.free {
+          background: #f8f9fa;
+          border-color: #dee2e6;
+          color: #6c757d;
+        }
+        .plan-limits-card {
+          border: none;
+          border-radius: 1rem;
+          background: linear-gradient(135deg, #667eea08, #764ba208);
+          border: 1px solid #e0e0e0;
+          margin-bottom: 1.5rem;
+        }
+        .plan-features-list {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+          gap: 10px;
+          margin-top: 10px;
+        }
+        .feature-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          font-size: 13px;
+          padding: 6px 0;
+          border-bottom: 1px dashed #e0e0e0;
+        }
         .stats-card {
           border: none;
           border-radius: 1.25rem;
+          background: white;
           box-shadow: 0 5px 15px rgba(0,0,0,0.03);
           transition: all 0.25s ease;
-          background: white;
-        }
-        .stats-card:hover {
-          transform: translateY(-3px);
-          box-shadow: 0 12px 24px rgba(0,0,0,0.08);
         }
         .stat-icon {
           width: 52px;
@@ -327,8 +484,6 @@ const Profile = () => {
         .bg-primary-soft { background-color: rgba(13, 110, 253, 0.12); }
         .bg-success-soft { background-color: rgba(25, 135, 84, 0.12); }
         .bg-info-soft { background-color: rgba(13, 202, 240, 0.12); }
-
-        /* Titres de section */
         .section-title {
           font-size: 1.25rem;
           font-weight: 600;
@@ -337,15 +492,12 @@ const Profile = () => {
           border-left: 4px solid #0d6efd;
           padding-left: 12px;
         }
-
-        /* Cartes de navigation */
         .nav-card {
           border: none;
           border-radius: 1rem;
           background: white;
           cursor: pointer;
           transition: all 0.2s ease;
-          box-shadow: 0 2px 6px rgba(0,0,0,0.03);
         }
         .nav-card:hover {
           transform: translateY(-2px);
@@ -359,72 +511,19 @@ const Profile = () => {
           justify-content: center;
           border-radius: 1rem;
         }
-
-        /* Carte À propos */
         .about-card {
           border: none;
           border-radius: 1.25rem;
           background: white;
           box-shadow: 0 5px 15px rgba(0,0,0,0.03);
         }
-
-        /* Responsive pour mobiles (Android) */
         @media (max-width: 576px) {
-          .action-buttons {
-            justify-content: stretch;
-          }
-          .action-btn {
-            flex: 1;
-            justify-content: center;
-            padding: 0.6rem 0.8rem;
-            font-size: 0.85rem;
-          }
-          .stat-icon {
-            width: 44px;
-            height: 44px;
-          }
-          .stat-icon svg {
-            width: 18px;
-            height: 18px;
-          }
-          .stats-card h4 {
-            font-size: 1.2rem;
-          }
-          .stats-card small {
-            font-size: 0.7rem;
-          }
-          .section-title {
-            font-size: 1.1rem;
-          }
-          .nav-icon {
-            width: 40px;
-            height: 40px;
-          }
-          .nav-icon svg {
-            width: 20px;
-            height: 20px;
-          }
-          .nav-card h6 {
-            font-size: 0.9rem;
-          }
-          .nav-card small {
-            font-size: 0.7rem;
-          }
-          .about-card .p-4 {
-            padding: 1rem !important;
-          }
-        }
-
-        /* Ajustes para tablets */
-        @media (min-width: 577px) and (max-width: 768px) {
-          .action-btn {
-            padding: 0.5rem 1rem;
-            font-size: 0.85rem;
-          }
-          .stat-icon {
-            width: 48px;
-            height: 48px;
-          }
+          .action-header { flex-direction: column; align-items: stretch; }
+          .action-buttons { justify-content: stretch; }
+          .action-btn { flex: 1; justify-content: center; }
+          .plan-features-list { grid-template-columns: 1fr; }
+          .stat-icon { width: 44px; height: 44px; }
+          .stats-card h4 { font-size: 1.2rem; }
         }
       `}</style>
     </div>

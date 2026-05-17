@@ -38,6 +38,9 @@ import ChannelProfile from './pages/channel/ChannelProfile';
 import MisChannel from './pages/channel/MisChannel';
 import ChannelFeed from './pages/channel/ChannelFeed';
 import Map from './pages/Map';
+import userPro from './pages/userPro';
+import UserProInfoPlans from './pages/userProInfoPlans';
+import userProPayment from './pages/userPropayment';
 
 // ============================================
 // ✅ SONIDO Y VIBRACIÓN - AUTOMÁTICO (sin esperar click)
@@ -296,7 +299,7 @@ function AppContent() {
 
         <Route exact path="/video/userVideo/:userId/info" component={InfoUserVideo} />
         <Route exact path="/videos/trending" component={TrendingVideos} />
-        <Route path="/channel/new" component={CreateChannel} />
+        <Route exact path="/channel/new" component={CreateChannel} />
         <Route exact path="/channel/:channelId/settings" component={EditChannel} />
         <Route exact path="/channel/:channelId" component={ChannelProfile} />
         <Route exact path="/my-channels" component={MisChannel} />
@@ -312,6 +315,10 @@ function AppContent() {
         <Route exact path="/users/dashboard" component={DashboardPage} />
         <Route exact path="/profile/:id" component={profile} />
         <Route exact path="/users/roles" component={roles} />
+        <Route exact path="/userpro" component={userPro} /> 
+        <Route exact path="/userpropayment" component={userProPayment} />
+        <Route exact path="/userproinfoplans" component={UserProInfoPlans} />
+       
         {/* Rutas de categorías: el navbar se ocultará automáticamente */}
         <Route exact path="/:slug/:page?" component={CategoryPage} />
         <Route exact path="/:slug/:subSlug/:page?" component={CategoryPage} />

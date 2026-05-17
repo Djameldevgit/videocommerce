@@ -18,25 +18,24 @@ import {
 } from 'react-bootstrap';
 import { Shield, Search, XCircle } from 'react-bootstrap-icons';
 
-import { getDataAPI } from '../../../utils/fetchData';
+import { getDataAPI, patchDataAPI } from '../../../utils/fetchData';
 import { USER_TYPES } from '../../../redux/actions/userAction';
 import LoadMoreBtn from "../../LoadMoreBtn";
 import { debounce } from 'lodash';
+import { GLOBALTYPES } from '../../../redux/actions/globalTypes';
 
-// Recibimos props del AdminDashboard
 const RolesTab = ({ filters = {}, token: propToken }) => {
   const { homeUsers, auth, alert, languageReducer, socket } = useSelector(state => state);
   const dispatch = useDispatch();
   
-  // Token prioritario: el que viene por props o el de Redux
   const authToken = propToken || auth?.token;
-  
   const lang = languageReducer?.language || 'es';
 
   const [selectedRoles, setSelectedRoles] = useState({});
+  const [selectedPlans, setSelectedPlans] = useState({});
   const [loading, setLoading] = useState(false);
+  const [updatingPlan, setUpdatingPlan] = useState(false);
 
-  // Estados para paginación y búsqueda
   const [load, setLoad] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
   const [search, setSearch] = useState("");
@@ -45,46 +44,65 @@ const RolesTab = ({ filters = {}, token: propToken }) => {
   const [searchPage, setSearchPage] = useState(1);
   const [hasMoreSearch, setHasMoreSearch] = useState(false);
 
-  // Efecto para aplicar filtros desde el Drawer
+  // ✅ Planes disponibles
+  const plans = [
+    { id: 'free', name: 'Gratuit', price: 0, color: '#6c757d', icon: '🆓' },
+    { id: 'basic', name: 'Basic', price: 400, color: '#667eea', icon: '⭐' },
+    { id: 'pro', name: 'Pro', price: 700, color: '#f093fb', icon: '🚀' },
+    { id: 'business', name: 'Business', price: 1300, color: '#f6b93b', icon: '👑' }
+  ];
+
   useEffect(() => {
     if (filters && Object.keys(filters).length > 0) {
       console.log('Filtros aplicados en Roles:', filters);
-      // Aquí puedes aplicar filtros específicos para roles si es necesario
     }
   }, [filters]);
 
-  // 🛡️ FUNCIÓN PARA VERIFICAR SI EL USUARIO ES PROTEGIDO
   const isProtectedUser = (user) => {
-    // El usuario admin autenticado NUNCA puede ser modificado
     if (user._id === auth.user?._id && auth.user?.role === 'admin') {
       return true;
     }
-    
-    // También puedes agregar más usuarios protegidos aquí si lo necesitas
-    // Ejemplo: if (user._id === 'usuario_protegido_id') return true;
-    
     return false;
   };
 
-  // Función para buscar usuarios en el servidor
+  const getUserPlan = (user) => {
+    return user.channelPlan || 'free';
+  };
+
+  const getPlanBadge = (planId) => {
+    const plan = plans.find(p => p.id === planId) || plans[0];
+    return (
+      <Badge 
+        style={{ 
+          background: plan.color, 
+          color: 'white',
+          padding: '5px 10px',
+          borderRadius: '20px',
+          fontSize: '11px'
+        }}
+        className="ms-2"
+      >
+        {plan.icon} {plan.name}
+        {plan.price > 0 && ` - ${plan.price} DA`}
+      </Badge>
+    );
+  };
+
+  // Búsqueda de usuarios
   const searchUsers = useCallback(
     debounce(async (searchTerm, page = 1) => {
       if (!authToken) return;
       
       try {
         setIsSearching(true);
-        
-        // ✅ NORMALIZACIÓN - Case insensitive
         const normalizedSearchTerm = searchTerm.trim().toLowerCase();
         
-        // ✅ Validar que el término no esté vacío
         if (normalizedSearchTerm.length === 0) {
           setSearchResults([]);
           setHasMoreSearch(false);
           return;
         }
         
-        // ✅ Búsqueda con término normalizado
         const query = `users/search?username=${encodeURIComponent(normalizedSearchTerm)}&page=${page}&limit=9`;
         const res = await getDataAPI(query, authToken);
         
@@ -105,7 +123,6 @@ const RolesTab = ({ filters = {}, token: propToken }) => {
     [authToken]
   );
 
-  // Efecto para realizar búsqueda cuando el término cambia
   useEffect(() => {
     if (search.trim() !== "") {
       searchUsers(search, 1);
@@ -115,10 +132,8 @@ const RolesTab = ({ filters = {}, token: propToken }) => {
     }
   }, [search, searchUsers]);
 
-  // Handler para cargar más resultados de búsqueda
   const handleLoadMoreSearch = async () => {
     if (!authToken || search.trim() === "") return;
-    
     try {
       setLoad(true);
       await searchUsers(search, searchPage + 1);
@@ -129,7 +144,7 @@ const RolesTab = ({ filters = {}, token: propToken }) => {
     }
   };
 
-  // Fetch inicial de usuarios con paginación
+  // Fetch inicial de usuarios
   useEffect(() => {
     const fetchUsers = async () => {
       try {
@@ -152,14 +167,10 @@ const RolesTab = ({ filters = {}, token: propToken }) => {
     }
   }, [authToken, dispatch, initialLoad]);
 
-  // Handler para cargar más usuarios (cuando no hay búsqueda)
   const handleLoadMore = async () => {
     setLoad(true);
     try {
-      const res = await getDataAPI(
-        `users?limit=9&page=${homeUsers.page + 1}`,
-        authToken
-      );
+      const res = await getDataAPI(`users?limit=9&page=${homeUsers.page + 1}`, authToken);
       dispatch({
         type: USER_TYPES.GET_USERS,
         payload: { ...res.data, page: homeUsers.page + 1 },
@@ -171,73 +182,219 @@ const RolesTab = ({ filters = {}, token: propToken }) => {
     }
   };
 
-  const handleChangeRole = async (user, selectedRole) => {
-    // 🛡️ VERIFICAR SI EL USUARIO ESTÁ PROTEGIDO
+  // ✅ FUNCIÓN PARA ACTUALIZAR PLAN (llamada directa a API)
+  const updateUserPlanDirect = async (userId, planId) => {
+    setUpdatingPlan(true);
+    try {
+      const response = await patchDataAPI(`admin/update-plan/${userId}`, { planId }, authToken);
+      console.log(`✅ Plan ${planId} actualizado para usuario ${userId}`, response.data);
+      return true;
+    } catch (error) {
+      console.error("❌ Error updating plan:", error);
+      dispatch({ 
+        type: GLOBALTYPES.ALERT, 
+        payload: { error: error.response?.data?.msg || "Erreur lors du changement de plan" } 
+      });
+      return false;
+    } finally {
+      setUpdatingPlan(false);
+    }
+  };
+
+  // ✅ FUNCIÓN PARA ACTUALIZAR ROL (llamada directa a API)
+  const updateRoleDirect = async (userId, role, planId = null) => {
+    let endpoint = '';
+    let body = {};
+    
+    switch (role) {
+      case 'user':
+        endpoint = `user/${userId}/roleuser`;
+        body = { role: 'user' };
+        break;
+      case 'userpro':
+        endpoint = `user/${userId}/roleuserpro`;
+        body = { role: 'userpro', planId: planId || 'basic' };
+        break;
+      case 'Moderateur':
+        endpoint = `user/${userId}/rolemoderador`;
+        body = { role: 'moderator' };
+        break;
+      case 'admin':
+        endpoint = `user/${userId}/roleadmin`;
+        body = { role: 'admin' };
+        break;
+      default:
+        return false;
+    }
+    
+    try {
+      const response = await patchDataAPI(endpoint, body, authToken);
+      console.log(`✅ Rol ${role} actualizado para usuario ${userId}`, response.data);
+      return true;
+    } catch (error) {
+      console.error("❌ Error updating role:", error);
+      dispatch({ 
+        type: GLOBALTYPES.ALERT, 
+        payload: { error: error.response?.data?.msg || "Erreur lors du changement de rôle" } 
+      });
+      return false;
+    }
+  };
+
+  // ✅ MANEJAR CAMBIO DE ROL
+  const handleRoleChange = async (user, selectedRole) => {
     if (isProtectedUser(user)) {
-      alert("Este usuario no puede ser modificado");
+      dispatch({ 
+        type: GLOBALTYPES.ALERT, 
+        payload: { error: "Cet utilisateur ne peut pas être modifié" } 
+      });
       return;
     }
 
+    const selectedPlan = selectedPlans[user._id] || getUserPlan(user);
+    
+    console.log('📤 handleRoleChange:', { userId: user._id, selectedRole, selectedPlan });
+    
+    setSelectedRoles(prev => ({ ...prev, [user._id]: selectedRole }));
     setLoading(true);
+    
+    // Actualizar UI inmediatamente (optimista)
+    const updatedUserData = { 
+      ...user, 
+      role: selectedRole, 
+      channelPlan: selectedRole === 'userpro' ? selectedPlan : 'free' 
+    };
+    
+    // Actualizar en homeUsers
+    if (homeUsers.users) {
+      const updatedUsers = homeUsers.users.map(u => 
+        u._id === user._id ? updatedUserData : u
+      );
+      dispatch({
+        type: USER_TYPES.GET_USERS,
+        payload: { ...homeUsers, users: updatedUsers }
+      });
+    }
+    
+    // Actualizar en búsqueda
+    if (search.trim() !== "") {
+      setSearchResults(prev => 
+        prev.map(u => u._id === user._id ? updatedUserData : u)
+      );
+    }
+    
+    // Actualizar auth si es el mismo usuario
+    if (user._id === auth.user?._id) {
+      dispatch({
+        type: GLOBALTYPES.AUTH,
+        payload: { ...auth, user: { ...auth.user, role: selectedRole, channelPlan: selectedRole === 'userpro' ? selectedPlan : 'free' } }
+      });
+    }
+    
     try {
-      switch (selectedRole) {
-        case 'user':
-          await dispatch(roleuserautenticado(user, auth, socket)); // ✅ Añadir socket
-          break;
-        case 'userpro':
-          await dispatch(userPro(user, auth, socket)); // ✅ Añadir socket
-          break;
-        case 'Moderateur':
-          await dispatch(rolemoderador(user, auth, socket)); // ✅ Añadir socket
-          break;
-        case 'admin':
-          await dispatch(roleadmin(user, auth, socket)); // ✅ Añadir socket
-          break;
-        default:
-          break;
+      // Llamada a la API para cambiar rol
+      const roleSuccess = await updateRoleDirect(user._id, selectedRole, selectedPlan);
+      
+      if (roleSuccess && selectedRole === 'userpro' && selectedPlan && selectedPlan !== 'free') {
+        // Si es userpro, actualizar el plan también
+        await updateUserPlanDirect(user._id, selectedPlan);
       }
       
-      // Actualizar resultados de búsqueda si estamos en modo búsqueda
-      if (search.trim() !== "") {
-        setSearchResults(prev => 
-          prev.map(u => u._id === user._id ? {...u, role: selectedRole} : u)
-        );
-      }
+      dispatch({ 
+        type: GLOBALTYPES.ALERT, 
+        payload: { success: `Rôle changé à ${selectedRole}` } 
+      });
+      
     } catch (error) {
-      console.error("Error changing role:", error);
+      console.error("Error:", error);
+      // Revertir cambios locales
+      if (homeUsers.users) {
+        const revertedUsers = homeUsers.users.map(u => 
+          u._id === user._id ? user : u
+        );
+        dispatch({
+          type: USER_TYPES.GET_USERS,
+          payload: { ...homeUsers, users: revertedUsers }
+        });
+      }
+      if (user._id === auth.user?._id) {
+        dispatch({
+          type: GLOBALTYPES.AUTH,
+          payload: { ...auth, user }
+        });
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRoleChange = async (user, selectedRole) => {
-    // 🛡️ VERIFICAR SI EL USUARIO ESTÁ PROTEGIDO ANTES DE CAMBIAR
+  // ✅ MANEJAR CAMBIO DE PLAN SOLAMENTE
+  const handlePlanChange = async (user, planId) => {
     if (isProtectedUser(user)) {
-      alert("Usuario protegido, no puede ser modificado");
+      dispatch({ 
+        type: GLOBALTYPES.ALERT, 
+        payload: { error: "Cet utilisateur ne peut pas être modifié" } 
+      });
       return;
     }
-
-    setSelectedRoles(prev => ({ ...prev, [user._id]: selectedRole }));
-    await handleChangeRole(user, selectedRole);
-
-    // Si el usuario editado es el autenticado => actualiza Redux auth
-    if (auth.user && auth.user._id === user._id) {
+    
+    console.log('📤 Cambiando plan:', { userId: user._id, planId });
+    
+    // Actualizar UI inmediatamente
+    setSelectedPlans(prev => ({ ...prev, [user._id]: planId }));
+    
+    if (homeUsers.users) {
+      const updatedUsers = homeUsers.users.map(u => 
+        u._id === user._id ? { ...u, channelPlan: planId } : u
+      );
       dispatch({
-        type: "AUTH_UPDATE_ROLE",
-        payload: selectedRole
+        type: USER_TYPES.GET_USERS,
+        payload: { ...homeUsers, users: updatedUsers }
       });
+    }
+    
+    if (user._id === auth.user?._id) {
+      dispatch({
+        type: GLOBALTYPES.AUTH,
+        payload: { ...auth, user: { ...auth.user, channelPlan: planId } }
+      });
+    }
+    
+    // Si el usuario ya es userpro, actualizar en el servidor
+    if (user.role === 'userpro') {
+      const success = await updateUserPlanDirect(user._id, planId);
+      if (!success) {
+        // Revertir si hay error
+        const originalPlan = getUserPlan(user);
+        setSelectedPlans(prev => ({ ...prev, [user._id]: originalPlan }));
+        if (homeUsers.users) {
+          const revertedUsers = homeUsers.users.map(u => 
+            u._id === user._id ? { ...u, channelPlan: originalPlan } : u
+          );
+          dispatch({
+            type: USER_TYPES.GET_USERS,
+            payload: { ...homeUsers, users: revertedUsers }
+          });
+        }
+      } else {
+        dispatch({ 
+          type: GLOBALTYPES.ALERT, 
+          payload: { success: `Plan changé à ${planId}` } 
+        });
+      }
     }
   };
 
   const getRoleBadge = (role) => {
     const variants = {
-      'admin': { bg: 'danger', icon: '👑', text: 'Administrador' },
-      'Moderateur': { bg: 'warning', icon: '🛡️', text: 'Moderador' },
-      'Super-utilisateur': { bg: 'info', icon: '⭐', text: 'Super Usuario' },
-      'user': { bg: 'secondary', icon: '👤', text: 'Usuario' }
+      'admin': { bg: 'danger', icon: '👑', text: 'Administrateur' },
+      'Moderateur': { bg: 'warning', icon: '🛡️', text: 'Modérateur' },
+      'Super-utilisateur': { bg: 'info', icon: '⭐', text: 'Super Utilisateur' },
+      'userpro': { bg: 'success', icon: '💎', text: 'User Pro' },
+      'user': { bg: 'secondary', icon: '👤', text: 'Utilisateur' }
     };
 
-    const config = variants[role] || { bg: 'light', icon: '👤', text: 'Usuario' };
+    const config = variants[role] || { bg: 'light', icon: '👤', text: 'Utilisateur' };
 
     return (
       <Badge 
@@ -250,7 +407,6 @@ const RolesTab = ({ filters = {}, token: propToken }) => {
     );
   };
 
-  // Determinar qué usuarios mostrar
   const usersToShow = search.trim() !== "" ? searchResults : homeUsers.users;
   const hasMore = search.trim() !== "" ? hasMoreSearch : homeUsers.result >= 9;
 
@@ -259,7 +415,7 @@ const RolesTab = ({ filters = {}, token: propToken }) => {
       <div className="d-flex justify-content-center align-items-center" style={{ minHeight: "60vh" }}>
         <div className="text-center">
           <Spinner animation="border" variant="primary" style={{ width: "3rem", height: "3rem" }} />
-          <p className="mt-3 text-muted fw-semibold">chargements utilizateurs...</p>
+          <p className="mt-3 text-muted fw-semibold">Chargement des utilisateurs...</p>
         </div>
       </div>
     );
@@ -267,17 +423,17 @@ const RolesTab = ({ filters = {}, token: propToken }) => {
 
   return (
     <Container fluid className="py-4">
-      {/* Header con título y buscador */}
       <Row className="mb-4">
         <Col>
-          <Card className="border-0 shadow-sm" style={{ 
-            background: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)" 
-          }}>
+          <Card className="border-0 shadow-sm" style={{ background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" }}>
             <Card.Body className="py-4">
               <h2 className="text-white mb-3 fw-bold">
                 <Shield size={32} className="me-2" />
-                Gestión de Roles y Permisos
+                Gestion des Rôles et Plans
               </h2>
+              <p className="text-white-50 mb-3">
+                Assignez un rôle ET un plan (Basic/Pro/Business) aux utilisateurs UserPro
+              </p>
               <Row className="align-items-center g-3">
                 <Col lg={8} md={7}>
                   <InputGroup size="lg">
@@ -286,18 +442,14 @@ const RolesTab = ({ filters = {}, token: propToken }) => {
                     </InputGroup.Text>
                     <Form.Control
                       type="text"
-                      placeholder="Buscar usuarios por nombre o email..."
+                      placeholder="Rechercher un utilisateur par nom ou email..."
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
                       className="border-0 shadow-sm"
                       style={{ fontSize: "1rem" }}
                     />
                     {search.trim() !== "" && (
-                      <Button 
-                        variant="light" 
-                        onClick={() => setSearch("")}
-                        className="border-0"
-                      >
+                      <Button variant="light" onClick={() => setSearch("")} className="border-0">
                         <XCircle />
                       </Button>
                     )}
@@ -307,8 +459,8 @@ const RolesTab = ({ filters = {}, token: propToken }) => {
                   <Badge bg="light" text="dark" className="py-2 px-3 fs-6">
                     <Shield className="me-2" />
                     {search.trim() !== "" 
-                      ? `${searchResults.length} resultados`
-                      : `${homeUsers.users.length} usuarios`
+                      ? `${searchResults.length} résultats`
+                      : `${homeUsers.users.length} utilisateurs`
                     }
                   </Badge>
                 </Col>
@@ -318,115 +470,139 @@ const RolesTab = ({ filters = {}, token: propToken }) => {
         </Col>
       </Row>
 
-      {/* Alertas */}
       {alert?.error && (
         <Row className="mb-3">
           <Col>
             <Alert variant="danger" dismissible className="shadow-sm">
-              <i className="fas fa-exclamation-triangle me-2"></i>
               {alert.error}
             </Alert>
           </Col>
         </Row>
       )}
 
-      {/* Indicador de búsqueda */}
       {isSearching && search.trim() !== "" && (
         <Row className="mb-3">
           <Col>
             <Card className="border-0 shadow-sm">
               <Card.Body className="text-center py-4">
                 <Spinner animation="border" variant="primary" className="mb-2" />
-                <p className="mb-0 text-muted">Buscando usuarios...</p>
+                <p className="mb-0 text-muted">Recherche d'utilisateurs...</p>
               </Card.Body>
             </Card>
           </Col>
         </Row>
       )}
 
-      {/* Tabla de roles */}
       <Card className="border-0 shadow-sm">
         <Card.Body className="p-0">
           <div className="table-responsive">
             <Table hover className="mb-0 align-middle">
-              <thead style={{ 
-                background: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)"
-              }}>
+              <thead style={{ background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" }}>
                 <tr>
-                  <th className="text-white border-0 py-3" style={{ width: '40%' }}>
-                    Usuario
-                  </th>
-                  <th className="text-white border-0 py-3 text-center" style={{ width: '25%' }}>
-                    Rol Actual
-                  </th>
-                  <th className="text-white border-0 py-3" style={{ width: '35%' }}>
-                    Cambiar Rol
-                  </th>
+                  <th className="text-white border-0 py-3" style={{ width: '35%' }}>Utilisateur</th>
+                  <th className="text-white border-0 py-3 text-center" style={{ width: '20%' }}>Rôle Actuel</th>
+                  <th className="text-white border-0 py-3 text-center" style={{ width: '20%' }}>Plan</th>
+                  <th className="text-white border-0 py-3" style={{ width: '25%' }}>Changer Rôle / Plan</th>
                 </tr>
               </thead>
               <tbody>
                 {usersToShow.length === 0 ? (
                   <tr>
-                    <td colSpan="3" className="text-center py-5">
+                    <td colSpan="4" className="text-center py-5">
                       <Shield size={48} className="text-muted mb-3" style={{ opacity: 0.3 }} />
                       <p className="mb-0 text-muted fs-5">
-                        {search ? "No se encontraron usuarios" : "No hay usuarios disponibles"}
+                        {search ? "Aucun utilisateur trouvé" : "Aucun utilisateur disponible"}
                       </p>
                     </td>
                   </tr>
                 ) : (
-                  usersToShow.map((user, index) => (
-                    <tr key={user._id || index} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                      <td className="py-3">
-                        <UserCard user={user} />
-                        {/* 🛡️ INDICADOR DE USUARIO PROTEGIDO */}
-                        {isProtectedUser(user) && (
-                          <Badge bg="warning" text="dark" className="ms-2">
-                            <i className="fas fa-shield-alt me-1"></i>
-                            Protegido
-                          </Badge>
-                        )}
-                       </td>
-                      <td className="py-3 text-center">
-                        {getRoleBadge(selectedRoles[user._id] || user.role)}
-                      </td>
-                      <td className="py-3">
-                        <div className="d-flex align-items-center gap-2">
-                          {loading && selectedRoles[user._id] ? (
-                            <Spinner animation="border" size="sm" />
-                          ) : (
-                            <i className="fas fa-user-cog text-primary"></i>
+                  usersToShow.map((user, index) => {
+                    const currentPlan = selectedPlans[user._id] || getUserPlan(user);
+                    const currentRole = selectedRoles[user._id] || user.role;
+                    const isUserPro = currentRole === 'userpro' || user.role === 'userpro';
+                    
+                    return (
+                      <tr key={user._id || index} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                        <td className="py-3">
+                          <UserCard user={user} />
+                          {isProtectedUser(user) && (
+                            <Badge bg="warning" text="dark" className="ms-2">Protégé</Badge>
                           )}
-                          <Form.Select
-                            size="sm"
-                            onChange={(e) => handleRoleChange(user, e.target.value)}
-                            value={selectedRoles[user._id] || user.role}
-                            disabled={loading || isProtectedUser(user)} // 🛡️ DESHABILITAR SI ESTÁ PROTEGIDO
-                            style={{
-                              maxWidth: '250px',
-                              borderRadius: '10px',
-                              border: '2px solid #e0e0e0',
-                              fontWeight: '500',
-                              backgroundColor: isProtectedUser(user) ? '#f8f9fa' : 'white',
-                              cursor: isProtectedUser(user) ? 'not-allowed' : 'pointer'
-                            }}
-                          >
-                            <option value="user">👤 Usuario</option>
-                            <option value="Super-utilisateur">⭐ Super Usuario</option>
-                            <option value="Moderateur">🛡️ Moderador</option>
-                            <option value="admin">👑 Administrador</option>
-                          </Form.Select>
-                        </div>
-                        {/* 🛡️ MENSAJE DE PROTECCIÓN */}
-                        {isProtectedUser(user) && (
-                          <small className="text-muted d-block mt-1">
-                            <i className="fas fa-info-circle me-1"></i>
-                            Este usuario no puede ser modificado
-                          </small>
-                        )}
-                      </td>
-                    </tr>
-                  ))
+                        </td>
+                        <td className="py-3 text-center">
+                          {getRoleBadge(currentRole)}
+                        </td>
+                        <td className="py-3 text-center">
+                          {getPlanBadge(currentPlan)}
+                          {isUserPro && currentPlan === 'free' && (
+                            <Badge bg="warning" className="ms-2">⚠️ Plan requis</Badge>
+                          )}
+                        </td>
+                        <td className="py-3">
+                          <div className="d-flex flex-column gap-2">
+                            <div className="d-flex align-items-center gap-2">
+                              {loading && selectedRoles[user._id] ? (
+                                <Spinner animation="border" size="sm" />
+                              ) : (
+                                <i className="fas fa-user-cog text-primary"></i>
+                              )}
+                              <Form.Select
+                                size="sm"
+                                onChange={(e) => handleRoleChange(user, e.target.value)}
+                                value={currentRole}
+                                disabled={loading || isProtectedUser(user)}
+                                style={{
+                                  maxWidth: '180px',
+                                  borderRadius: '10px',
+                                  border: '2px solid #e0e0e0',
+                                  fontWeight: '500'
+                                }}
+                              >
+                                <option value="user">👤 Utilisateur</option>
+                                <option value="Super-utilisateur">⭐ Super Utilisateur</option>
+                                <option value="Moderateur">🛡️ Modérateur</option>
+                                <option value="admin">👑 Administrateur</option>
+                                <option value="userpro">💎 User Pro</option>
+                              </Form.Select>
+                            </div>
+                            
+                            {(currentRole === 'userpro' || user.role === 'userpro') && (
+                              <div className="d-flex align-items-center gap-2 mt-2">
+                                <i className="fas fa-box text-success"></i>
+                                <Form.Select
+                                  size="sm"
+                                  value={currentPlan}
+                                  onChange={(e) => handlePlanChange(user, e.target.value)}
+                                  disabled={updatingPlan || isProtectedUser(user)}
+                                  style={{
+                                    maxWidth: '160px',
+                                    borderRadius: '10px',
+                                    border: '2px solid #e0e0e0',
+                                    fontSize: '12px'
+                                  }}
+                                >
+                                  <option value="free">🆓 Gratuit - 0 DA</option>
+                                  <option value="basic">⭐ Basic - 400 DA/mois</option>
+                                  <option value="pro">🚀 Pro - 700 DA/mois</option>
+                                  <option value="business">👑 Business - 1300 DA/mois</option>
+                                </Form.Select>
+                                {updatingPlan && selectedPlans[user._id] && (
+                                  <Spinner animation="border" size="sm" className="ms-1" />
+                                )}
+                              </div>
+                            )}
+                            
+                            {isProtectedUser(user) && (
+                              <small className="text-muted d-block mt-1">
+                                <i className="fas fa-info-circle me-1"></i>
+                                Cet utilisateur ne peut pas être modifié
+                              </small>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </Table>
@@ -434,21 +610,19 @@ const RolesTab = ({ filters = {}, token: propToken }) => {
         </Card.Body>
       </Card>
 
-      {/* Spinner mientras carga más */}
       {load && (
         <Row className="my-4">
           <Col>
             <Card className="border-0 shadow-sm">
               <Card.Body className="text-center py-3">
                 <Spinner animation="border" variant="primary" size="sm" className="me-2" />
-                <span className="text-muted">Cargando más usuarios...</span>
+                <span className="text-muted">Chargement...</span>
               </Card.Body>
             </Card>
           </Col>
         </Row>
       )}
 
-      {/* Botón para cargar más */}
       {hasMore && usersToShow.length > 0 && (
         <Row className="my-4">
           <Col className="d-flex justify-content-center">

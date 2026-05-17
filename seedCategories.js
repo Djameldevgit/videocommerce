@@ -25,10 +25,9 @@ const categoriesData = [
   { slug: 'alimentaires', name: 'Alimentaires', order: 15, icon: '🍎' },
   { slug: 'voyages', name: 'Voyages', order: 16, icon: '✈️' },
   { slug: 'services', name: 'Services', order: 17, icon: '🛠️' },
-  { slug: 'publicite', name: 'Publicité', order: 18, icon: '📢' },
-  { slug: 'art', name: 'Art', order: 19, icon: '🎨' },
-  { slug: 'reseaux-sociaux', name: 'Réseaux sociaux', order: 20, icon: '📱' }  // ← NUEVA CATEGORÍA SOCIAL
-];
+
+  { slug: 'art', name: 'Art', order: 18, icon: '🎨' },
+ ];
 
 // Colores para cada categoría (incluyendo 'art' y 'reseaux-sociaux')
 const categoryColors = {
@@ -49,10 +48,8 @@ const categoryColors = {
   'alimentaires': '#27AE60',
   'voyages': '#2980B9',
   'services': '#16A085',
-  'publicite': '#FF9800',
-  'art': '#E84393',        // Rosa/Magenta para arte
-  'reseaux-sociaux': '#00CED1'  // Turquesa/Dark Turquoise para redes sociales
-};
+    'art': '#E84393',        // Rosa/Magenta para arte
+ };
 
 const seedCategories = async () => {
   try {

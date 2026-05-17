@@ -7,8 +7,39 @@ const sendCustomEmail = require('./sendCustomEmail')
 const { google } = require('googleapis')
 const { OAuth2 } = google.auth
 const { CLIENT_URL } = process.env
-const Channel = require('../models/channelModel');  // Añade esta línea con los demás imports
+const Channel = require('../models/channelModel');
 const client = new OAuth2(process.env.GOOGLE_CLIENT_ID)
+
+// ✅ FUNCIONES ACTUALIZADAS para incluir channelPlan
+const createAccessToken = (payload) => {
+    // payload debe contener id, role y channelPlan
+    return jwt.sign(payload, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '7d' })
+}
+
+const createRefreshToken = (payload) => {
+    return jwt.sign(payload, process.env.REFRESH_TOKEN_SECRET, { expiresIn: '30d' })
+}
+
+const createActivationToken = (payload) => {
+    return jwt.sign(payload, process.env.ACTIVATION_TOKEN_SECRET, { expiresIn: '5m' })
+}
+
+// ✅ Función auxiliar para obtener usuario con sus datos completos
+const getUserWithPlan = async (userId) => {
+    const user = await Users.findById(userId)
+        .select('-password')
+        .populate("followers following", "avatar username followers following");
+    
+    if (!user) return null;
+    
+    // Asegurar que channelPlan existe
+    return {
+        ...user._doc,
+        channelPlan: user.channelPlan || 'free',
+        channelPlanExpiresAt: user.channelPlanExpiresAt,
+        channelPlanAutoRenew: user.channelPlanAutoRenew || false
+    };
+}
 
 const authCtrl = {
     register: async (req, res) => {
@@ -29,7 +60,9 @@ const authCtrl = {
             const newUser = new Users({
                 username: newUserName,
                 email,
-                password: passwordHash
+                password: passwordHash,
+                channelPlan: 'free',        // ✅ Plan por defecto
+                channelPlanAutoRenew: false
             });
             await newUser.save();
     
@@ -43,37 +76,55 @@ const authCtrl = {
             });
             await defaultChannel.save();
     
-            const access_token = createAccessToken({ id: newUser._id });
+            // ✅ TOKEN con channelPlan
+            const access_token = createAccessToken({ 
+                id: newUser._id, 
+                role: newUser.role || 'user',
+                channelPlan: 'free'
+            });
             const refresh_token = createRefreshToken({ id: newUser._id });
+            
             res.cookie('refreshtoken', refresh_token, {
                 httpOnly: true,
                 path: '/api/refresh_token',
                 maxAge: 30 * 24 * 60 * 60 * 1000
             });
+            
             res.json({
                 msg: 'Inscription réussie !',
                 access_token,
-                user: { ...newUser._doc, password: '' },
+                user: {
+                    ...newUser._doc,
+                    password: '',
+                    channelPlan: 'free',
+                    channelPlanExpiresAt: null
+                },
                 channel: { _id: defaultChannel._id, name: defaultChannel.name }
             });
         } catch (err) {
             return res.status(500).json({ msg: err.message });
         }
     },
+
     login: async (req, res) => {
         try {
             const { email, password } = req.body
 
             const user = await Users.findOne({email})
-            .populate("followers following", "avatar username followers following")
+                .populate("followers following", "avatar username followers following")
 
             if(!user) return res.status(400).json({msg: "Cet email n'existe pas."})
 
             const isMatch = await bcrypt.compare(password, user.password)
             if(!isMatch) return res.status(400).json({msg: "Le mot de passe est incorrect."})
 
-            const access_token = createAccessToken({id: user._id})
-            const refresh_token = createRefreshToken({id: user._id})
+            // ✅ TOKEN con channelPlan
+            const access_token = createAccessToken({ 
+                id: user._id, 
+                role: user.role || 'user',
+                channelPlan: user.channelPlan || 'free'
+            })
+            const refresh_token = createRefreshToken({ id: user._id })
 
             res.cookie('refreshtoken', refresh_token, {
                 httpOnly: true,
@@ -86,7 +137,10 @@ const authCtrl = {
                 access_token,
                 user: {
                     ...user._doc,
-                    password: ''
+                    password: '',
+                    channelPlan: user.channelPlan || 'free',
+                    channelPlanExpiresAt: user.channelPlanExpiresAt,
+                    channelPlanAutoRenew: user.channelPlanAutoRenew || false
                 }
             })
         } catch (err) {
@@ -131,7 +185,11 @@ const authCtrl = {
 
             res.json({
                 msg: "Compte activé avec succès !",
-                user
+                user: {
+                    ...user._doc,
+                    password: '',
+                    channelPlan: user.channelPlan || 'free'
+                }
             });
         } catch (err) {
             return res.status(500).json({ msg: "Erreur serveur, veuillez réessayer." });
@@ -149,7 +207,11 @@ const authCtrl = {
       
             res.json({
                 msg: `L'utilisateur est maintenant ${user.isVerified ? "vérifié ✅" : "non vérifié ❌"}`,
-                user,
+                user: {
+                    ...user._doc,
+                    password: '',
+                    channelPlan: user.channelPlan || 'free'
+                },
             });
         } catch (err) {
             return res.status(500).json({ msg: "Erreur serveur." });
@@ -163,7 +225,7 @@ const authCtrl = {
             if (!user)
                 return res.status(400).json({ msg: "Cet email n'existe pas." });
 
-            const access_token = createAccessToken({ id: user._id });
+            const access_token = createAccessToken({ id: user._id, role: user.role, channelPlan: user.channelPlan || 'free' });
             const url = `${CLIENT_URL}/user/reset/${access_token}`;
 
             await sendMail(user.email, url, req.getLocale(), 'reset');
@@ -252,19 +314,24 @@ const authCtrl = {
                     email,
                     password: passwordHash,
                     avatar: picture,
-                    isVerified: true
+                    isVerified: true,
+                    channelPlan: 'free'  // ✅ Plan por defecto
                 });
 
                 await user.save();
             }
 
-            const access_token = createAccessToken({ id: user._id });
+            const access_token = createAccessToken({ 
+                id: user._id, 
+                role: user.role || 'user',
+                channelPlan: user.channelPlan || 'free'
+            });
             const refresh_token = createRefreshToken({ id: user._id });
 
             res.cookie("refreshtoken", refresh_token, {
                 httpOnly: true,
                 path: "/api/refresh_token",
-                maxAge: 30 * 24 * 60 * 60 * 1000 // 30 jours
+                maxAge: 30 * 24 * 60 * 60 * 1000
             });
 
             res.json({
@@ -272,7 +339,10 @@ const authCtrl = {
                 access_token,
                 user: {
                     ...user._doc,
-                    password: ''
+                    password: '',
+                    channelPlan: user.channelPlan || 'free',
+                    channelPlanExpiresAt: user.channelPlanExpiresAt,
+                    channelPlanAutoRenew: user.channelPlanAutoRenew || false
                 }
             });
         } catch (err) {
@@ -314,19 +384,24 @@ const authCtrl = {
                     email,
                     password: passwordHash,
                     avatar: picture.data.url,
-                    isVerified: true
+                    isVerified: true,
+                    channelPlan: 'free'  // ✅ Plan por defecto
                 });
 
                 await user.save();
             }
 
-            const access_token = createAccessToken({ id: user._id });
+            const access_token = createAccessToken({ 
+                id: user._id, 
+                role: user.role || 'user',
+                channelPlan: user.channelPlan || 'free'
+            });
             const refresh_token = createRefreshToken({ id: user._id });
 
             res.cookie('refreshtoken', refresh_token, {
                 httpOnly: true,
                 path: '/api/refresh_token',
-                maxAge: 30 * 24 * 60 * 60 * 1000 // 30 jours
+                maxAge: 30 * 24 * 60 * 60 * 1000
             });
 
             res.json({
@@ -334,7 +409,10 @@ const authCtrl = {
                 access_token,
                 user: {
                     ...user._doc,
-                    password: ''
+                    password: '',
+                    channelPlan: user.channelPlan || 'free',
+                    channelPlanExpiresAt: user.channelPlanExpiresAt,
+                    channelPlanAutoRenew: user.channelPlanAutoRenew || false
                 }
             });
         } catch (err) {
@@ -368,29 +446,27 @@ const authCtrl = {
                 if (!user)
                     return res.status(400).json({ msg: "Utilisateur non trouvé." })
 
-                const access_token = createAccessToken({ id: result.id })
+                // ✅ TOKEN actualizado con channelPlan
+                const access_token = createAccessToken({ 
+                    id: result.id,
+                    role: user.role || 'user',
+                    channelPlan: user.channelPlan || 'free'
+                })
 
                 res.json({
                     access_token,
-                    user
+                    user: {
+                        ...user._doc,
+                        channelPlan: user.channelPlan || 'free',
+                        channelPlanExpiresAt: user.channelPlanExpiresAt,
+                        channelPlanAutoRenew: user.channelPlanAutoRenew || false
+                    }
                 })
             })
         } catch (err) {
             return res.status(500).json({ msg: "Erreur serveur, veuillez réessayer." })
         }
     }
-}
-
-const createActivationToken = (payload) => {
-    return jwt.sign(payload, process.env.ACTIVATION_TOKEN_SECRET, { expiresIn: '5m' })
-}
-
-const createAccessToken = (payload) => {
-    return jwt.sign(payload, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1d' })
-}
-
-const createRefreshToken = (payload) => {
-    return jwt.sign(payload, process.env.REFRESH_TOKEN_SECRET, { expiresIn: '30d' })
 }
 
 module.exports = authCtrl
