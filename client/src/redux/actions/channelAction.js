@@ -104,11 +104,18 @@ export const createChannel = (formData, token, auth, socket) => async (dispatch)
   }
 };
 // ==================== ACTUALIZAR PERFIL DEL CANAL (CON NOTIFICACIÓN) ====================
+// redux/actions/channelAction.js
+// ==================== ACTUALIZAR PERFIL DEL CANAL (CORREGIDO) ====================
 export const updateChannelProfile = (channelId, updateData, token, auth, socket) => async (dispatch) => {
   try {
     dispatch({ type: GLOBALTYPES.ALERT, payload: { loading: true } });
     
+    console.log('📤 updateChannelProfile - Datos a enviar:', updateData);
+    console.log('📤 updateChannelProfile - Token:', token ? 'Presente' : 'Ausente');
+    
     const res = await patchDataAPI(`channels/${channelId}`, updateData, token);
+    
+    console.log('📥 updateChannelProfile - Respuesta:', res.data);
     
     if (res.data.success) {
       dispatch({
@@ -116,44 +123,55 @@ export const updateChannelProfile = (channelId, updateData, token, auth, socket)
         payload: res.data.channel
       });
       
-      // ✅ Notificar a los seguidores del canal que ha sido actualizado
-      if (res.data.channel && auth.user) {
+      // ✅ CORREGIDO: Verificar que auth y auth.user existen antes de acceder
+      if (res.data.channel && auth && auth.user) {
         const msg = {
           id: res.data.channel._id,
-          text: `✏️ ${auth.user.username} a mis à jour son canal : "${res.data.channel.name}"`,
-          recipients: [], // Los seguidores recibirán esto (backend)
+          text: `✏️ ${auth.user.username || 'Un usuario'} ha actualizado su canal: "${res.data.channel.name}"`,
+          recipients: [],
           url: `/channel/${res.data.channel._id}`,
           content: res.data.channel.name,
           image: res.data.channel.avatar || null,
           type: 'channel_updated'
         };
         
-        if (socket) {
+        // ✅ Verificar que socket existe antes de emitir
+        if (socket && typeof socket.emit === 'function') {
           socket.emit('updateChannel', msg);
         }
         
-        await dispatch(createNotify({ msg, auth, socket }));
+        // ✅ Verificar que createNotify existe y los parámetros son válidos
+        if (typeof dispatch(createNotify) === 'function') {
+          await dispatch(createNotify({ msg, auth, socket }));
+        }
+      } else {
+        console.log('⚠️ No se envió notificación: auth o auth.user es undefined');
       }
       
       dispatch({
         type: GLOBALTYPES.ALERT,
-        payload: { success: 'Perfil del canal actualizado' }
+        payload: { success: 'Perfil del canal actualizado correctamente' }
       });
     }
     
     return res.data;
   } catch (err) {
     console.error('❌ updateChannelProfile error:', err);
+    console.error('❌ Error details:', err.response?.data);
+    
     dispatch({
       type: GLOBALTYPES.ALERT,
-      payload: { error: err.response?.data?.message || 'Error al actualizar' }
+      payload: { error: err.response?.data?.message || 'Error al actualizar el canal' }
     });
-    return null;
+    
+    return { 
+      success: false, 
+      message: err.response?.data?.message || err.message 
+    };
   } finally {
     dispatch({ type: GLOBALTYPES.ALERT, payload: { loading: false } });
   }
 };
-
 // ==================== SEGUIR / DEJAR DE SEGUIR UN CANAL (CON NOTIFICACIÓN) ====================
 export const toggleFollowChannel = (channelId, token, auth, socket, channelData) => async (dispatch) => {
   try {
@@ -229,24 +247,41 @@ export const getChannelProfile = (channelId, token = null) => async (dispatch) =
 export const getUserChannels = (token) => async (dispatch) => {
   try {
     dispatch({ type: CHANNEL_TYPES.CHANNEL_LOADING, payload: true });
+    
+    console.log('📡 getUserChannels - Token:', token ? 'Presente' : 'Ausente');
+    
     const res = await getDataAPI('users/my-channels', token);
+    
+    console.log('📥 getUserChannels - Respuesta:', res.data);
+    
+    // ✅ Asegurar que siempre enviamos un array
+    const channels = res.data.channels || [];
+    
     dispatch({
       type: CHANNEL_TYPES.GET_USER_CHANNELS,
-      payload: res.data.channels || []
+      payload: channels
     });
-    return res.data;
+    
+    return { success: true, channels };
   } catch (err) {
     console.error('❌ getUserChannels error:', err);
+    
+    // ✅ En caso de error, enviar array vacío
+    dispatch({
+      type: CHANNEL_TYPES.GET_USER_CHANNELS,
+      payload: []
+    });
+    
     dispatch({
       type: GLOBALTYPES.ALERT,
       payload: { error: err.response?.data?.message || 'Error al cargar tus canales' }
     });
-    return null;
+    
+    return { success: false, channels: [], error: err.message };
   } finally {
     dispatch({ type: CHANNEL_TYPES.CHANNEL_LOADING, payload: false });
   }
 };
-
 // ==================== OBTENER VIDEOS DE UN CANAL ====================
 export const getChannelVideos = (channelId, page = 1, limit = 12, token = null) => async (dispatch) => {
   try {

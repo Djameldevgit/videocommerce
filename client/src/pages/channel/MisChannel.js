@@ -24,21 +24,19 @@ import {
   Briefcase,
   CheckCircle,
   Building,
-  ArrowUpCircle,
   InfoCircle,
-  Star,
-  Rocket,
-  Crown
+  Clock
 } from 'react-bootstrap-icons';
 import { getUserChannels } from '../../redux/actions/channelAction';
 import useUserPlan from '../../components/useUserPlan';
- 
- 
+
 const MisChannel = () => {
   const dispatch = useDispatch();
   const history = useHistory();
-  const { token, user } = useSelector(state => state.auth);
-  const { userChannels, loading } = useSelector(state => state.channel);
+  
+  // ✅ Selectors con valores por defecto para evitar undefined
+  const { token, user } = useSelector(state => state.auth || {});
+  const { userChannels = [], loading = false } = useSelector(state => state.channel || {});
   
   // ✅ Hook para obtener el plan del usuario
   const { 
@@ -58,24 +56,38 @@ const MisChannel = () => {
   
   // ✅ Usar ref para evitar llamadas duplicadas
   const hasLoadedRef = useRef(false);
+  const loadingRef = useRef(false);
 
+  // ✅ Cargar canales del usuario
   useEffect(() => {
-    if (token && user && !hasLoadedRef.current && !loading) {
+    const loadChannels = async () => {
+      if (!token || !user) return;
+      if (hasLoadedRef.current) return;
+      if (loadingRef.current) return;
+      
+      loadingRef.current = true;
       hasLoadedRef.current = true;
+      
       console.log('📱 Cargando canales del usuario...');
-      dispatch(getUserChannels(token));
-    }
-  }, [token, user, loading, dispatch]);
+      await dispatch(getUserChannels(token));
+      
+      loadingRef.current = false;
+    };
+    
+    loadChannels();
+  }, [token, user, dispatch]);
 
+  // ✅ Limpiar ref al desmontar
   useEffect(() => {
     return () => {
       hasLoadedRef.current = false;
+      loadingRef.current = false;
     };
   }, []);
 
   // ✅ Verificar si puede crear un nuevo canal
   const canCreateNewChannel = () => {
-    const currentChannelCount = userChannels.length;
+    const currentChannelCount = userChannels?.length || 0;
     const maxChannels = planLimits?.maxChannels || 1;
     
     if (maxChannels === 'unlimited') return true;
@@ -84,7 +96,7 @@ const MisChannel = () => {
 
   // ✅ Obtener canales restantes
   const getRemainingChannels = () => {
-    const currentChannelCount = userChannels.length;
+    const currentChannelCount = userChannels?.length || 0;
     const maxChannels = planLimits?.maxChannels || 1;
     
     if (maxChannels === 'unlimited') return 'Illimité';
@@ -108,23 +120,25 @@ const MisChannel = () => {
       free: '🆓',
       basic: '⭐',
       pro: '🚀',
-      business: '👑'
+      business: '👑',
+      enterprise: '🏢'
     };
     
     const planNames = {
       free: 'Gratuit',
       basic: 'Basic',
       pro: 'Pro',
-      business: 'Business'
+      business: 'Business',
+      enterprise: 'Enterprise'
     };
     
     return (
       <div className="plan-badge" style={{ backgroundColor: `${planColor}15`, borderColor: planColor }}>
         <span style={{ color: planColor }}>{planIcons[currentPlan] || '🆓'}</span>
         <span style={{ color: planColor }}>Plan {planNames[currentPlan] || 'Gratuit'}</span>
-        {isUserPro && hasActivePlan && getDaysRemaining > 0 && (
+        {isUserPro && hasActivePlan && getDaysRemaining() > 0 && (
           <span className="plan-days" style={{ color: planColor }}>
-            ({getDaysRemaining} jours restants)
+            ({getDaysRemaining()} jours restants)
           </span>
         )}
         {isExpired && (
@@ -136,7 +150,7 @@ const MisChannel = () => {
 
   // ✅ Renderizar información de límites
   const renderLimitInfo = () => {
-    const currentCount = userChannels.length;
+    const currentCount = userChannels?.length || 0;
     const maxChannels = planLimits?.maxChannels || 1;
     const remaining = getRemainingChannels();
     const percentage = maxChannels === 'unlimited' ? 100 : (currentCount / maxChannels) * 100;
@@ -184,7 +198,22 @@ const MisChannel = () => {
     );
   };
 
-  if (loading && userChannels.length === 0) {
+  // ✅ Renderizar icono del plan
+  const getPlanIconForChannel = (plan) => {
+    const icons = {
+      free: '🆓',
+      basic: '⭐',
+      pro: '🚀',
+      business: '👑',
+      enterprise: '🏢'
+    };
+    return icons[plan] || '📺';
+  };
+
+  const channelCount = userChannels?.length || 0;
+
+  // ✅ Estado de carga
+  if (loading && channelCount === 0) {
     return (
       <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '60vh' }}>
         <Spinner animation="border" variant="primary" />
@@ -241,13 +270,20 @@ const MisChannel = () => {
             <h1 className="h2 fw-bold text-dark d-flex align-items-center gap-2 mb-0">
               <Tv className="text-primary" size={32} />
               Mes chaînes
-              {userChannels.length > 0 && (
-                <Badge bg="secondary" pill className="ms-2">{userChannels.length}</Badge>
+              {channelCount > 0 && (
+                <Badge bg="secondary" pill className="ms-2">{channelCount}</Badge>
               )}
             </h1>
             {renderPlanBadge()}
           </div>
-         
+          <Button 
+            variant="primary" 
+            onClick={handleCreateChannel}
+            disabled={!canCreateNewChannel()}
+            className="rounded-pill px-4 py-2"
+          >
+            <Plus size={18} className="me-2" /> Nouvelle chaîne
+          </Button>
         </div>
 
         {/* Information du plan et limites */}
@@ -256,82 +292,150 @@ const MisChannel = () => {
         </div>
 
         {/* Liste des chaînes */}
-        {userChannels.length === 0 ? (
+        {channelCount === 0 ? (
           <Card className="text-center p-5 shadow-sm border-0">
-            <Tv size={64} className="text-muted mx-auto mb-3" />
-            <h5 className="text-muted">Vous n'avez encore aucune chaîne</h5>
-            <p className="text-muted mb-4">Créez votre première chaîne pour commencer à publier des vidéos commerciales.</p>
-            <Button 
-              variant="primary" 
-              onClick={handleCreateChannel} 
-              className="mx-auto rounded-pill px-4"
-              disabled={!canCreateNewChannel()}
-            >
-              <Plus size={18} className="me-2" /> Créer ma première chaîne
-            </Button>
-            {!canCreateNewChannel() && (
-              <p className="text-danger mt-3 small">
-                ⚠️ Vous avez atteint la limite de {planLimits?.maxChannels || 1} canal pour votre plan {planName}.
+            <div className="mb-4">
+              <Tv size={64} className="text-muted mx-auto mb-3" />
+              <h5 className="text-muted">Vous n'avez encore aucune chaîne</h5>
+              <p className="text-muted mb-4">
+                Créez votre première chaîne pour commencer à publier des vidéos commerciales.
               </p>
-            )}
+              <Button 
+                variant="primary" 
+                onClick={handleCreateChannel} 
+                className="mx-auto rounded-pill px-4"
+                disabled={!canCreateNewChannel()}
+              >
+                <Plus size={18} className="me-2" /> Créer ma première chaîne
+              </Button>
+              {!canCreateNewChannel() && (
+                <p className="text-danger mt-3 small">
+                  ⚠️ Vous avez atteint la limite de {planLimits?.maxChannels || 1} canal pour votre plan {planName}.
+                </p>
+              )}
+            </div>
           </Card>
         ) : (
           <>
             <Row xs={1} md={2} lg={3} className="g-4">
-              {userChannels.map(channel => (
+              {userChannels.map((channel) => (
                 <Col key={channel._id}>
                   <Card className="h-100 shadow-sm border-0 hover-shadow transition-all">
-                    <div className="position-relative bg-gradient-primary text-white p-3 rounded-top" style={{ height: '100px', background: 'linear-gradient(135deg, #0d6efd, #0a58ca)' }}>
+                    {/* Header con gradiente */}
+                    <div className="position-relative rounded-top" style={{ 
+                      height: '100px', 
+                      background: 'linear-gradient(135deg, #0d6efd, #0a58ca)',
+                      borderTopLeftRadius: '0.375rem',
+                      borderTopRightRadius: '0.375rem'
+                    }}>
+                      {/* Avatar flotante */}
                       <div className="position-absolute bottom-0 start-50 translate-middle">
                         <div className="bg-white rounded-circle p-1 shadow-sm">
-                          {channel.avatar ? (
-                            <img src={channel.avatar} alt={channel.name} width="70" height="70" className="rounded-circle object-fit-cover" />
+                          {channel.avatar && channel.avatar !== 'default' ? (
+                            <img 
+                              src={channel.avatar} 
+                              alt={channel.name} 
+                              width="70" 
+                              height="70" 
+                              className="rounded-circle object-fit-cover"
+                              style={{ border: '2px solid white' }}
+                            />
                           ) : (
-                            <div className="bg-secondary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style={{ width: '70px', height: '70px' }}>
-                              <Building size={32} className="text-secondary" />
+                            <div 
+                              className="bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center"
+                              style={{ width: '70px', height: '70px', background: '#e7f1ff' }}
+                            >
+                              <Building size={32} className="text-primary" />
                             </div>
                           )}
                         </div>
                       </div>
+                      
+                      {/* Badge verificado */}
                       {channel.isVerified && (
-                        <Badge bg="info" className="position-absolute top-0 end-0 m-2 rounded-pill d-flex align-items-center gap-1">
+                        <Badge 
+                          bg="info" 
+                          className="position-absolute top-0 end-0 m-2 rounded-pill d-flex align-items-center gap-1"
+                        >
                           <CheckCircle size={12} /> Vérifié
                         </Badge>
                       )}
                     </div>
+
+                    {/* Body de la tarjeta */}
                     <Card.Body className="pt-5 text-center">
-                      <Card.Title className="fw-bold">{channel.name}</Card.Title>
-                      <div className="d-flex justify-content-center gap-2 mb-2">
+                      <Card.Title className="fw-bold mb-2">{channel.name}</Card.Title>
+                      
+                      {/* Categoría/Actividad */}
+                      <div className="d-flex justify-content-center gap-2 mb-3">
                         <Badge bg="light" text="dark" className="rounded-pill px-3 py-1">
-                          <Briefcase size={12} className="me-1" /> {channel.activity || 'Activité'}
+                          <Briefcase size={12} className="me-1" /> 
+                          {channel.activity?.name || channel.activity || 'Activité'}
                         </Badge>
                       </div>
+
+                      {/* Ubicación */}
                       {channel.wilaya && (
-                        <div className="text-muted small mb-1">
-                          <GeoAlt size={12} className="me-1" /> {channel.wilaya}{channel.commune ? `, ${channel.commune}` : ''}
+                        <div className="text-muted small mb-2">
+                          <GeoAlt size={12} className="me-1" /> 
+                          {channel.wilaya}{channel.commune ? `, ${channel.commune}` : ''}
                         </div>
                       )}
+
+                      {/* Teléfono */}
                       {channel.phone && (
-                        <div className="text-muted small mb-1">
-                          <Telephone size={12} className="me-1" /> {channel.phone}
+                        <div className="text-muted small mb-2">
+                          <Telephone size={12} className="me-1" /> 
+                          {channel.phone}
                         </div>
                       )}
+
+                      {/* Email */}
                       {channel.email && (
-                        <div className="text-muted small mb-2 text-truncate">
-                          <Envelope size={12} className="me-1" /> {channel.email}
+                        <div className="text-muted small mb-3 text-truncate">
+                          <Envelope size={12} className="me-1" /> 
+                          {channel.email}
                         </div>
                       )}
+
+                      {/* Descripción */}
                       {channel.description && (
                         <div className="text-muted small mt-2 text-start border-top pt-2">
-                          {channel.description.length > 80 ? channel.description.substring(0, 80) + '…' : channel.description}
+                          {channel.description.length > 80 
+                            ? channel.description.substring(0, 80) + '…' 
+                            : channel.description}
                         </div>
                       )}
+
+                      {/* Estadísticas básicas */}
+                      <div className="d-flex justify-content-around mt-3 pt-2 border-top">
+                        <div className="text-center">
+                          <div className="small text-muted">Vidéos</div>
+                          <div className="fw-bold">{channel.totalVideos || 0}</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="small text-muted">Vues</div>
+                          <div className="fw-bold">{channel.totalViews || 0}</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="small text-muted">Abonnés</div>
+                          <div className="fw-bold">{channel.followersCount || 0}</div>
+                        </div>
+                      </div>
                     </Card.Body>
-                    <Card.Footer className="bg-white border-top-0 d-flex justify-content-between">
-                      <Link to={`/channel/${channel._id}`} className="btn btn-sm btn-outline-primary rounded-pill px-3">
+
+                    {/* Footer con botones */}
+                    <Card.Footer className="bg-white border-top-0 d-flex justify-content-between gap-2 pb-3">
+                      <Link 
+                        to={`/channel/${channel._id}`} 
+                        className="btn btn-sm btn-outline-primary rounded-pill px-3 flex-grow-1"
+                      >
                         <Eye size={14} className="me-1" /> Voir
                       </Link>
-                      <Link to={`/channel/${channel._id}/settings`} className="btn btn-sm btn-outline-secondary rounded-pill px-3">
+                      <Link 
+                        to={`/channel/${channel._id}/settings`} 
+                        className="btn btn-sm btn-outline-secondary rounded-pill px-3 flex-grow-1"
+                      >
                         <Pencil size={14} className="me-1" /> Modifier
                       </Link>
                     </Card.Footer>
@@ -340,22 +444,48 @@ const MisChannel = () => {
               ))}
             </Row>
             
-            {/* Afficher les slots restants */}
+            {/* Slots restantes */}
+            {canCreateNewChannel() && getRemainingChannels() !== 'Illimité' && getRemainingChannels() > 0 && (
+              <div className="text-center mt-4">
+                <div className="d-inline-flex align-items-center gap-2 text-muted small bg-white px-3 py-2 rounded-pill shadow-sm">
+                  <Clock size={14} />
+                  ℹ️ Il vous reste {getRemainingChannels()} emplacement
+                  {getRemainingChannels() > 1 ? 's' : ''} disponible
+                  {getRemainingChannels() > 1 ? 's' : ''} pour créer de nouvelles chaînes.
+                </div>
+              </div>
+            )}
+
+            {/* Botón para crear más canales (si hay espacio) */}
             {canCreateNewChannel() && (
               <div className="text-center mt-4">
-                <small className="text-muted">
-                  ℹ️ Il vous reste {getRemainingChannels()} emplacement{getRemainingChannels() > 1 ? 's' : ''} disponible{getRemainingChannels() > 1 ? 's' : ''} pour créer de nouvelles chaînes.
-                </small>
+                <Button 
+                  variant="outline-primary" 
+                  onClick={handleCreateChannel}
+                  className="rounded-pill px-4"
+                >
+                  <Plus size={16} className="me-2" /> Créer une autre chaîne
+                </Button>
               </div>
             )}
           </>
         )}
       </Container>
 
+      {/* Estilos CSS */}
       <style jsx="true">{`
-        .transition-all { transition: all 0.2s ease-in-out; }
-        .hover-shadow:hover { transform: translateY(-4px); box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15) !important; }
-        .object-fit-cover { object-fit: cover; }
+        .transition-all {
+          transition: all 0.2s ease-in-out;
+        }
+        
+        .hover-shadow:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15) !important;
+        }
+        
+        .object-fit-cover {
+          object-fit: cover;
+        }
         
         .plan-badge {
           display: inline-flex;

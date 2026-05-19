@@ -38,9 +38,11 @@ import ChannelProfile from './pages/channel/ChannelProfile';
 import MisChannel from './pages/channel/MisChannel';
 import ChannelFeed from './pages/channel/ChannelFeed';
 import Map from './pages/Map';
-import userPro from './pages/userPro';
+ 
 import UserProInfoPlans from './pages/userProInfoPlans';
-import userProPayment from './pages/userPropayment';
+ 
+import PaymentRequest from './pages/PaymentRequest';
+import UserPro from './pages/userProo/userPro';
 
 // ============================================
 // ✅ SONIDO Y VIBRACIÓN - AUTOMÁTICO (sin esperar click)
@@ -315,8 +317,8 @@ function AppContent() {
         <Route exact path="/users/dashboard" component={DashboardPage} />
         <Route exact path="/profile/:id" component={profile} />
         <Route exact path="/users/roles" component={roles} />
-        <Route exact path="/userpro" component={userPro} /> 
-        <Route exact path="/userpropayment" component={userProPayment} />
+        <Route exact path="/userpro" component={UserPro} /> 
+        <Route exact path="/userpropayment" component={PaymentRequest} />
         <Route exact path="/userproinfoplans" component={UserProInfoPlans} />
        
         {/* Rutas de categorías: el navbar se ocultará automáticamente */}

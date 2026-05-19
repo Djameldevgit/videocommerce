@@ -1,9 +1,9 @@
-// src/pages/channel/EditChannel.jsx
+// src/pages/channel/EditChannel.jsx - VERSIÓN CORREGIDA
 import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useParams, useHistory } from 'react-router-dom';
 import { Container, Row, Col, Card, Form, Button, Spinner, Alert } from 'react-bootstrap';
-import { Tv, ArrowLeft, Building, InfoCircle, Save, CheckCircle } from 'react-bootstrap-icons';
+import { Tv, ArrowLeft, InfoCircle, Save, CheckCircle } from 'react-bootstrap-icons';
 import { getChannelProfile, updateChannelProfile } from '../../redux/actions/channelAction';
 import { getMainCategories } from '../../redux/actions/categoryAction';
 import WilayaCommuneField from './WilayaCommuneField';
@@ -13,7 +13,7 @@ const EditChannel = () => {
   const history = useHistory();
   const dispatch = useDispatch();
   const { channel, loading: channelLoading } = useSelector(state => state.channel);
-  const { auth, socket, token } = useSelector(state => state.auth);
+  const { auth, token } = useSelector(state => state.auth);
   const { categories, loading: loadingCategories } = useSelector(state => state.category);
   
   const [formData, setFormData] = useState({
@@ -32,6 +32,7 @@ const EditChannel = () => {
   const [validated, setValidated] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
+  const [initialLoad, setInitialLoad] = useState(true);
 
   // Cargar categorías si no están
   useEffect(() => {
@@ -40,11 +41,39 @@ const EditChannel = () => {
     }
   }, [dispatch, categories]);
 
-  // Cargar datos del canal
+  // ✅ CORREGIDO: Cargar datos del canal y actualizar formulario
   useEffect(() => {
-    if (!channel || channel._id !== channelId) {
-      dispatch(getChannelProfile(channelId, token));
-    } else {
+    const loadChannelData = async () => {
+      if (!channelId) return;
+      
+      try {
+        // Si no hay canal o el canal no es el que necesitamos, cargarlo
+        if (!channel || channel._id !== channelId) {
+          const result = await dispatch(getChannelProfile(channelId, token));
+          console.log('📺 Canal cargado:', result?.profile);
+        }
+      } catch (err) {
+        console.error('Error cargando canal:', err);
+        setError('Error al cargar los datos del canal');
+      }
+    };
+    
+    loadChannelData();
+  }, [channelId, dispatch, token]);
+
+  // ✅ CORREGIDO: Actualizar formulario cuando el canal está disponible
+  useEffect(() => {
+    if (channel && channel._id === channelId && initialLoad) {
+      console.log('📝 Actualizando formulario con datos del canal:', {
+        name: channel.name,
+        activity: channel.activity,
+        wilaya: channel.wilaya,
+        commune: channel.commune,
+        email: channel.email,
+        phone: channel.phone,
+        website: channel.website
+      });
+      
       setFormData({
         name: channel.name || '',
         activity: channel.activity || '',
@@ -57,8 +86,10 @@ const EditChannel = () => {
         avatar: channel.avatar || '',
         cover: channel.cover || ''
       });
+      
+      setInitialLoad(false);
     }
-  }, [channelId, channel, dispatch, token]);
+  }, [channel, channelId, initialLoad]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -88,18 +119,22 @@ const EditChannel = () => {
     setSuccess(false);
     
     try {
+      console.log('📤 Enviando actualización:', formData);
+      
       const res = await dispatch(updateChannelProfile(
-        channel._id, 
+        channelId, 
         formData, 
         token, 
         auth, 
-        socket
+        null // socket si lo tienes
       ));
+      
+      console.log('📥 Respuesta:', res);
       
       if (res?.success) {
         setSuccess(true);
         
-        // Actualizar los datos del formulario con la respuesta
+        // ✅ Actualizar el formulario con la respuesta
         if (res.channel) {
           setFormData(prev => ({
             ...prev,
@@ -116,7 +151,7 @@ const EditChannel = () => {
         
         // Redirigir después de 2 segundos
         setTimeout(() => {
-          history.push(`/channel/${channel._id}`);
+          history.push(`/channel/${channelId}`);
         }, 2000);
       } else {
         const errorMsg = res?.message || "Erreur lors de la mise à jour";
@@ -150,12 +185,26 @@ const EditChannel = () => {
     }
   };
 
-  if (channelLoading && !channel) {
+  // Mostrar loading mientras se carga el canal
+  if ((channelLoading || initialLoad) && !channel) {
     return (
       <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '60vh' }}>
         <Spinner animation="border" variant="primary" />
         <span className="ms-3 text-muted">Chargement du canal...</span>
       </div>
+    );
+  }
+
+  // Si no hay canal después de cargar
+  if (!channel && !channelLoading) {
+    return (
+      <Container className="py-5">
+        <Alert variant="danger">
+          <Alert.Heading>Erreur</Alert.Heading>
+          <p>Impossible de charger les données du canal. Veuillez réessayer.</p>
+          <Button onClick={() => history.goBack()}>Retour</Button>
+        </Alert>
+      </Container>
     );
   }
 
@@ -296,7 +345,7 @@ const EditChannel = () => {
                       </Form.Group>
                     </Col>
 
-                    {/* Wilaya y Commune - COMPONENTE INTEGRADO (reemplaza el array fijo) */}
+                    {/* ✅ Wilaya y Commune - Ahora funcionará correctamente */}
                     <Col xs={12}>
                       <WilayaCommuneField
                         postData={formData}
@@ -321,6 +370,7 @@ const EditChannel = () => {
                       </Form.Group>
                     </Col>
 
+                    {/* ✅ Email - Ahora se mostrará correctamente */}
                     <Col md={6}>
                       <Form.Group>
                         <Form.Label>Email</Form.Label>
@@ -332,6 +382,9 @@ const EditChannel = () => {
                           placeholder="contact@exemple.com"
                           disabled={loading}
                         />
+                        <Form.Text className="text-muted">
+                          Email de contact pour votre entreprise
+                        </Form.Text>
                       </Form.Group>
                     </Col>
 

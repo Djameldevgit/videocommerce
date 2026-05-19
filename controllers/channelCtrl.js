@@ -135,15 +135,20 @@ const getChannelById = async (req, res) => {
   }
 };
 
-// ============================================
-// 🌐 PERFIL PÚBLICO DEL CANAL (CORREGIDO)
-// ============================================
+// controllers/channelCtrl.js - CORREGIR getChannelProfile
+// controllers/channelCtrl.js - getChannelProfile CORREGIDO
 const getChannelProfile = async (req, res) => {
   try {
     const { channelId } = req.params;
+    
+    // ✅ Manejar caso donde req.user es undefined (usuario no autenticado)
     const currentUserId = req.user ? req.user._id : null;
+    const isAdmin = req.user ? req.user.role === 'admin' : false;
 
-    // ✅ Validar channelId
+    console.log('🔍 getChannelProfile - channelId:', channelId);
+    console.log('🔍 currentUserId:', currentUserId);
+    console.log('🔍 isAdmin:', isAdmin);
+
     if (!mongoose.Types.ObjectId.isValid(channelId)) {
       return res.status(400).json({ success: false, message: 'ID de canal inválido' });
     }
@@ -164,7 +169,7 @@ const getChannelProfile = async (req, res) => {
       }
     }
 
-    // Estadísticas con protección contra array vacío
+    // Estadísticas básicas (siempre visibles)
     const stats = await Video.aggregate([
       { $match: { channel: new mongoose.Types.ObjectId(channelId), pendiente: false, isActive: true } },
       { $group: {
@@ -183,15 +188,17 @@ const getChannelProfile = async (req, res) => {
       totalComments: 0
     };
 
+    // Perfil base (siempre visible)
     const profileData = {
       _id: channel._id,
       name: channel.name,
       description: channel.description,
       avatar: channel.avatar,
       cover: channel.cover,
-      wilaya: channel.wilaya,
-      commune: channel.commune,
-      isVerified: channel.isVerified,
+      wilaya: channel.wilaya || '',
+      commune: channel.commune || '',
+      activity: channel.activity || '',
+      isVerified: channel.isVerified || false,
       followersCount: channel.followersCount || 0,
       totalVideos: statsData.totalVideos,
       totalViews: statsData.totalViews,
@@ -205,13 +212,31 @@ const getChannelProfile = async (req, res) => {
       isFollowing
     };
 
-    if (currentUserId && channel.owner._id.toString() === currentUserId.toString()) {
-      profileData.email = channel.email;
-      profileData.phone = channel.phoneHidden ? null : channel.phone;
-      profileData.website = channel.website;
-      profileData.delivery = channel.delivery;
-      profileData.businessHours = channel.businessHours;
+    // ✅ Verificar si es el dueño o admin
+    const isOwner = currentUserId && channel.owner._id.toString() === currentUserId.toString();
+    
+    if (isOwner || isAdmin) {
+      // Dueño o admin: enviar TODOS los datos de contacto
+      profileData.email = channel.email || '';
+      profileData.phone = channel.phone || '';
+      profileData.phoneHidden = channel.phoneHidden || false;
+      profileData.website = channel.website || '';
+      profileData.delivery = channel.delivery || null;
+      profileData.businessHours = channel.businessHours || null;
+      profileData.settings = channel.settings || null;
+    } else {
+      // Usuario normal: solo mostrar si no está oculto
+      profileData.email = channel.email && !channel.emailHidden ? channel.email : null;
+      profileData.phone = channel.phone && !channel.phoneHidden ? channel.phone : null;
+      profileData.website = channel.website || null;
     }
+
+    console.log('📤 Enviando perfil - isOwner:', isOwner);
+    console.log('📤 Datos de contacto:', {
+      email: profileData.email,
+      phone: profileData.phone,
+      website: profileData.website
+    });
 
     res.json({ success: true, profile: profileData });
   } catch (err) {
@@ -219,16 +244,17 @@ const getChannelProfile = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
-
-// ============================================
-// ✏️ ACTUALIZAR CANAL
-// ============================================
 const updateChannel = async (req, res) => {
   try {
     const { channelId } = req.params;
     const updates = req.body;
     const userId = req.user._id;
     const isAdmin = req.user.role === 'admin';
+
+    console.log('📝 updateChannel - channelId:', channelId);
+    console.log('📝 updateChannel - updates:', updates);
+    console.log('📝 updateChannel - userId:', userId);
+    console.log('📝 updateChannel - isAdmin:', isAdmin);
 
     // ✅ Validar channelId
     if (!mongoose.Types.ObjectId.isValid(channelId)) {
@@ -245,15 +271,68 @@ const updateChannel = async (req, res) => {
       return res.status(403).json({ success: false, message: 'No autorizado' });
     }
 
-    const allowedFields = ['name', 'activity', 'description', 'avatar', 'cover', 'phone', 'phoneHidden', 'email', 'website', 'wilaya', 'commune', 'location', 'delivery', 'businessHours', 'settings'];
+    // ✅ CORREGIDO: Añadir todos los campos necesarios
+    const allowedFields = [
+      'name', 
+      'activity', 
+      'description', 
+      'avatar', 
+      'cover', 
+      'phone',           // ✅ Añadido
+      'phoneHidden',     // ✅ Añadido
+      'email',           // ✅ Añadido
+      'website',         // ✅ Añadido
+      'wilaya',          // ✅ Añadido
+      'commune',         // ✅ Añadido
+      'location', 
+      'delivery', 
+      'businessHours', 
+      'settings'
+    ];
+    
+    let updatedFields = [];
     allowedFields.forEach(field => {
-      if (updates[field] !== undefined) channel[field] = updates[field];
+      if (updates[field] !== undefined) {
+        channel[field] = updates[field];
+        updatedFields.push(field);
+      }
     });
 
-    if (updates.followers) channel.followersCount = updates.followers.length;
+    console.log('✅ Campos actualizados:', updatedFields);
+
+    // Actualizar followersCount si se modificaron followers
+    if (updates.followers) {
+      channel.followersCount = updates.followers.length;
+    }
 
     await channel.save();
-    res.json({ success: true, channel });
+    
+    console.log('✅ Canal guardado correctamente:', channel._id);
+    
+    // Devolver el canal actualizado con todos los campos
+    res.json({ 
+      success: true, 
+      channel: {
+        _id: channel._id,
+        name: channel.name,
+        activity: channel.activity,
+        description: channel.description,
+        avatar: channel.avatar,
+        cover: channel.cover,
+        phone: channel.phone,
+        phoneHidden: channel.phoneHidden,
+        email: channel.email,
+        website: channel.website,
+        wilaya: channel.wilaya,
+        commune: channel.commune,
+        delivery: channel.delivery,
+        businessHours: channel.businessHours,
+        settings: channel.settings,
+        followersCount: channel.followersCount,
+        isActive: channel.isActive,
+        isVerified: channel.isVerified
+      }
+    });
   } catch (error) {
     console.error('❌ Error updateChannel:', error);
     res.status(500).json({ success: false, message: error.message });
@@ -352,17 +431,54 @@ const getChannelVideos = async (req, res) => {
 // ============================================
 // 🔍 LISTAR CANALES DEL USUARIO ACTUAL
 // ============================================
+// controllers/channelCtrl.js - CORREGIR getMyChannels
+// controllers/channelCtrl.js - getMyChannels CORREGIDO
 const getMyChannels = async (req, res) => {
   try {
     const userId = req.user._id;
+    
+    console.log('📡 getMyChannels - userId:', userId);
+    
+    // ✅ Buscar canales del usuario con TODOS los campos
     const channels = await Channel.find({ owner: userId })
-      .populate('owner', 'username avatar')
+      .populate('owner', 'username avatar fullname')
       .lean();
-
-    res.json({ success: true, channels });
+    
+    console.log('📡 getMyChannels - Canales encontrados:', channels.length);
+    
+    // ✅ Asegurar que cada canal tenga todos los campos necesarios
+    const formattedChannels = channels.map(channel => ({
+      _id: channel._id,
+      name: channel.name,
+      activity: channel.activity,
+      description: channel.description,
+      avatar: channel.avatar,
+      cover: channel.cover,
+      phone: channel.phone || '',
+      email: channel.email || '',
+      website: channel.website || '',
+      wilaya: channel.wilaya || '',
+      commune: channel.commune || '',
+      followersCount: channel.followersCount || 0,
+      totalVideos: channel.totalVideos || 0,
+      totalViews: channel.totalViews || 0,
+      totalLikes: channel.totalLikes || 0,
+      isVerified: channel.isVerified || false,
+      isActive: channel.isActive,
+      createdAt: channel.createdAt
+    }));
+    
+    res.json({ 
+      success: true, 
+      channels: formattedChannels 
+    });
   } catch (error) {
     console.error('❌ Error getMyChannels:', error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ 
+      success: false, 
+      message: error.message,
+      channels: [] 
+    });
   }
 };
 
