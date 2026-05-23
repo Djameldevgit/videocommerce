@@ -6,10 +6,16 @@ import valid from '../../utils/valid'
 // ============================================
 // LOGIN (email/password)
 // ============================================
+// redux/actions/authAction.js - ACTUALIZADO
+
 export const login = (data) => async (dispatch) => {
   try {
     dispatch({ type: GLOBALTYPES.ALERT, payload: { loading: true } })
     const res = await postDataAPI('login', data)
+
+    // ✅ GUARDAR TOKEN EN LOCALSTORAGE TAMBIÉN
+    localStorage.setItem('token', res.data.access_token)
+    localStorage.setItem('firstLogin', true)
 
     dispatch({
       type: GLOBALTYPES.AUTH,
@@ -18,7 +24,6 @@ export const login = (data) => async (dispatch) => {
         user: res.data.user
       }
     })
-    localStorage.setItem('firstLogin', true)
     dispatch({ type: GLOBALTYPES.ALERT, payload: { success: res.data.msg } })
   } catch (err) {
     dispatch({
@@ -30,9 +35,6 @@ export const login = (data) => async (dispatch) => {
   }
 }
 
-// ============================================
-// REGISTER
-// ============================================
 export const register = (data, t, lang) => async (dispatch) => {
   const check = valid(data, t, lang)
   if (check.errLength > 0) {
@@ -43,6 +45,10 @@ export const register = (data, t, lang) => async (dispatch) => {
     dispatch({ type: GLOBALTYPES.ALERT, payload: { loading: true } })
     const res = await postDataAPI('register', data)
 
+    // ✅ GUARDAR TOKEN EN LOCALSTORAGE TAMBIÉN
+    localStorage.setItem('token', res.data.access_token)
+    localStorage.setItem('firstLogin', true)
+
     dispatch({
       type: GLOBALTYPES.AUTH,
       payload: {
@@ -50,7 +56,6 @@ export const register = (data, t, lang) => async (dispatch) => {
         user: res.data.user
       }
     })
-    localStorage.setItem('firstLogin', true)
     dispatch({ type: GLOBALTYPES.ALERT, payload: { success: res.data.msg } })
   } catch (err) {
     dispatch({
@@ -62,9 +67,6 @@ export const register = (data, t, lang) => async (dispatch) => {
   }
 }
 
-// ============================================
-// SOCIAL LOGIN (Google / Facebook)
-// ============================================
 export const socialLogin = (data, platform) => async (dispatch) => {
   try {
     dispatch({ type: GLOBALTYPES.ALERT, payload: { loading: true } })
@@ -72,6 +74,11 @@ export const socialLogin = (data, platform) => async (dispatch) => {
     await postDataAPI(endpoint, data)
 
     const refresh = await postDataAPI('refresh_token')
+    
+    // ✅ GUARDAR TOKEN EN LOCALSTORAGE TAMBIÉN
+    localStorage.setItem('token', refresh.data.access_token)
+    localStorage.setItem('firstLogin', true)
+
     dispatch({
       type: GLOBALTYPES.AUTH,
       payload: {
@@ -79,7 +86,6 @@ export const socialLogin = (data, platform) => async (dispatch) => {
         user: refresh.data.user,
       },
     })
-    localStorage.setItem('firstLogin', true)
     dispatch({ type: GLOBALTYPES.ALERT, payload: { success: 'Connexion réussie' } })
 
     if (typeof window !== 'undefined') window.location.href = '/'
@@ -93,15 +99,16 @@ export const socialLogin = (data, platform) => async (dispatch) => {
   }
 }
 
-// ============================================
-// REFRESH TOKEN
-// ============================================
 export const refreshToken = () => async (dispatch) => {
   const firstLogin = localStorage.getItem('firstLogin')
   if (firstLogin) {
     dispatch({ type: GLOBALTYPES.ALERT, payload: { loading: true } })
     try {
       const res = await postDataAPI('refresh_token')
+      
+      // ✅ ACTUALIZAR TOKEN EN LOCALSTORAGE
+      localStorage.setItem('token', res.data.access_token)
+
       dispatch({
         type: GLOBALTYPES.AUTH,
         payload: {
@@ -120,6 +127,33 @@ export const refreshToken = () => async (dispatch) => {
     }
   }
 }
+
+export const logout = () => async (dispatch) => {
+  try {
+    dispatch({ type: GLOBALTYPES.ALERT, payload: { loading: true } })
+    // ✅ LIMPIAR LOCALSTORAGE
+    localStorage.removeItem('firstLogin')
+    localStorage.removeItem('token')
+    localStorage.removeItem('pendingPayment')
+    
+    await postDataAPI('logout')
+    window.location.href = '/'
+  } catch (err) {
+    localStorage.removeItem('firstLogin')
+    localStorage.removeItem('token')
+    window.location.href = '/'
+  } finally {
+    dispatch({ type: GLOBALTYPES.ALERT, payload: { loading: false } })
+  }
+}
+// ============================================
+// SOCIAL LOGIN (Google / Facebook)
+// ============================================
+ 
+// ============================================
+// REFRESH TOKEN
+// ============================================
+ 
 
 // ============================================
 // FORGOT PASSWORD
@@ -224,21 +258,4 @@ export const sendAdminEmail = ({ recipients, subject, message, url = '#', token,
 // ============================================
 // LOGOUT
 // ============================================
-export const logout = () => async (dispatch) => {
-  try {
-    dispatch({ type: GLOBALTYPES.ALERT, payload: { loading: true } })
-    localStorage.removeItem('firstLogin')
-    await postDataAPI('logout')
-    window.location.href = '/'
-  } catch (err) {
-    dispatch({
-      type: GLOBALTYPES.ALERT,
-      payload: { error: err.response?.data?.msg || 'Erreur lors de la déconnexion' }
-    })
-    // Aún así, limpiamos el estado local
-    localStorage.removeItem('firstLogin')
-    window.location.href = '/'
-  } finally {
-    dispatch({ type: GLOBALTYPES.ALERT, payload: { loading: false } })
-  }
-}
+ 

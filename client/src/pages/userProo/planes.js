@@ -1,19 +1,22 @@
-// src/components/UserPro.js - Versión que respeta tus clases CSS
+// src/components/planes.js - VERSIÓN COMPLETA CORREGIDA
 import React, { useState, useRef, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { useHistory } from 'react-router-dom';
 import { FaCheck, FaStar, FaArrowRight, FaArrowLeft, FaVideo, FaHdd, FaClock, FaInfoCircle, FaShieldAlt, FaCreditCard, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
-import { paymentService } from './paymentService';
-import './userPro.css';
+import { PaymentService } from './PaymentService';
+import './planes.css';
 
-const UserPro = () => {
+const planes = () => {
   const history = useHistory();
   const { auth } = useSelector(state => state);
   
+  // ✅ Extraer token y user correctamente
+  const token = auth?.token;
+  const user = auth?.user;
   
-  // ✅ DEFINE token y user AQUÍ, fuera de cualquier función
-  const token = auth?.token || auth?.accessToken || auth?.user?.token;
-  const user = auth?.user || auth?.data?.user;
+  console.log('🔑 Token en planes:', token ? `${token.substring(0, 30)}...` : 'No hay token');
+  console.log('👤 User en planes:', user?._id || user?.id);
+  
   const [step, setStep] = useState(1);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedDuration, setSelectedDuration] = useState(1);
@@ -177,80 +180,43 @@ const UserPro = () => {
       setStep(4);
     }
   };
-// Dentro de UserPro.js - función handleProceedToPayment
-// En UserPro.js - Función handleProceedToPayment actualizada
-const handleProceedToPayment = async () => {
-  // Verificar token
-  if (!token) {
-    alert('Debes iniciar sesión para continuar');
-    history.push('/login');
-    return;
-  }
-  
-  // Plan gratuito
-  if (selectedOffer.id === 'free') {
-    setLoading(true);
+  const handleProceedToPayment = async () => {
     try {
-      await paymentService.activateFreePlan({
-        planId: selectedOffer.id,
-        planName: selectedOffer.name,
-        category: selectedCategory,
-        duration: selectedDuration,
-        userId: user?.id || user?._id,
-        userEmail: user?.email
-      }, token);  // ← Pasamos el token
+      console.log('🟢 Solicitando pago al backend...');
       
-      history.push('/dashboard?plan=free&activated=true');
+      // ✅ Obtener el token del localStorage o Redux
+      const token = localStorage.getItem('token') || auth?.token;
+      
+      console.log('🔑 Token disponible:', token ? '✅ Sí' : '❌ No');
+      
+      // ✅ URL CORRECTA con /api/
+      const response = await fetch('http://localhost:5000/api/chargily/create-checkout?amount=1000', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,  // ✅ Token incluido aquí
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const result = await response.json();
+      console.log('📦 Respuesta:', result);
+      
+      // La URL está en result.data.checkout_url
+      const checkoutUrl = result?.data?.checkout_url;
+      
+      if (checkoutUrl) {
+        console.log('✅ Redirigiendo a:', checkoutUrl);
+        window.location.href = checkoutUrl;
+      } else {
+        console.error('❌ No se recibió checkout_url');
+        alert('Error al crear el pago');
+      }
     } catch (error) {
-      alert(`Error al activar plan gratuito: ${error.message}`);
-    } finally {
-      setLoading(false);
+      console.error('❌ Error:', error);
+      alert('Error de conexión: ' + error.message);
     }
-    return;
-  }
-  
-  // Planes de pago
-  setLoading(true);
-  try {
-    const paymentData = {
-      planId: selectedOffer.id,
-      planName: selectedOffer.name,
-      amount: calculateTotalPrice(),
-      duration: selectedDuration,
-      category: selectedCategory,
-      discount: getDiscount(selectedDuration, selectedOffer.id),
-      freeMonths: getFreeMonths(selectedDuration),
-      userId: user?.id || user?._id,
-      userEmail: user?.email,
-      userName: user?.fullname || user?.username
-    };
-    
-    console.log('📦 Datos de pago:', paymentData);
-    console.log('🔑 Token existe:', !!token);
-    
-    const response = await paymentService.createPaymentLink(paymentData, token);  // ← Pasamos el token
-    
-    if (response.checkout_url) {
-      localStorage.setItem('pendingPayment', JSON.stringify({
-        orderId: response.orderId,
-        plan: selectedOffer.id,
-        duration: selectedDuration,
-        amount: calculateTotalPrice()
-      }));
-      
-      window.location.href = response.checkout_url;
-    } else {
-      throw new Error('No se recibió URL de pago');
-    }
-    
-  } catch (error) {
-    console.error('❌ Error:', error);
-    alert(`Hubo un error al procesar tu solicitud: ${error.message}`);
-  } finally {
-    setLoading(false);
-  }
-};
-  // Step 1: Slider horizontal - USANDO TUS CLASES ORIGINALES
+  };
+  // Step 1: Slider horizontal
   const Step1 = () => (
     <div className="step-container">
       <div className="step-header">
@@ -294,7 +260,7 @@ const handleProceedToPayment = async () => {
     </div>
   );
 
-  // Step 2 - SIN CAMBIOS, usa tus clases originales
+  // Step 2 - Duración
   const Step2 = () => (
     <div className="step-container">
       <div className="step-header">
@@ -337,7 +303,7 @@ const handleProceedToPayment = async () => {
     </div>
   );
 
-  // Step 3 - SIN CAMBIOS
+  // Step 3 - Planes
   const Step3 = () => (
     <div className="step-container">
       <div className="step-header">
@@ -423,7 +389,7 @@ const handleProceedToPayment = async () => {
     </div>
   );
 
-  // Step 4 - SIN CAMBIOS
+  // Step 4 - Resumen
   const Step4 = () => {
     const freeMonths = getFreeMonths(selectedDuration);
     const discount = getDiscount(selectedDuration, selectedOffer?.id);
@@ -490,8 +456,7 @@ const handleProceedToPayment = async () => {
             <h3><FaCreditCard className="section-icon" /> Méthodes de paiement</h3>
             <div className="payment-methods-summary">
               <div className="payment-method-badge">💳 Carte Edahabia</div>
-              <div className="payment-method-badge">📱 Baridimob</div>
-              <div className="payment-method-badge">🏦 CCP</div>
+              <div className="payment-method-badge">🏦 CIB</div>
             </div>
           </div>
           
@@ -585,4 +550,4 @@ const handleProceedToPayment = async () => {
   );
 };
 
-export default UserPro;
+export default planes;

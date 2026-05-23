@@ -1,52 +1,72 @@
-// src/pages/PaymentSuccess.js
+// src/pages/PaymentSuccess.js (mejorado)
 import React, { useEffect, useState } from 'react';
-import { useLocation, useHistory } from 'react-router-dom';
-import { paymentService } from '../services/paymentService';
+import { FaCheckCircle } from 'react-icons/fa';
 
-const paymentSuccess = () => {
-  const location = useLocation();
-  const history = useHistory();
-  const [status, setStatus] = useState('verifying');
-
+const PaymentSuccess = () => {
+  const [countdown, setCountdown] = useState(5);
+  
   useEffect(() => {
-    const verifyPayment = async () => {
-      const params = new URLSearchParams(location.search);
-      const sessionId = params.get('session_id');
-      
-      // También buscar en localStorage
-      const pending = localStorage.getItem('pendingPayment');
-      const orderId = sessionId || (pending ? JSON.parse(pending).orderId : null);
-      
-      if (orderId) {
-        try {
-          const response = await paymentService.verifyPayment(orderId);
-          if (response.paid) {
-            setStatus('success');
-            localStorage.removeItem('pendingPayment');
-            // Redirigir al dashboard después de 3 segundos
-            setTimeout(() => history.push('/dashboard'), 3000);
-          } else {
-            setStatus('pending');
-          }
-        } catch (error) {
-          setStatus('failed');
+    const timer = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          window.location.href = '/dashboard';
         }
-      } else {
-        setStatus('failed');
-      }
-    };
+        return prev - 1;
+      });
+    }, 1000);
     
-    verifyPayment();
-  }, [location, history]);
-
+    return () => clearInterval(timer);
+  }, []);
+  
   return (
-    <div className="payment-status-container">
-      {status === 'verifying' && <h2>Verificando tu pago...</h2>}
-      {status === 'success' && <h2>✅ ¡Pago exitoso! Tu plan ha sido activado.</h2>}
-      {status === 'pending' && <h2>⏳ Tu pago está siendo procesado...</h2>}
-      {status === 'failed' && <h2>❌ No pudimos verificar tu pago. Contacta a soporte.</h2>}
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #28a745 0%, #20c997 100%)',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center'
+    }}>
+      <div style={{
+        background: 'white',
+        padding: '50px',
+        borderRadius: '20px',
+        textAlign: 'center',
+        maxWidth: '500px',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.1)'
+      }}>
+        <FaCheckCircle style={{ fontSize: '80px', color: '#28a745', marginBottom: '20px' }} />
+        <h1 style={{ color: '#28a745', marginBottom: '10px' }}>¡Pago Exitoso!</h1>
+        <p style={{ fontSize: '18px', color: '#666', marginBottom: '20px' }}>
+          Tu plan ha sido activado correctamente
+        </p>
+        <div style={{
+          background: '#f8f9fa',
+          padding: '15px',
+          borderRadius: '10px',
+          marginBottom: '20px'
+        }}>
+          <p style={{ margin: 0 }}>
+            Redirigiendo al dashboard en <strong>{countdown}</strong> segundos...
+          </p>
+        </div>
+        <button 
+          onClick={() => window.location.href = '/dashboard'}
+          style={{
+            background: '#28a745',
+            color: 'white',
+            border: 'none',
+            padding: '12px 30px',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontSize: '16px'
+          }}
+        >
+          Ir al Dashboard ahora
+        </button>
+      </div>
     </div>
   );
 };
 
-export default paymentSuccess;
+export default PaymentSuccess;

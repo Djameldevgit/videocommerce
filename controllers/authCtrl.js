@@ -29,9 +29,9 @@ const getUserWithPlan = async (userId) => {
     const user = await Users.findById(userId)
         .select('-password')
         .populate("followers following", "avatar username followers following");
-    
+
     if (!user) return null;
-    
+
     // Asegurar que channelPlan existe
     return {
         ...user._doc,
@@ -55,7 +55,7 @@ const authCtrl = {
             if (user_email) return res.status(400).json({ msg: "Cet email existe déjà." });
             if (password.length < 6)
                 return res.status(400).json({ msg: "Le mot de passe doit contenir au moins 6 caractères." });
-    
+
             const passwordHash = await bcrypt.hash(password, 12);
             const newUser = new Users({
                 username: newUserName,
@@ -65,7 +65,7 @@ const authCtrl = {
                 channelPlanAutoRenew: false
             });
             await newUser.save();
-    
+
             // ✅ CREAR CANAL POR DEFECTO
             const defaultChannel = new Channel({
                 name: `Canal de ${newUserName}`,
@@ -75,21 +75,21 @@ const authCtrl = {
                 isActive: true,
             });
             await defaultChannel.save();
-    
+
             // ✅ TOKEN con channelPlan
-            const access_token = createAccessToken({ 
-                id: newUser._id, 
+            const access_token = createAccessToken({
+                id: newUser._id,
                 role: newUser.role || 'user',
                 channelPlan: 'free'
             });
             const refresh_token = createRefreshToken({ id: newUser._id });
-            
+
             res.cookie('refreshtoken', refresh_token, {
                 httpOnly: true,
                 path: '/api/refresh_token',
                 maxAge: 30 * 24 * 60 * 60 * 1000
             });
-            
+
             res.json({
                 msg: 'Inscription réussie !',
                 access_token,
@@ -110,17 +110,17 @@ const authCtrl = {
         try {
             const { email, password } = req.body
 
-            const user = await Users.findOne({email})
+            const user = await Users.findOne({ email })
                 .populate("followers following", "avatar username followers following")
 
-            if(!user) return res.status(400).json({msg: "Cet email n'existe pas."})
+            if (!user) return res.status(400).json({ msg: "Cet email n'existe pas." })
 
             const isMatch = await bcrypt.compare(password, user.password)
-            if(!isMatch) return res.status(400).json({msg: "Le mot de passe est incorrect."})
+            if (!isMatch) return res.status(400).json({ msg: "Le mot de passe est incorrect." })
 
             // ✅ TOKEN con channelPlan
-            const access_token = createAccessToken({ 
-                id: user._id, 
+            const access_token = createAccessToken({
+                id: user._id,
                 role: user.role || 'user',
                 channelPlan: user.channelPlan || 'free'
             })
@@ -129,7 +129,7 @@ const authCtrl = {
             res.cookie('refreshtoken', refresh_token, {
                 httpOnly: true,
                 path: '/api/refresh_token',
-                maxAge: 30*24*60*60*1000 // 30 jours
+                maxAge: 30 * 24 * 60 * 60 * 1000 // 30 jours
             })
 
             res.json({
@@ -144,7 +144,7 @@ const authCtrl = {
                 }
             })
         } catch (err) {
-            return res.status(500).json({msg: err.message})
+            return res.status(500).json({ msg: err.message })
         }
     },
 
@@ -201,10 +201,10 @@ const authCtrl = {
             const { id } = req.params;
             const user = await Users.findById(id);
             if (!user) return res.status(404).json({ msg: "Utilisateur non trouvé." });
-      
+
             user.isVerified = !user.isVerified;
             await user.save();
-      
+
             res.json({
                 msg: `L'utilisateur est maintenant ${user.isVerified ? "vérifié ✅" : "non vérifié ❌"}`,
                 user: {
@@ -300,7 +300,7 @@ const authCtrl = {
                 const isMatch = await bcrypt.compare(password, user.password);
                 if (!isMatch)
                     return res.status(400).json({ msg: "Mot de passe incorrect." });
-                
+
                 if (!user.isVerified) {
                     user.isVerified = true;
                     await user.save();
@@ -321,8 +321,8 @@ const authCtrl = {
                 await user.save();
             }
 
-            const access_token = createAccessToken({ 
-                id: user._id, 
+            const access_token = createAccessToken({
+                id: user._id,
                 role: user.role || 'user',
                 channelPlan: user.channelPlan || 'free'
             });
@@ -391,8 +391,8 @@ const authCtrl = {
                 await user.save();
             }
 
-            const access_token = createAccessToken({ 
-                id: user._id, 
+            const access_token = createAccessToken({
+                id: user._id,
                 role: user.role || 'user',
                 channelPlan: user.channelPlan || 'free'
             });
@@ -447,7 +447,7 @@ const authCtrl = {
                     return res.status(400).json({ msg: "Utilisateur non trouvé." })
 
                 // ✅ TOKEN actualizado con channelPlan
-                const access_token = createAccessToken({ 
+                const access_token = createAccessToken({
                     id: result.id,
                     role: user.role || 'user',
                     channelPlan: user.channelPlan || 'free'
@@ -466,7 +466,38 @@ const authCtrl = {
         } catch (err) {
             return res.status(500).json({ msg: "Erreur serveur, veuillez réessayer." })
         }
+    },
+
+    getCurrentUser: async (req, res) => {
+        try {
+            const user = await Users.findById(req.user._id)
+                .select('-password')
+                .populate("followers following", "avatar username followers following");
+
+            if (!user) {
+                return res.status(404).json({ msg: "Utilisateur non trouvé" });
+            }
+
+            // Generar NUEVO token con el rol actualizado
+            const newToken = createAccessToken({
+                id: user._id,
+                role: user.role || 'user',
+                channelPlan: user.channelPlan || 'free'
+            });
+
+            res.json({
+                access_token: newToken,
+                user: {
+                    ...user._doc,
+                    channelPlan: user.channelPlan || 'free',
+                    channelPlanExpiresAt: user.channelPlanExpiresAt
+                }
+            });
+        } catch (err) {
+            return res.status(500).json({ msg: err.message });
+        }
     }
+
 }
 
 module.exports = authCtrl

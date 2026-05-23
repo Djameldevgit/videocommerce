@@ -38,11 +38,14 @@ import ChannelProfile from './pages/channel/ChannelProfile';
 import MisChannel from './pages/channel/MisChannel';
 import ChannelFeed from './pages/channel/ChannelFeed';
 import Map from './pages/Map';
- 
+
 import UserProInfoPlans from './pages/userProInfoPlans';
- 
+
 import PaymentRequest from './pages/PaymentRequest';
-import UserPro from './pages/userProo/userPro';
+import planes from './pages/userProo/planes';
+import PaymentSuccess from './pages/userProo/PaymentSuccess';
+import DonationPage from './pages/donationPage';
+
 
 // ============================================
 // ✅ SONIDO Y VIBRACIÓN - AUTOMÁTICO (sin esperar click)
@@ -247,7 +250,8 @@ function AppContent() {
       '/message',
       '/profile/settings',
       '/users/dashboard',
-      '/users/roles'
+      '/users/roles',
+      '/donation'
     ];
 
     // Prefijos de rutas que también deben mostrar navbar
@@ -258,7 +262,8 @@ function AppContent() {
       '/create-image-page',
       '/edit-image/',
       '/message/',
-      '/profile/'
+      '/profile/',
+      '/donation/'
     ];
 
     // Si es ruta exacta o empieza con algún prefijo → mostrar navbar
@@ -317,10 +322,13 @@ function AppContent() {
         <Route exact path="/users/dashboard" component={DashboardPage} />
         <Route exact path="/profile/:id" component={profile} />
         <Route exact path="/users/roles" component={roles} />
-        <Route exact path="/userpro" component={UserPro} /> 
+        <Route exact path="/planes" component={planes} />
         <Route exact path="/userpropayment" component={PaymentRequest} />
         <Route exact path="/userproinfoplans" component={UserProInfoPlans} />
-       
+
+        {/* ✅ Ruta para éxito de pago - una sola vez */}
+        <Route path="/payment-success" component={PaymentSuccess} />
+        <Route path="/donation" component={DonationPage} />
         {/* Rutas de categorías: el navbar se ocultará automáticamente */}
         <Route exact path="/:slug/:page?" component={CategoryPage} />
         <Route exact path="/:slug/:subSlug/:page?" component={CategoryPage} />

@@ -1,58 +1,61 @@
-// backend/services/chargilyService.js
-const fetch = require('node-fetch');
+// src/services/paymentService.js
+const API_BASE_URL = 'http://localhost:5000/api';
 
-// ✅ Estas variables se leen del archivo backend/.env
-const CHARGILY_SECRET_KEY = process.env.CHARGILY_SECRET_KEY;
-const CHARGILY_BASE_URL = process.env.CHARGILY_BASE_URL || 'https://pay.chargily.net/api/v2';
-
-console.log('🔑 Chargily Secret Key existe:', !!CHARGILY_SECRET_KEY);
-console.log('🌐 Chargily Base URL:', CHARGILY_BASE_URL);
-
-const chargilyService = {
-  createPaymentLink: async (paymentData) => {
-    const { amount, planName, orderId, successUrl } = paymentData;
+export const PaymentService = {
+  createPaymentLink: async (paymentData, token) => {
+    console.log('📡 Creando pago en:', `${API_BASE_URL}/payments/create-link`);
     
-    // Verificar que la key existe
-    if (!CHARGILY_SECRET_KEY) {
-      throw new Error('❌ CHARGILY_SECRET_KEY no está definida en el archivo .env del backend');
-    }
-    
-    const requestBody = {
-      items: [
-        {
-          title: planName,
-          amount: amount,
-          quantity: 1
-        }
-      ],
-      success_url: successUrl || `${process.env.FRONTEND_URL}/payment-success`,
-    };
-    
-    console.log('📦 Enviando a Chargily:', JSON.stringify(requestBody, null, 2));
-    
-    const response = await fetch(`${CHARGILY_BASE_URL}/payment-links`, {
+    const response = await fetch(`${API_BASE_URL}/payments/create-link`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${CHARGILY_SECRET_KEY}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify(paymentData)
     });
-    
-    const data = await response.json();
-    
+
     if (!response.ok) {
-      console.error('❌ Error Chargily:', data);
-      throw new Error(data.message || JSON.stringify(data.errors));
+      const errorText = await response.text();
+      console.error('❌ Error respuesta:', response.status, errorText);
+      throw new Error(`Error ${response.status}: ${response.statusText}`);
     }
-    
-    console.log('✅ Link creado:', data.checkout_url);
-    
-    return {
-      checkout_url: data.checkout_url,
-      id: data.id
-    };
+
+    const data = await response.json();
+    console.log('✅ Respuesta:', data);
+    return data;
+  },
+
+  activateFreePlan: async (planData, token) => {
+    const response = await fetch(`${API_BASE_URL}/payments/activate-free`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(planData)
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || error.msg || 'Error al activar plan gratuito');
+    }
+
+    return await response.json();
+  },
+
+  verifyPayment: async (orderId, token) => {
+    const response = await fetch(`${API_BASE_URL}/payments/verify/${orderId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || error.msg || 'Error al verificar el pago');
+    }
+
+    return await response.json();
   }
 };
-
-module.exports = chargilyService;

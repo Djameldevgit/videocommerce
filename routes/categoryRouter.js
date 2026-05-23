@@ -19,13 +19,13 @@ const {
 // 1️⃣ RUTAS FIJAS (SIN PARÁMETROS)
 // ============================================
 
-// ✅ CORREGIDO: Quitar '/categories/' extra
-router.get('/categories/slider', getCategoriesForSlider);           // Slider principal
-router.get('/categories/with-videos', getCategoriesWithVideos);     // Categorías con videos (scroll home)
-router.get('/categories/main', getMainCategories);                  // Lista paginada de categorías
-router.get('/categories/popular', getPopularCategories);            // Categorías más populares
-router.get('/categories/stats', getCategoryStats);                  // Estadísticas de categorías
-router.get('/categories/update-counts', updateVideoCounts);         // Admin: actualizar contadores
+// ✅ CORREGIDO: Quitar '/' extra
+router.get('/slider', getCategoriesForSlider);           // Slider principal
+router.get('/with-videos', getCategoriesWithVideos);     // Categorías con videos (scroll home)
+router.get('/main', getMainCategories);                  // Lista paginada de categorías
+router.get('/popular', getPopularCategories);            // Categorías más populares
+router.get('/stats', getCategoryStats);                  // Estadísticas de categorías
+router.get('/update-counts', updateVideoCounts);         // Admin: actualizar contadores
 
 // ============================================
 // 2️⃣ RUTAS CON QUERY PARAMS (búsqueda)

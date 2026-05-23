@@ -20,6 +20,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@chargily/chargily-pay": "^2.1.0",
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@fortawesome/fontawesome-svg-core": "^7.2.0",
     "axios": "^0.21.4",
@@ -29,6 +30,7 @@
     "concurrently": "^6.0.0",
     "cookie-parser": "^1.4.5",
     "cors": "^2.8.5",
+    "crypto": "^1.0.1",
     "dotenv": "^8.2.0",
     "express": "^4.17.1",
     "express-async-handler": "^1.2.0",
@@ -47,6 +49,7 @@
     "mongoose": "^5.13.15",
     "morgan": "^1.10.0",
     "node-cron": "^1.1.2",
+    "node-fetch": "^2.6.7",
     "nodemailer": "^7.0.3",
     "react-i18next": "^13.1.2",
     "socket.io": "^3.1.2",

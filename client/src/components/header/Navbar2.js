@@ -626,13 +626,14 @@ const Navbar2 = () => {
                       <MenuItem
                         icon={FaUserPlus}
                         iconColor="#28a745"
-                        onClick={() => history.push('/userpro')}
+                        onClick={() => history.push('/planes')}
                       >
                         🚀 Devenir Utilisateur Pro
                       </MenuItem>
                     )}
- 
-
+  <MenuItem icon={FaInfoCircle} iconColor="#6c757d" to="/donation">
+                      {t('donation') || 'donation'}
+                    </MenuItem>
    
                     
                     {auth.user.role !== 'admin' && auth.user.role !== 'Moderateur' && (
@@ -695,7 +696,7 @@ const Navbar2 = () => {
                           <FaStore className="me-2" size={14} />
                           {t('storeManagement') || 'Gestión de Tiendas'}
                         </div>
-
+                       
                         <MenuItem icon={FaPlusCircle} iconColor="#28a745" to="/create-boutique">
                           {t('createStore') || 'Crear tienda'}
                         </MenuItem>
@@ -742,7 +743,9 @@ const Navbar2 = () => {
                     <MenuItem icon={FaUserPlus} iconColor="#667eea" onClick={handleRegister}>
                       {t('register') || 'Registrarse'}
                     </MenuItem>
-
+                    <MenuItem icon={FaInfoCircle} iconColor="#6c757d" to="/donation">
+                      {t('donation') || 'donation'}
+                    </MenuItem>
                     <MenuItem icon={FaInfoCircle} iconColor="#6c757d" to="/infoaplicacionn">
                       {t('appInfo') || 'Información'}
                     </MenuItem>

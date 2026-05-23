@@ -1,7 +1,7 @@
 import React, { useState } from "react";
-import { postDataAPI } from "../utils/api"; // 👈 import del helper
-
-const DonatePage = () => {
+import { postDataAPI } from "../utils/fetchData";
+ 
+const DonationPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -11,12 +11,12 @@ const DonatePage = () => {
       setError("");
 
       // 🔥 reemplazo completo de fetch
-      const { data } = await postDataAPI("/api/checkout", {
+      const { data } = await postDataAPI("checkout", {
         amount: 1000,
         currency: "dzd",
       });
 
-      if (data?.checkout_url) {
+      if (data.checkout_url) {
         window.location.href = data.checkout_url;
       } else {
         throw new Error("No checkout URL received");
@@ -94,116 +94,5 @@ const DonatePage = () => {
     </div>
   );
 };
-
-export default DonatePage;
-
-
-
-
-
-
-
-
-
-
-
-
-
-import express from "express";
-import { createCheckout } from "../controllers/paymentController.js";
-
-const router = express.Router();
-
-// crear checkout
-router.post("/checkout", createCheckout);
-
-export default router;
-
-import axios from "axios";
-
-export const createCheckout = async (req, res) => {
-  try {
-    const { amount, currency } = req.body;
-
-    const { data } = await axios.post(
-      "https://pay.chargily.net/test/api/v2/checkouts",
-      {
-        amount,
-        currency,
-        success_url: "http://localhost:3000/success",
-        webhook_url: "http://localhost:5000/webhook",
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.CHARGILY_SECRET_KEY}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
-
-    return res.json(data);
-  } catch (err) {
-    console.log(err?.response?.data || err.message);
-    return res.status(500).json({ error: "checkout error" });
-  }
-};
-
-
-
-
-
-
-
-
-import express from "express";
-import { handleWebhook } from "../controllers/webhookController.js";
-
-const router = express.Router();
-
-// webhook de Chargily
-router.post("/webhook", handleWebhook);
-
-export default router;
-
-
-
-import crypto from "crypto";
-
-export const handleWebhook = (req, res) => {
-  try {
-    const signature = req.headers["signature"];
-
-    const payload = JSON.stringify(req.body);
-
-    const computedSignature = crypto
-      .createHmac("sha256", process.env.CHARGILY_SECRET_KEY)
-      .update(payload)
-      .digest("hex");
-
-    if (computedSignature !== signature) {
-      return res.status(403).json({ error: "Invalid signature" });
-    }
-
-    const event = req.body;
-
-    switch (event.type) {
-      case "checkout.paid":
-        console.log("Pago exitoso:", event.data);
-
-        // 👉 aquí: guardar en MongoDB
-        break;
-
-      case "checkout.failed":
-        console.log("Pago fallido:", event.data);
-        break;
-
-      default:
-        console.log("Evento no manejado:", event.type);
-    }
-
-    return res.json({ received: true });
-  } catch (err) {
-    console.log(err);
-    return res.status(500).json({ error: "webhook error" });
-  }
-};
+ 
+export default DonationPage;
