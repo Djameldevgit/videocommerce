@@ -300,7 +300,6 @@ const chargilyPlanCtrl = {
       const now = new Date();
       const isExpired = user.channelPlanExpiresAt && new Date(user.channelPlanExpiresAt) < now;
       
-      // Si el plan expiró, resetear a free
       if (isExpired && user.channelPlan !== 'free') {
         await User.findByIdAndUpdate(userId, {
           channelPlan: 'free',

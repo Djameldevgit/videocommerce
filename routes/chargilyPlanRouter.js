@@ -11,6 +11,6 @@ router.post('/create-checkout', auth, chargilyPlanCtrl.createPlanCheckout);
 router.post('/webhook', chargilyPlanCtrl.handlePlanWebhook);
 
 // ✅ Verificar estado del plan del usuario
-router.get('/plan-status', auth, chargilyPlanCtrl.checkPlanStatus);
-
+ 
+router.get('/check-plan-status', auth, chargilyPlanCtrl.checkPlanStatus);
 module.exports = router;

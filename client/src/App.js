@@ -131,6 +131,51 @@ function AppContent() {
   const { sendLocalNotification, isPWAInstalled } = usePushNotifications();
   const location = useLocation(); // 👈 Obtener la ruta actual
 
+
+// En tu App.js o componente principal, agrega esto:
+useEffect(() => {
+  // Cuando el usuario vuelve a la app después de pagar
+  const checkPlanUpdate = async () => {
+    try {
+      const res = await axios.get('/check-plan-status');
+      
+      if (res.data.plan !== auth.user?.channelPlan) {
+        // El plan cambió, actualizar Redux
+        dispatch({
+          type: GLOBALTYPES.AUTH,
+          payload: {
+            ...auth,
+            user: {
+              ...auth.user,
+              channelPlan: res.data.plan,
+              role: res.data.plan !== 'free' ? 'userpro' : 'user',
+              isPro: res.data.isPro
+            }
+          }
+        });
+      }
+    } catch (error) {
+      console.error("Error verificando plan:", error);
+    }
+  };
+
+  // Verificar al montar el componente
+  if (auth.token) {
+    checkPlanUpdate();
+  }
+
+  // También verificar cuando la ventana recupera el foco
+  window.addEventListener('focus', checkPlanUpdate);
+  
+  return () => {
+    window.removeEventListener('focus', checkPlanUpdate);
+  };
+}, [auth.token]);
+
+
+
+
+
   // ✅ Inicializar audio al montar
   useEffect(() => {
     initAudio();
