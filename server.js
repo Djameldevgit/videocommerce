@@ -112,10 +112,7 @@ app.get('/api/music/proxy', async (req, res) => {
       }
   }
 });
- // ============================================
-// 5️⃣ RUTAS API (organizadas por categoría)
-// ============================================
-
+ 
 // --- Autenticación y Usuarios ---
 app.use('/api', require('./routes/authRouter'));
 app.use('/api', require('./routes/userRouter'));

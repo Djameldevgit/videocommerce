@@ -22,9 +22,6 @@ import DetailVideoPage from './pages/video/DetailVideoPage';
 import NotifyPage from './pages/notiy/NotifyPage';
 import EditVideoWizard from './pages/video/EditVideoWizard';
 import usePushNotifications from './pages/notiy/UsePushNotifications';
-//import UserVideoPage from './pages/video/userVideo/[userId]';     
-//import UserFeed from './pages/video/userVideo/UserFeed';  <Route exact path="/video/userFeed/:userId" component={UserFeed} />
-
 import InfoUserVideo from './pages/video/userVideo/InfoUserVideo';
 import TrendingVideos from './pages/video/TrendingVideos';
 import CreateImageWizard from './pages/video/CreateImageWizard';
@@ -38,23 +35,17 @@ import ChannelProfile from './pages/channel/ChannelProfile';
 import MisChannel from './pages/channel/MisChannel';
 import ChannelFeed from './pages/channel/ChannelFeed';
 import Map from './pages/Map';
-
 import UserProInfoPlans from './pages/userProInfoPlans';
-
 import PaymentRequest from './pages/PaymentRequest';
 import planes from './pages/userProo/planes';
 import PaymentSuccess from './pages/userProo/PaymentSuccess';
-import DonationPage from './pages/donationPage';
+import DonationPage from './pages/donationPage'
+import { getDataAPI } from './utils/fetchData';
 
-
-// ============================================
-// ✅ SONIDO Y VIBRACIÓN - AUTOMÁTICO (sin esperar click)
-// ============================================
-
+// Variables de audio
 let audioElement = null;
 let audioUnlocked = false;
 
-// Inicializar audio
 const initAudio = () => {
   if (!audioElement) {
     audioElement = new Audio('/sounds/notify.mp3');
@@ -64,10 +55,8 @@ const initAudio = () => {
   }
 };
 
-// ✅ FORZAR DESBLOQUEO DE AUDIO (se intenta al recibir notificación)
 const forceUnlockAudio = () => {
   if (audioUnlocked || !audioElement) return;
-
   try {
     audioElement.volume = 0;
     const promise = audioElement.play();
@@ -87,21 +76,14 @@ const forceUnlockAudio = () => {
   }
 };
 
-// ✅ Reproducir sonido (ahora se intenta siempre)
 const playSound = () => {
   if (!audioElement) return;
-
-  // Intentar desbloquear si es necesario
-  if (!audioUnlocked) {
-    forceUnlockAudio();
-  }
-
+  if (!audioUnlocked) forceUnlockAudio();
   try {
     audioElement.currentTime = 0;
     audioElement.volume = 0.8;
     audioElement.play().catch(err => {
       console.log('⚠️ Error reproduciendo:', err);
-      // Si falla por política del navegador, intentar nuevamente con volumen 0
       if (err.name === 'NotAllowedError') {
         audioElement.volume = 0;
         audioElement.play().then(() => {
@@ -115,7 +97,6 @@ const playSound = () => {
   }
 };
 
-// Vibrar
 const vibratePhone = (pattern = [300, 100, 300]) => {
   if ('vibrate' in navigator && navigator.vibrate) {
     navigator.vibrate(pattern);
@@ -129,52 +110,100 @@ function AppContent() {
   const [isReady, setIsReady] = useState(false);
   const lastNotifyId = useRef(null);
   const { sendLocalNotification, isPWAInstalled } = usePushNotifications();
-  const location = useLocation(); // 👈 Obtener la ruta actual
+  const location = useLocation();
 
-
-// En tu App.js o componente principal, agrega esto:
-useEffect(() => {
-  // Cuando el usuario vuelve a la app después de pagar
-  const checkPlanUpdate = async () => {
-    try {
-      const res = await axios.get('/check-plan-status');
+  // ✅ ============================================
+  // ✅ VERIFICACIÓN DE PLAN - ÚNICO Y CORRECTO
+  // ✅ ============================================
+  useEffect(() => {
+    const checkPlanUpdate = async () => {
+      if (!auth.token) return;
       
-      if (res.data.plan !== auth.user?.channelPlan) {
-        // El plan cambió, actualizar Redux
-        dispatch({
-          type: GLOBALTYPES.AUTH,
-          payload: {
-            ...auth,
-            user: {
-              ...auth.user,
-              channelPlan: res.data.plan,
-              role: res.data.plan !== 'free' ? 'userpro' : 'user',
-              isPro: res.data.isPro
-            }
-          }
+      try {
+        console.log('🔍 [PlanCheck] Iniciando verificación...');
+        console.log('🔍 [PlanCheck] Token:', auth.token ? '✅' : '❌');
+        
+        // Usar getDataAPI con la ruta correcta
+        const res = await getDataAPI('check-plan-status', auth.token);
+        
+        console.log('🔍 [PlanCheck] Respuesta servidor:', res.data);
+        console.log('🔍 [PlanCheck] Redux actual:', {
+          plan: auth.user?.channelPlan,
+          role: auth.user?.role,
+          isPro: auth.user?.isPro
         });
+        console.log('🔍 [PlanCheck] Servidor:', {
+          plan: res.data.user?.channelPlan || res.data.plan,
+          role: res.data.user?.role || res.data.role,
+          isPro: res.data.user?.isPro || res.data.isPro
+        });
+
+        // Obtener datos del servidor (manejar ambas estructuras posibles)
+        const serverPlan = res.data.user?.channelPlan || res.data.plan;
+        const serverRole = res.data.user?.role || res.data.role;
+        const serverIsPro = res.data.user?.isPro || res.data.isPro;
+
+        // Comparar con Redux
+        if (serverPlan !== auth.user?.channelPlan || 
+            serverRole !== auth.user?.role) {
+          
+          console.log('⚠️ [PlanCheck] DIFERENCIA DETECTADA - Actualizando Redux');
+          
+          dispatch({
+            type: GLOBALTYPES.AUTH,
+            payload: {
+              ...auth,
+              user: {
+                ...auth.user,
+                channelPlan: serverPlan,
+                role: serverRole,
+                isPro: serverIsPro,
+                channelPlanExpiresAt: res.data.user?.expiresAt || res.data.expiresAt
+              }
+            }
+          });
+          
+          dispatch({
+            type: GLOBALTYPES.ALERT,
+            payload: { 
+              success: `✅ Plan ${serverPlan} activado! Rol: ${serverRole}` 
+            }
+          });
+          
+          console.log('✅ [PlanCheck] Redux actualizado correctamente');
+        } else {
+          console.log('✅ [PlanCheck] Redux ya está sincronizado');
+        }
+      } catch (error) {
+        console.error('❌ [PlanCheck] Error:', error.message);
+        if (error.response) {
+          console.error('❌ [PlanCheck] Status:', error.response.status);
+          console.error('❌ [PlanCheck] Data:', error.response.data);
+        }
       }
-    } catch (error) {
-      console.error("Error verificando plan:", error);
+    };
+
+    // Ejecutar verificación
+    if (auth.token) {
+      console.log('🚀 [PlanCheck] Iniciando verificación inicial');
+      checkPlanUpdate();
+      
+      // También verificar cada 10 segundos (útil mientras se procesa el pago)
+      const interval = setInterval(checkPlanUpdate, 10000);
+      
+      // Verificar cuando la ventana recupera el foco
+      const handleFocus = () => {
+        console.log('👁️ [PlanCheck] Ventana enfocada - Verificando plan');
+        checkPlanUpdate();
+      };
+      window.addEventListener('focus', handleFocus);
+      
+      return () => {
+        clearInterval(interval);
+        window.removeEventListener('focus', handleFocus);
+      };
     }
-  };
-
-  // Verificar al montar el componente
-  if (auth.token) {
-    checkPlanUpdate();
-  }
-
-  // También verificar cuando la ventana recupera el foco
-  window.addEventListener('focus', checkPlanUpdate);
-  
-  return () => {
-    window.removeEventListener('focus', checkPlanUpdate);
-  };
-}, [auth.token]);
-
-
-
-
+  }, [auth.token, auth.user?.channelPlan, auth.user?.role, dispatch]);
 
   // ✅ Inicializar audio al montar
   useEffect(() => {
@@ -182,17 +211,13 @@ useEffect(() => {
     setIsReady(true);
   }, []);
 
-  // ✅ Detectar interacción del usuario para desbloquear audio (solo primera vez)
+  // ✅ Detectar interacción del usuario para desbloquear audio
   useEffect(() => {
     const handleInteraction = () => {
-      if (!audioUnlocked) {
-        forceUnlockAudio();
-      }
+      if (!audioUnlocked) forceUnlockAudio();
     };
-
     window.addEventListener('click', handleInteraction);
     window.addEventListener('touchstart', handleInteraction);
-
     return () => {
       window.removeEventListener('click', handleInteraction);
       window.removeEventListener('touchstart', handleInteraction);
@@ -206,10 +231,8 @@ useEffect(() => {
         Notification.requestPermission();
       }
     };
-
     window.addEventListener('click', requestPermission);
     window.addEventListener('touchstart', requestPermission);
-
     return () => {
       window.removeEventListener('click', requestPermission);
       window.removeEventListener('touchstart', requestPermission);
@@ -219,60 +242,39 @@ useEffect(() => {
   // ✅ Socket
   useEffect(() => {
     dispatch(refreshToken());
-
     const socket = io();
     dispatch({ type: GLOBALTYPES.SOCKET, payload: socket });
-
     return () => socket.close();
   }, [dispatch]);
 
-  // ✅ NOTIFICACIONES: Sonido + Vibración AUTOMÁTICA
+  // ✅ NOTIFICACIONES
   useEffect(() => {
     if (!notify.data || notify.data.length === 0 || !isReady) return;
-
     const latest = notify.data[0];
-
     if (latest._id !== lastNotifyId.current) {
       lastNotifyId.current = latest._id;
-
       const title = latest.text || 'Nouvelle notification';
       const body = latest.content || `${latest.user?.username || 'Quelqu\'un'} a interagi`;
       const icon = latest.image || latest.user?.avatar || '/icon-web-01.png';
       const url = latest.url || '/';
-
-      // ✅ Para PWA instalada - usar Service Worker
       if (isPWAInstalled && 'serviceWorker' in navigator) {
         sendLocalNotification(title, body, url, icon);
       }
-
-      // ✅ SONIDO Y VIBRACIÓN
       console.log('🔔 Notificación recibida, reproduciendo sonido...');
       playSound();
       vibratePhone([200, 100, 200]);
-
-      // ✅ Notificación del sistema (si está permitido)
       if (Notification.permission === 'granted' && !isPWAInstalled) {
         try {
-          const notificationOptions = {
-            body: body,
-            icon: icon,
-            badge: icon,
+          const notification = new Notification(title, {
+            body, icon, badge: icon,
             requireInteraction: true,
             tag: `notify-${latest._id}`,
             silent: false
-          };
-
-          const notification = new Notification(title, notificationOptions);
-
+          });
           notification.onclick = () => {
             window.focus();
             if (url) window.location.href = url;
           };
-
-          notification.onerror = (err) => {
-            console.log('❌ Error en notificación:', err);
-          };
-
         } catch (notifError) {
           console.log('⚠️ Error creando notificación:', notifError.message);
         }
@@ -280,46 +282,18 @@ useEffect(() => {
     }
   }, [notify.data, isReady, isPWAInstalled, sendLocalNotification]);
 
-  // ✅ Determinar si se debe mostrar el Navbar2
+  // ✅ Navbar
   const shouldShowNavbar = (pathname) => {
-    // Rutas fijas que NO son categorías (donde SÍ queremos navbar)
-    const explicitRoutes = [
-      '/',
-      '/register',
-      '/login',
-      '/bloqueos404',
-      '/notify',
-      '/create-video-page',
-      '/admindashboard',
-      '/admin/posts',
-      '/message',
-      '/profile/settings',
-      '/users/dashboard',
-      '/users/roles',
-      '/donation'
-    ];
-
-    // Prefijos de rutas que también deben mostrar navbar
-    const prefixes = [
-      '/edit-video/',
-      '/video/',
-      '/videos/trending',
-      '/create-image-page',
-      '/edit-image/',
-      '/message/',
-      '/profile/',
-      '/donation/'
-    ];
-
-    // Si es ruta exacta o empieza con algún prefijo → mostrar navbar
+    const explicitRoutes = ['/', '/register', '/login', '/bloqueos404', '/notify', 
+      '/create-video-page', '/admindashboard', '/admin/posts', '/message', 
+      '/profile/settings', '/users/dashboard', '/users/roles', '/donation'];
+    const prefixes = ['/edit-video/', '/video/', '/videos/trending', '/create-image-page', 
+      '/edit-image/', '/message/', '/profile/', '/donation/'];
     if (explicitRoutes.includes(pathname)) return true;
     if (prefixes.some(prefix => pathname.startsWith(prefix))) return true;
-
-    // En cualquier otro caso (típicamente rutas de categoría) → ocultar navbar
     return false;
   };
 
-  // ✅ Bloqueo de usuarios
   if (auth.token && auth.user?.isBlocked) {
     return (
       <Router>
@@ -331,24 +305,18 @@ useEffect(() => {
 
   return (
     <div className="App">
-      {/* Renderizado condicional del navbar según la ruta actual */}
       {shouldShowNavbar(location.pathname) && <Navbar2 />}
-
       <div id="google_translate_element" style={{ display: 'none' }} />
       {auth.token && <SocketClient />}
-
       <Switch>
         <Route exact path="/" component={Home} />
         <Route exact path="/register" component={Register} />
         <Route exact path="/login" component={Login} />
-
-
         <Route exact path="/bloqueos404" component={Bloqueos404} />
         <Route exact path="/notify" component={NotifyPage} />
         <Route exact path="/create-video-page" component={CreateVideoWizard} />
         <Route path="/edit-video/:id" component={EditVideoWizard} />
         <Route exact path="/video/:id" component={DetailVideoPage} />
-
         <Route exact path="/video/userVideo/:userId/info" component={InfoUserVideo} />
         <Route exact path="/videos/trending" component={TrendingVideos} />
         <Route exact path="/channel/new" component={CreateChannel} />
@@ -370,11 +338,8 @@ useEffect(() => {
         <Route exact path="/planes" component={planes} />
         <Route exact path="/userpropayment" component={PaymentRequest} />
         <Route exact path="/userproinfoplans" component={UserProInfoPlans} />
-
-        {/* ✅ Ruta para éxito de pago - una sola vez */}
         <Route path="/payment-success" component={PaymentSuccess} />
         <Route path="/donation" component={DonationPage} />
-        {/* Rutas de categorías: el navbar se ocultará automáticamente */}
         <Route exact path="/:slug/:page?" component={CategoryPage} />
         <Route exact path="/:slug/:subSlug/:page?" component={CategoryPage} />
         <Route exact path="/:slug/:subSlug/:articleSlug/:page?" component={CategoryPage} />
@@ -384,7 +349,6 @@ useEffect(() => {
   );
 }
 
-// Componente principal App con Router
 function App() {
   return (
     <Router>

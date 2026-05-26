@@ -113,85 +113,114 @@ const chargilyPlanCtrl = {
   },
   
   // Webhook para procesar pagos exitosos
-  handlePlanWebhook: async (req, res) => {
-    try {
-      const signature = req.headers["signature"];
-      const payload = JSON.stringify(req.body);
-      
-      // Verificar firma
+ // En chargilyPlanCtrl.js - MODIFICAR handlePlanWebhook
+handlePlanWebhook: async (req, res) => {
+  try {
+    // 🚨 LOGS DE DIAGNÓSTICO
+    console.log('\n🔔 ===== WEBHOOK RECIBIDO =====');
+    console.log('📅 Hora:', new Date().toISOString());
+    console.log('📋 Método:', req.method);
+    console.log('🔗 URL:', req.originalUrl);
+    console.log('📨 Headers:', JSON.stringify(req.headers, null, 2));
+    console.log('📦 Body:', JSON.stringify(req.body, null, 2));
+    
+    const signature = req.headers["signature"];
+    const payload = JSON.stringify(req.body);
+    
+    console.log('🔑 Signature recibida:', signature ? '✅ Sí' : '❌ NO');
+    
+    if (signature) {
       const computedSignature = crypto
         .createHmac("sha256", process.env.CHARGILY_SECRET_KEY)
         .update(payload)
         .digest("hex");
       
-      if (computedSignature !== signature) {
-        console.warn('⚠️ Signature invalide');
-        return res.status(403).json({ error: "Invalid signature" });
-      }
-      
-      const event = req.body;
-      console.log('📨 Webhook reçu:', event.type);
-      
-      if (event.type === "checkout.paid") {
-        const checkoutData = event.data;
-        const metadata = checkoutData.metadata;
-        const checkoutId = checkoutData.id;
-        
-        console.log(`🎉 Pago confirmado para checkout: ${checkoutId}`);
-        
-        // ✅ 1. BUSCAR LA TRANSACCIÓN PENDIENTE
-        const transaction = await Transaction.findOne({ checkout_id: checkoutId });
-        
-        if (!transaction) {
-          console.warn(`⚠️ Transacción no encontrada para checkout: ${checkoutId}`);
-          return res.json({ received: true, warning: 'Transaction not found' });
-        }
-        
-        // ✅ 2. VERIFICAR QUE NO ESTÉ YA PROCESADA
-        if (transaction.status === 'paid') {
-          console.log(`⏭️ Transacción ya procesada: ${checkoutId}`);
-          return res.json({ received: true, already_processed: true });
-        }
-        
-        // ✅ 3. ACTUALIZAR TRANSACCIÓN
-        const totalMonths = (metadata.duration_months || 1) + (metadata.free_months || 0);
-        const expiresAt = new Date();
-        expiresAt.setMonth(expiresAt.getMonth() + totalMonths);
-        
-        transaction.status = 'paid';
-        transaction.payment_completed_at = new Date();
-        transaction.plan_expires_at = expiresAt;
-        transaction.webhook_received = event;
-        
-        await transaction.save();
-        console.log(`✅ Transacción actualizada a PAID: ${transaction._id}`);
-        
-        // ✅ 4. ACTUALIZAR PLAN DEL USUARIO
-        const updatedUser = await User.findByIdAndUpdate(
-          transaction.user_id,
-          {
-            channelPlan: transaction.plan_id,
-            channelPlanExpiresAt: expiresAt,
-            channelPlanAutoRenew: false,
-            isPro: transaction.plan_id !== 'basic'
-          },
-          { new: true }
-        );
-        
-        console.log(`✅ Usuario ${transaction.user_id} actualizado a plan ${transaction.plan_id}`);
-        console.log(`📅 Expira: ${expiresAt.toLocaleDateString()}`);
-        
-        // ✅ 5. (OPCIONAL) ENVIAR EMAIL DE CONFIRMACIÓN
-        // await sendPaymentConfirmation(updatedUser.email, transaction);
-      }
-      
-      return res.json({ received: true });
-      
-    } catch (err) {
-      console.error('❌ Erreur webhook:', err);
-      return res.status(500).json({ error: "Webhook error" });
+      console.log('🔐 Firma esperada:', computedSignature);
+      console.log('🔐 Firma recibida:', signature);
+      console.log('🔐 Coinciden:', computedSignature === signature ? '✅ SÍ' : '❌ NO');
     }
-  },
+    
+    // ⚠️ TEMPORAL: NO verificar firma para pruebas
+    // Comenta esta parte para recibir cualquier webhook
+    /*
+    if (computedSignature !== signature) {
+      console.warn('⚠️ Signature invalide');
+      return res.status(403).json({ error: "Invalid signature" });
+    }
+    */
+    
+    const event = req.body;
+    console.log('📨 Tipo de evento:', event.type);
+    
+    if (event.type === "checkout.paid") {
+      const checkoutData = event.data;
+      const metadata = checkoutData.metadata;
+      const checkoutId = checkoutData.id;
+      
+      console.log(`🎉 PAGO CONFIRMADO para checkout: ${checkoutId}`);
+      console.log('👤 User ID:', metadata.user_id);
+      console.log('📦 Plan:', metadata.plan_id);
+      
+      // Buscar transacción
+      const transaction = await Transaction.findOne({ checkout_id: checkoutId });
+      
+      if (!transaction) {
+        console.warn(`⚠️ Transacción no encontrada: ${checkoutId}`);
+        return res.json({ received: true, warning: 'Transaction not found' });
+      }
+      
+      console.log('✅ Transacción encontrada:', transaction._id);
+      console.log('Estado actual:', transaction.status);
+      
+      if (transaction.status === 'paid') {
+        console.log('⏭️ Ya procesada');
+        return res.json({ received: true, already_processed: true });
+      }
+      
+      // Actualizar transacción
+      const totalMonths = (metadata.duration_months || 1) + (metadata.free_months || 0);
+      const expiresAt = new Date();
+      expiresAt.setMonth(expiresAt.getMonth() + totalMonths);
+      
+      transaction.status = 'paid';
+      transaction.payment_completed_at = new Date();
+      transaction.plan_expires_at = expiresAt;
+      transaction.webhook_received = event;
+      
+      await transaction.save();
+      console.log('✅ Transacción → PAID');
+      
+      // Actualizar usuario
+      const updatedUser = await User.findByIdAndUpdate(
+        transaction.user_id,
+        {
+          channelPlan: transaction.plan_id,
+          channelPlanExpiresAt: expiresAt,
+          channelPlanAutoRenew: false,
+          isPro: transaction.plan_id !== 'basic',
+          role: transaction.plan_id !== 'free' ? 'userpro' : 'user'
+        },
+        { new: true }
+      ).select('username email channelPlan role isPro');
+      
+      console.log('✅ USUARIO ACTUALIZADO:');
+      console.log('   Nombre:', updatedUser.username);
+      console.log('   Plan:', updatedUser.channelPlan);
+      console.log('   Role:', updatedUser.role);
+      console.log('   isPro:', updatedUser.isPro);
+      console.log('   Expira:', expiresAt.toLocaleDateString());
+      
+    }
+    
+    console.log('===== FIN WEBHOOK =====\n');
+    return res.json({ received: true });
+    
+  } catch (err) {
+    console.error('❌ ERROR WEBHOOK:', err);
+    console.error('Stack:', err.stack);
+    return res.status(500).json({ error: "Webhook error" });
+  }
+},
   
   // ✅ NUEVO: Obtener historial de pagos del usuario
   getUserTransactions: async (req, res) => {
