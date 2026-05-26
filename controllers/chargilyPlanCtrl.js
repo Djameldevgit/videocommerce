@@ -35,8 +35,8 @@ const chargilyPlanCtrl = {
       const baseApiUrl = process.env.API_URL || 'http://localhost:5000';
       
       const webhookUrl = process.env.WEBHOOK_URL
-        ? `${process.env.WEBHOOK_URL}/api/chargily/webhook`
-        : `${baseApiUrl}/api/chargily/webhook`;
+        ? `${process.env.WEBHOOK_URL}/api/webhook`
+        : `${baseApiUrl}/api/webhook`;
       
       // Llamar a Chargily
       const response = await axios.post(
