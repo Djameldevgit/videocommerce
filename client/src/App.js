@@ -124,7 +124,7 @@ function AppContent() {
       if (!auth.token) return;
       
       try {
-        const res = await getDataAPI('chargily/check-plan-status', auth.token);
+        const res = await getDataAPI('check-plan-status', auth.token);
         
         console.log('🔍 Verificando plan después de pago:');
         console.log('Redux actual:', {

@@ -317,40 +317,50 @@ handlePlanWebhook: async (req, res) => {
   },
   
   // Verificar estado del plan (para el frontend)
-  checkPlanStatus: async (req, res) => {
-    try {
-      const userId = req.user._id;
-      const user = await User.findById(userId).select('channelPlan channelPlanExpiresAt isPro');
-      
-      if (!user) {
-        return res.status(404).json({ error: 'Utilisateur non trouvé' });
-      }
-      
-      const now = new Date();
-      const isExpired = user.channelPlanExpiresAt && new Date(user.channelPlanExpiresAt) < now;
-      
-      if (isExpired && user.channelPlan !== 'free') {
-        await User.findByIdAndUpdate(userId, {
-          channelPlan: 'free',
-          channelPlanExpiresAt: null,
-          isPro: false
-        });
-        user.channelPlan = 'free';
-      }
-      
-      res.json({
-        success: true,
-        plan: user.channelPlan,
+ // Verificar estado del plan (para el frontend)
+checkPlanStatus: async (req, res) => {
+  try {
+    const userId = req.user._id;
+    // ✅ Añadir 'role' y 'username' al select
+    const user = await User.findById(userId)
+      .select('channelPlan channelPlanExpiresAt isPro role username');
+    
+    if (!user) {
+      return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    }
+    
+    const now = new Date();
+    const isExpired = user.channelPlanExpiresAt && new Date(user.channelPlanExpiresAt) < now;
+    
+    if (isExpired && user.channelPlan !== 'free') {
+      await User.findByIdAndUpdate(userId, {
+        channelPlan: 'free',
+        channelPlanExpiresAt: null,
+        isPro: false,
+        role: 'user'
+      });
+      user.channelPlan = 'free';
+      user.role = 'user';
+      user.isPro = false;
+    }
+    
+    // ✅ RESPUESTA CORRECTA con objeto 'user' y 'role'
+    res.json({
+      success: true,
+      user: {
+        channelPlan: user.channelPlan,
+        role: user.role,
         expiresAt: user.channelPlanExpiresAt,
         isExpired: isExpired,
         isPro: user.isPro
-      });
-      
-    } catch (err) {
-      console.error('❌ Error checkPlanStatus:', err);
-      res.status(500).json({ error: err.message });
-    }
+      }
+    });
+    
+  } catch (err) {
+    console.error('❌ Error checkPlanStatus:', err);
+    res.status(500).json({ error: err.message });
   }
+}
 };
 
 module.exports = chargilyPlanCtrl;
