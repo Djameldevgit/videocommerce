@@ -1573,11 +1573,145 @@ Fecha de solicitud: ${new Date().toLocaleString(lang || 'es')}
 
 
 
+// controllers/adminCtrl.js - AÑADIR ESTOS MÉTODOS
+
+// Obtener transacciones de un usuario específico
+getUserTransactions: async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Accès admin requis' });
+    }
+    
+    const { userId } = req.params;
+    const { limit = 50 } = req.query;
+    
+    const transactions = await Transaction.find({ user_id: userId })
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit));
+    
+    res.json({
+      success: true,
+      transactions
+    });
+    
+  } catch (err) {
+    console.error('❌ Error getUserTransactions:', err);
+    res.status(500).json({ error: err.message });
+  }
+},
 
 
 
+// controllers/adminCtrl.js - AÑADIR/ACTUALIZAR ESTE MÉTODO
 
-
+// ========== ACTUALIZAR PLAN DEL USUARIO (channelPlan) ==========
+updateUserPlan: async (req, res) => {
+  try {
+    // Verificar que sea admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Accès administrateur requis' });
+    }
+    
+    const { userId } = req.params;
+    const { 
+      plan,           // 'free', 'basic', 'pro', 'business'
+      duration_months, // número de meses (1, 3, 6, 12, 24)
+      expires_at,     // fecha opcional (si se pasa directamente)
+      reason          // razón del cambio (admin action)
+    } = req.body;
+    
+    console.log('📝 Admin updateUserPlan:', { userId, plan, duration_months, reason });
+    
+    // Validar plan
+    const validPlans = ['free', 'basic', 'pro', 'business'];
+    if (!validPlans.includes(plan)) {
+      return res.status(400).json({ error: 'Plan invalide' });
+    }
+    
+    // Buscar usuario
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    }
+    
+    // Calcular fecha de expiración
+    let planExpiresAt = null;
+    if (plan !== 'free') {
+      if (expires_at) {
+        planExpiresAt = new Date(expires_at);
+      } else if (duration_months && duration_months > 0) {
+        planExpiresAt = new Date();
+        planExpiresAt.setMonth(planExpiresAt.getMonth() + duration_months);
+      } else {
+        // Por defecto 1 mes
+        planExpiresAt = new Date();
+        planExpiresAt.setMonth(planExpiresAt.getMonth() + 1);
+      }
+    }
+    
+    // Guardar plan anterior para auditoría
+    const previousPlan = user.channelPlan;
+    const previousExpiry = user.channelPlanExpiresAt;
+    
+    // Actualizar usuario
+    user.channelPlan = plan;
+    user.channelPlanExpiresAt = planExpiresAt;
+    user.channelPlanAutoRenew = false;
+    
+    // Actualizar campo isPro (para compatibilidad con código legacy)
+    user.isPro = (plan === 'pro' || plan === 'business');
+    if (user.isPro && planExpiresAt) {
+      user.proExpiryDate = planExpiresAt;
+    } else if (!user.isPro) {
+      user.proExpiryDate = null;
+    }
+    
+    await user.save();
+    
+    console.log(`✅ Plan mis à jour: ${previousPlan} → ${plan} pour ${userId}`);
+    console.log(`📅 Expire le: ${planExpiresAt || 'jamais'}`);
+    
+    // Registrar transacción administrativa (opcional pero recomendado)
+    const Transaction = require('../models/Transaction');
+    const transaction = new Transaction({
+      checkout_id: `admin_${Date.now()}_${userId.slice(-6)}`,
+      user_id: userId,
+      user_email: user.email,
+      user_username: user.username,
+      plan_id: plan,
+      plan_name: plan === 'basic' ? 'Plan Basic' : plan === 'pro' ? 'Plan Pro' : plan === 'business' ? 'Plan Business' : 'Plan Gratuit',
+      duration_months: duration_months || (planExpiresAt ? Math.ceil((planExpiresAt - new Date()) / (1000 * 60 * 60 * 24 * 30)) : 0),
+      amount: 0, // Admin action = gratis
+      currency: 'dzd',
+      status: 'paid',
+      payment_completed_at: new Date(),
+      plan_expires_at: planExpiresAt,
+      chargily_response: { 
+        admin_manual: true, 
+        reason: reason || `Admin ${req.user.username} action`,
+        previous_plan: previousPlan,
+        previous_expiry: previousExpiry
+      }
+    });
+    
+    await transaction.save();
+    console.log(`📝 Transaction administrative enregistrée: ${transaction._id}`);
+    
+    // Devolver usuario actualizado (sin password)
+    const userResponse = user.toObject();
+    delete userResponse.password;
+    
+    res.json({
+      success: true,
+      user: userResponse,
+      message: `Plan ${plan} activé avec succès${planExpiresAt ? ` jusqu'au ${planExpiresAt.toLocaleDateString()}` : ''}`
+    });
+    
+  } catch (err) {
+    console.error('❌ Error updateUserPlan:', err);
+    res.status(500).json({ error: err.message });
+  }
+},
 
 
 };

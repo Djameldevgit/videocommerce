@@ -1,4 +1,4 @@
-// src/components/administration/Users/UsersTab.jsx
+// src/components/administration/Users/UsersTab.jsx - VERSIÓN COMPLETA CON CHANNEL PLAN
 import React, { useState, useEffect, useCallback } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import {
@@ -17,7 +17,7 @@ import {
   InputGroup,
   Tabs,
   Tab,
-  Alert  // ← IMPORTANTE: Alert agregado
+  Alert
 } from "react-bootstrap";
 import {
   TrashFill,
@@ -27,18 +27,22 @@ import {
   Search,
   XCircle,
   StarFill,
-  CalendarCheck
+  CalendarCheck,
+  CreditCard,
+  BoxArrowUpRight
 } from "react-bootstrap-icons";
 import moment from "moment";
 import "moment/locale/fr";
 import { debounce } from 'lodash';
 
-import { getDataAPI } from "../../../utils/fetchData";
+import { getDataAPI, patchDataAPI } from "../../../utils/fetchData";
 import {
   deleteUser,
   toggleVerification,
   activatePro,
   deactivatePro,
+  updateUserPlan,
+  getUserTransactions,
   USER_TYPES
 } from "../../../redux/actions/userAction";
 import { MESS_TYPES } from "../../../redux/actions/messageAction";
@@ -46,6 +50,14 @@ import { GLOBALTYPES } from "../../../redux/actions/globalTypes";
 
 import LoadMoreBtn from "../../LoadMoreBtn";
 import UserCard from "../../UserCard";
+
+// ✅ Configuración de planes
+const PLAN_CONFIG = {
+  free: { label: "Gratuit", color: "secondary", icon: "🆓", badgeVariant: "secondary" },
+  basic: { label: "Basic", color: "info", icon: "📹", badgeVariant: "info" },
+  pro: { label: "Pro", color: "primary", icon: "⭐", badgeVariant: "primary" },
+  business: { label: "Business", color: "success", icon: "🏢", badgeVariant: "success" }
+};
 
 const UsersTab = ({ filters = {}, token: propToken }) => {
   const { homeUsers, auth, socket, online } = useSelector((state) => state);
@@ -60,7 +72,20 @@ const UsersTab = ({ filters = {}, token: propToken }) => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 992);
   const [activeTab, setActiveTab] = useState('all');
 
-  // Modal para Usuario Pro
+  // ✅ MODAL: Gestión de planes (channelPlan)
+  const [showPlanModal, setShowPlanModal] = useState(false);
+  const [selectedUserForPlan, setSelectedUserForPlan] = useState(null);
+  const [selectedPlan, setSelectedPlan] = useState('free');
+  const [planDuration, setPlanDuration] = useState(1);
+  const [planExpiryDate, setPlanExpiryDate] = useState("");
+  const [planModalLoading, setPlanModalLoading] = useState(false);
+
+  // ✅ MODAL: Ver transacciones
+  const [showTransactionsModal, setShowTransactionsModal] = useState(false);
+  const [selectedUserTransactions, setSelectedUserTransactions] = useState([]);
+  const [transactionsLoading, setTransactionsLoading] = useState(false);
+
+  // Modal legacy para Usuario Pro (mantener por compatibilidad)
   const [showProModal, setShowProModal] = useState(false);
   const [selectedUserForPro, setSelectedUserForPro] = useState(null);
   const [proExpiryDate, setProExpiryDate] = useState("");
@@ -74,6 +99,7 @@ const UsersTab = ({ filters = {}, token: propToken }) => {
 
   moment.locale('fr');
 
+  // ========== EFECTOS ==========
   useEffect(() => {
     const handleResize = () => {
       setIsMobile(window.innerWidth < 992);
@@ -123,19 +149,27 @@ const UsersTab = ({ filters = {}, token: propToken }) => {
     }
   }, [authToken, dispatch, initialLoad]);
 
+  // ========== FUNCIONES DE FILTRADO ACTUALIZADAS ==========
   const getFilteredUsers = () => {
     const users = search.trim() !== "" ? searchResults : homeUsers.users;
     
     switch (activeTab) {
+      case 'all':
+        return users || [];
+      case 'free':
+        return users?.filter(user => user.channelPlan === 'free' || (!user.channelPlan && !user.isPro)) || [];
+      case 'basic':
+        return users?.filter(user => user.channelPlan === 'basic') || [];
       case 'pro':
-        return users?.filter(user => user.isPro === true) || [];
-      case 'non-pro':
-        return users?.filter(user => !user.isPro || user.isPro === false) || [];
+        return users?.filter(user => user.channelPlan === 'pro' || user.isPro === true) || [];
+      case 'business':
+        return users?.filter(user => user.channelPlan === 'business') || [];
       default:
         return users || [];
     }
   };
 
+  // ========== BÚSQUEDA ==========
   const searchUsers = useCallback(
     debounce(async (searchTerm, page = 1) => {
       if (!authToken) return;
@@ -212,6 +246,7 @@ const UsersTab = ({ filters = {}, token: propToken }) => {
     }
   };
 
+  // ========== CRUD USUARIOS ==========
   const confirmDelete = (userId) => {
     setUserToDelete(userId);
     setShowDeleteModal(true);
@@ -238,6 +273,80 @@ const UsersTab = ({ filters = {}, token: propToken }) => {
     }
   };
 
+  // ========== ✅ NUEVO: Gestión de PLANES (channelPlan) ==========
+  const handleOpenPlanModal = (user) => {
+    setSelectedUserForPlan(user);
+    setSelectedPlan(user.channelPlan || 'free');
+    
+    // Si tiene fecha de expiración, usarla
+    if (user.channelPlanExpiresAt && user.channelPlan !== 'free') {
+      const expiryDate = new Date(user.channelPlanExpiresAt);
+      setPlanExpiryDate(expiryDate.toISOString().slice(0, 16));
+      // Calcular duración aproximada
+      const today = new Date();
+      const monthsLeft = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24 * 30));
+      setPlanDuration(Math.max(1, monthsLeft));
+    } else {
+      const defaultDate = new Date();
+      defaultDate.setMonth(defaultDate.getMonth() + 1);
+      setPlanExpiryDate(defaultDate.toISOString().slice(0, 16));
+      setPlanDuration(1);
+    }
+    
+    setShowPlanModal(true);
+  };
+
+  const handleConfirmPlanUpdate = async () => {
+    setPlanModalLoading(true);
+    try {
+      let expiresAt = null;
+      if (selectedPlan !== 'free') {
+        expiresAt = planExpiryDate ? new Date(planExpiryDate) : null;
+      }
+      
+      const result = await dispatch(updateUserPlan(
+        selectedUserForPlan._id,
+        {
+          plan: selectedPlan,
+          duration_months: planDuration,
+          expires_at: expiresAt,
+          reason: `Admin ${auth.user?.username || 'action'}`
+        },
+        authToken
+      ));
+      
+      if (result?.success) {
+        dispatch({
+          type: GLOBALTYPES.ALERT,
+          payload: { success: `Plan ${PLAN_CONFIG[selectedPlan]?.label} activé avec succès` }
+        });
+        setShowPlanModal(false);
+      }
+    } catch (err) {
+      console.error("Error updating plan:", err);
+    } finally {
+      setPlanModalLoading(false);
+    }
+  };
+
+  // ========== ✅ NUEVO: Ver transacciones ==========
+  const handleViewTransactions = async (user) => {
+    setSelectedUserForPlan(user);
+    setTransactionsLoading(true);
+    setShowTransactionsModal(true);
+    
+    try {
+      const transactions = await dispatch(getUserTransactions(user._id, authToken));
+      setSelectedUserTransactions(transactions || []);
+    } catch (err) {
+      console.error("Error fetching transactions:", err);
+      setSelectedUserTransactions([]);
+    } finally {
+      setTransactionsLoading(false);
+    }
+  };
+
+  // ========== LEGACY: Usuario Pro (mantener compatibilidad) ==========
   const handleOpenProModal = (user, action) => {
     setSelectedUserForPro(user);
     setProActionType(action);
@@ -262,14 +371,57 @@ const UsersTab = ({ filters = {}, token: propToken }) => {
     setProExpiryDate("");
   };
 
-  const isProActive = (user) => {
-    return user?.isPro && (!user?.proExpiryDate || new Date(user.proExpiryDate) > new Date());
+  // ========== FUNCIONES AUXILIARES ==========
+  const getPlanBadge = (user) => {
+    const planId = user.channelPlan || (user.isPro ? 'pro' : 'free');
+    const config = PLAN_CONFIG[planId] || PLAN_CONFIG.free;
+    
+    const isExpired = user.channelPlanExpiresAt && new Date(user.channelPlanExpiresAt) < new Date();
+    
+    return (
+      <Badge bg={isExpired ? 'danger' : config.badgeVariant} className="px-3 py-2">
+        <span className="me-1">{config.icon}</span> {config.label}
+        {isExpired && <span className="ms-1">(Expiré)</span>}
+      </Badge>
+    );
   };
 
-  const getDaysLeft = (user) => {
-    if (!user?.proExpiryDate) return null;
-    const daysLeft = Math.ceil((new Date(user.proExpiryDate) - new Date()) / (1000 * 60 * 60 * 24));
-    return daysLeft > 0 ? daysLeft : 0;
+  const getPlanExpiryInfo = (user) => {
+    if (!user.channelPlanExpiresAt || user.channelPlan === 'free') return null;
+    const expiryDate = new Date(user.channelPlanExpiresAt);
+    const today = new Date();
+    const daysLeft = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
+    
+    if (daysLeft <= 0) return <Badge bg="danger" className="ms-1">Expiré</Badge>;
+    if (daysLeft <= 7) return <Badge bg="warning" className="ms-1">{daysLeft}j restants</Badge>;
+    return <small className="text-muted ms-1">{expiryDate.toLocaleDateString()}</small>;
+  };
+
+  const formatDate = (date) => {
+    if (!date) return '-';
+    return new Date(date).toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  };
+
+  const formatTransactionAmount = (amount) => {
+    return new Intl.NumberFormat('fr-DZ', { style: 'currency', currency: 'DZD' }).format(amount);
+  };
+
+  // Estadísticas para tabs
+  const getPlanCount = (plan) => {
+    const users = search.trim() !== "" ? searchResults : homeUsers.users;
+    if (!users) return 0;
+    
+    switch(plan) {
+      case 'free': return users.filter(u => u.channelPlan === 'free' || (!u.channelPlan && !u.isPro)).length;
+      case 'basic': return users.filter(u => u.channelPlan === 'basic').length;
+      case 'pro': return users.filter(u => u.channelPlan === 'pro' || u.isPro === true).length;
+      case 'business': return users.filter(u => u.channelPlan === 'business').length;
+      default: return users.length;
+    }
   };
 
   const usersToShow = getFilteredUsers();
@@ -288,6 +440,7 @@ const UsersTab = ({ filters = {}, token: propToken }) => {
 
   return (
     <Container fluid className="py-4">
+      {/* Header con búsqueda */}
       <Row className="mb-4">
         <Col>
           <Card className="border-0 shadow-sm bg-gradient" style={{ background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" }}>
@@ -325,40 +478,18 @@ const UsersTab = ({ filters = {}, token: propToken }) => {
         </Col>
       </Row>
 
-      <Tabs
-        activeKey={activeTab}
-        onSelect={(k) => setActiveTab(k)}
-        className="mb-4"
-      >
-        <Tab 
-          eventKey="all" 
-          title={
-            <span>
-              📋 Tous les utilisateurs
-              <Badge bg="secondary" className="ms-2">{homeUsers.users?.length || 0}</Badge>
-            </span>
-          } 
-        />
-        <Tab 
-          eventKey="pro" 
-          title={
-            <span>
-              ⭐ Utilisateurs Pro
-              <Badge bg="primary" className="ms-2">{homeUsers.users?.filter(u => u.isPro === true).length || 0}</Badge>
-            </span>
-          } 
-        />
-        <Tab 
-          eventKey="non-pro" 
-          title={
-            <span>
-              👤 Utilisateurs standard
-              <Badge bg="secondary" className="ms-2">{homeUsers.users?.filter(u => !u.isPro || u.isPro === false).length || 0}</Badge>
-            </span>
-          } 
-        />
+      {/* ✅ Tabs actualizados con todos los planes */}
+      <Tabs activeKey={activeTab} onSelect={(k) => setActiveTab(k)} className="mb-4">
+        <Tab eventKey="all" title={`📋 Tous (${getPlanCount('all')})`} />
+        <Tab eventKey="free" title={`🆓 Gratuit (${getPlanCount('free')})`} />
+        <Tab eventKey="basic" title={`📹 Basic (${getPlanCount('basic')})`} />
+        <Tab eventKey="pro" title={`⭐ Pro (${getPlanCount('pro')})`} />
+        <Tab eventKey="business" title={`🏢 Business (${getPlanCount('business')})`} />
       </Tabs>
 
+      {/* ========== MODALES ========== */}
+
+      {/* MODAL: Eliminar usuario */}
       <Modal show={showDeleteModal} onHide={() => setShowDeleteModal(false)} centered>
         <Modal.Header closeButton className="border-0 pb-0">
           <Modal.Title className="text-danger">
@@ -380,6 +511,197 @@ const UsersTab = ({ filters = {}, token: propToken }) => {
         </Modal.Footer>
       </Modal>
 
+      {/* ✅ MODAL: Gestión de planes (channelPlan) */}
+      <Modal show={showPlanModal} onHide={() => setShowPlanModal(false)} centered size="lg">
+        <Modal.Header closeButton className="bg-primary text-white">
+          <Modal.Title>
+            <StarFill className="me-2" />
+            Gérer l'abonnement
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Row>
+            <Col md={6}>
+              <Form.Group className="mb-3">
+                <Form.Label className="fw-bold">👤 Utilisateur</Form.Label>
+                <Form.Control 
+                  type="text" 
+                  value={selectedUserForPlan?.username || ''} 
+                  disabled 
+                  className="bg-light"
+                />
+              </Form.Group>
+            </Col>
+            <Col md={6}>
+              <Form.Group className="mb-3">
+                <Form.Label className="fw-bold">📧 Email</Form.Label>
+                <Form.Control 
+                  type="text" 
+                  value={selectedUserForPlan?.email || ''} 
+                  disabled 
+                  className="bg-light"
+                />
+              </Form.Group>
+            </Col>
+          </Row>
+
+          <Form.Group className="mb-3">
+            <Form.Label className="fw-bold">📦 Plan actuel</Form.Label>
+            <div>
+              {getPlanBadge(selectedUserForPlan || {})}
+            </div>
+          </Form.Group>
+
+          <Form.Group className="mb-3">
+            <Form.Label className="fw-bold">🎯 Nouveau plan</Form.Label>
+            <div className="d-flex gap-3 flex-wrap">
+              {['free', 'basic', 'pro', 'business'].map(plan => (
+                <div key={plan} className="form-check">
+                  <Form.Check
+                    type="radio"
+                    id={`plan-${plan}`}
+                    label={
+                      <span>
+                        {PLAN_CONFIG[plan].icon} {PLAN_CONFIG[plan].label}
+                      </span>
+                    }
+                    value={plan}
+                    checked={selectedPlan === plan}
+                    onChange={(e) => setSelectedPlan(e.target.value)}
+                  />
+                </div>
+              ))}
+            </div>
+          </Form.Group>
+
+          {selectedPlan !== 'free' && (
+            <>
+              <Form.Group className="mb-3">
+                <Form.Label className="fw-bold">⏱️ Durée (mois)</Form.Label>
+                <Form.Select 
+                  value={planDuration} 
+                  onChange={(e) => {
+                    const months = parseInt(e.target.value);
+                    setPlanDuration(months);
+                    const newDate = new Date();
+                    newDate.setMonth(newDate.getMonth() + months);
+                    setPlanExpiryDate(newDate.toISOString().slice(0, 16));
+                  }}
+                >
+                  {[1, 3, 6, 12, 24].map(months => (
+                    <option key={months} value={months}>
+                      {months} mois {months >= 12 ? `(${Math.floor(months/12)} an${months>=24?'s':''})` : ''}
+                    </option>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+
+              <Form.Group className="mb-3">
+                <Form.Label className="fw-bold">📅 Date d'expiration</Form.Label>
+                <Form.Control
+                  type="datetime-local"
+                  value={planExpiryDate}
+                  onChange={(e) => setPlanExpiryDate(e.target.value)}
+                />
+                <Form.Text className="text-muted">
+                  Laissez vide pour un abonnement sans expiration
+                </Form.Text>
+              </Form.Group>
+            </>
+          )}
+
+          <Alert variant="info" className="mt-2">
+            <span className="me-2">ℹ️</span>
+            {selectedPlan === 'free' 
+              ? "L'utilisateur reviendra au plan gratuit. Il perdra les fonctionnalités premium."
+              : `Le passage au plan ${PLAN_CONFIG[selectedPlan]?.label} sera effectif immédiatement.`}
+          </Alert>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowPlanModal(false)}>
+            Annuler
+          </Button>
+          <Button 
+            variant="primary" 
+            onClick={handleConfirmPlanUpdate}
+            disabled={planModalLoading}
+          >
+            {planModalLoading ? (
+              <>
+                <Spinner animation="border" size="sm" className="me-2" />
+                Traitement...
+              </>
+            ) : (
+              <>
+                <CheckCircleFill className="me-2" />
+                Confirmer
+              </>
+            )}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* ✅ MODAL: Ver transacciones */}
+      <Modal show={showTransactionsModal} onHide={() => setShowTransactionsModal(false)} centered size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>
+            <CreditCard className="me-2" />
+            Historique des paiements - {selectedUserForPlan?.username}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {transactionsLoading ? (
+            <div className="text-center py-4">
+              <Spinner animation="border" variant="primary" />
+              <p className="mt-2">Chargement...</p>
+            </div>
+          ) : selectedUserTransactions.length === 0 ? (
+            <Alert variant="info" className="text-center">
+              Aucune transaction enregistrée
+            </Alert>
+          ) : (
+            <div className="table-responsive">
+              <Table hover size="sm">
+                <thead className="table-light">
+                  <tr>
+                    <th>Date</th>
+                    <th>Plan</th>
+                    <th>Durée</th>
+                    <th>Montant</th>
+                    <th>Statut</th>
+                    <th>Expiration</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedUserTransactions.map(tx => (
+                    <tr key={tx._id}>
+                      <td>{formatDate(tx.createdAt)}</td>
+                      <td>{PLAN_CONFIG[tx.plan_id]?.label || tx.plan_name}</td>
+                      <td>{tx.duration_months} mois</td>
+                      <td className={tx.amount > 0 ? 'text-success fw-bold' : 'text-muted'}>
+                        {tx.amount > 0 ? `${tx.amount} DA` : 'Admin'}
+                      </td>
+                      <td>
+                        <Badge bg={tx.status === 'paid' ? 'success' : 'warning'}>
+                          {tx.status === 'paid' ? 'Payé' : 'En attente'}
+                        </Badge>
+                      </td>
+                      <td>{tx.plan_expires_at ? formatDate(tx.plan_expires_at) : '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </div>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowTransactionsModal(false)}>
+            Fermer
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* MODAL legacy Pro (mantener por compatibilidad) */}
       <Modal show={showProModal} onHide={() => setShowProModal(false)} centered>
         <Modal.Header closeButton className={proActionType === 'activate' ? "bg-primary text-white" : "bg-warning text-dark"}>
           <Modal.Title>
@@ -422,7 +744,6 @@ const UsersTab = ({ filters = {}, token: propToken }) => {
             <Alert variant="warning" className="mt-2">
               <XCircleFill className="me-2" />
               Êtes-vous sûr de vouloir désactiver le compte Pro de cet utilisateur ?
-              Il perdra tous ses avantages.
             </Alert>
           )}
         </Modal.Body>
@@ -443,19 +764,7 @@ const UsersTab = ({ filters = {}, token: propToken }) => {
         </Modal.Footer>
       </Modal>
 
-      {isSearching && search.trim() !== "" && (
-        <Row className="mb-4">
-          <Col>
-            <Card className="border-0 shadow-sm">
-              <Card.Body className="text-center py-4">
-                <Spinner animation="border" variant="primary" className="mb-2" />
-                <p className="mb-0 text-muted">Recherche...</p>
-              </Card.Body>
-            </Card>
-          </Col>
-        </Row>
-      )}
-
+      {/* ========== VISTA MÓVIL ========== */}
       {isMobile ? (
         <Row>
           <Col>
@@ -480,8 +789,8 @@ const UsersTab = ({ filters = {}, token: propToken }) => {
                           </Badge>
                           <UserCard user={user} />
                         </div>
-                        {isProActive(user) && (
-                          <StarFill className="text-warning me-2" size={18} />
+                        {user.channelPlan !== 'free' && (
+                          <span className="ms-2">{PLAN_CONFIG[user.channelPlan]?.icon}</span>
                         )}
                       </div>
                     </Accordion.Header>
@@ -503,10 +812,9 @@ const UsersTab = ({ filters = {}, token: propToken }) => {
                         </Col>
                         <Col xs={6}>
                           <div className="p-2 bg-white rounded">
-                            <small className="text-muted d-block mb-1">Inscription</small>
-                            <small className="text-dark fw-semibold">
-                              {new Date(user.createdAt).toLocaleDateString()}
-                            </small>
+                            <small className="text-muted d-block mb-1">Plan</small>
+                            {getPlanBadge(user)}
+                            {getPlanExpiryInfo(user)}
                           </div>
                         </Col>
                         <Col xs={6}>
@@ -521,62 +829,46 @@ const UsersTab = ({ filters = {}, token: propToken }) => {
                         </Col>
                         <Col xs={6}>
                           <div className="p-2 bg-white rounded">
-                            <small className="text-muted d-block mb-1">Statut Pro</small>
-                            {isProActive(user) ? (
-                              <Badge bg="primary" className="w-100">
-                                <StarFill className="me-1" size={12} /> PRO
-                                {getDaysLeft(user) && getDaysLeft(user) <= 30 && (
-                                  <small className="ms-1">({getDaysLeft(user)}j)</small>
-                                )}
-                              </Badge>
-                            ) : user?.isPro ? (
-                              <Badge bg="warning" text="dark" className="w-100">Expiré</Badge>
-                            ) : (
-                              <Badge bg="secondary" className="w-100">Standard</Badge>
-                            )}
+                            <small className="text-muted d-block mb-1">Inscription</small>
+                            <small className="text-dark fw-semibold">
+                              {new Date(user.createdAt).toLocaleDateString()}
+                            </small>
                           </div>
                         </Col>
                       </Row>
 
-                      <Dropdown className="d-grid">
-                        <Dropdown.Toggle variant="primary" size="sm" className="w-100">
-                          <ThreeDotsVertical className="me-2" />
-                          Actions
-                        </Dropdown.Toggle>
-                        <Dropdown.Menu className="w-100 shadow">
-                          <Dropdown.Item className="text-danger" onClick={() => confirmDelete(user._id)}>
-                            <TrashFill className="me-2" /> Supprimer
-                          </Dropdown.Item>
-                          <Dropdown.Divider />
-                          <Dropdown.Item
-                            className={user.isVerified ? "text-danger" : "text-success"}
-                            onClick={() => handleToggleVerification(user._id)}
-                          >
-                            {user.isVerified ? (
-                              <XCircleFill className="me-2" />
-                            ) : (
-                              <CheckCircleFill className="me-2" />
-                            )}
-                            {user.isVerified ? "Dévérifier" : "Vérifier"}
-                          </Dropdown.Item>
-                          <Dropdown.Divider />
-                          {!isProActive(user) && !user?.isPro ? (
-                            <Dropdown.Item 
-                              className="text-primary"
-                              onClick={() => handleOpenProModal(user, 'activate')}
-                            >
-                              <StarFill className="me-2" /> Activer Pro
+                      <div className="d-flex gap-2">
+                        <Button 
+                          variant="outline-primary" 
+                          size="sm" 
+                          className="flex-grow-1"
+                          onClick={() => handleOpenPlanModal(user)}
+                        >
+                          <StarFill className="me-1" size={12} /> Plan
+                        </Button>
+                        <Button 
+                          variant="outline-info" 
+                          size="sm" 
+                          className="flex-grow-1"
+                          onClick={() => handleViewTransactions(user)}
+                        >
+                          <CreditCard className="me-1" size={12} /> Paiements
+                        </Button>
+                        <Dropdown>
+                          <Dropdown.Toggle variant="outline-secondary" size="sm">
+                            <ThreeDotsVertical />
+                          </Dropdown.Toggle>
+                          <Dropdown.Menu align="end">
+                            <Dropdown.Item onClick={() => handleToggleVerification(user._id)}>
+                              {user.isVerified ? "Dévérifier" : "Vérifier"}
                             </Dropdown.Item>
-                          ) : isProActive(user) || user?.isPro ? (
-                            <Dropdown.Item 
-                              className="text-warning"
-                              onClick={() => handleOpenProModal(user, 'deactivate')}
-                            >
-                              <XCircleFill className="me-2" /> Désactiver Pro
+                            <Dropdown.Divider />
+                            <Dropdown.Item className="text-danger" onClick={() => confirmDelete(user._id)}>
+                              <TrashFill className="me-2" /> Supprimer
                             </Dropdown.Item>
-                          ) : null}
-                        </Dropdown.Menu>
-                      </Dropdown>
+                          </Dropdown.Menu>
+                        </Dropdown>
+                      </div>
                     </Accordion.Body>
                   </Accordion.Item>
                 ))}
@@ -585,6 +877,7 @@ const UsersTab = ({ filters = {}, token: propToken }) => {
           </Col>
         </Row>
       ) : (
+        /* ========== VISTA DESKTOP ========== */
         <Card className="border-0 shadow-sm">
           <Card.Body className="p-0">
             <div className="table-responsive">
@@ -594,9 +887,9 @@ const UsersTab = ({ filters = {}, token: propToken }) => {
                     <th className="text-white border-0 py-3">#</th>
                     <th className="text-white border-0 py-3">Utilisateur</th>
                     <th className="text-white border-0 py-3">Statut</th>
-                    <th className="text-white border-0 py-3">Inscription</th>
+                    <th className="text-white border-0 py-3">Plan</th>
+                    <th className="text-white border-0 py-3">Expiration</th>
                     <th className="text-white border-0 py-3">Vérification</th>
-                    <th className="text-white border-0 py-3">Statut Pro</th>
                     <th className="text-white border-0 py-3 text-center">Actions</th>
                   </tr>
                 </thead>
@@ -617,8 +910,10 @@ const UsersTab = ({ filters = {}, token: propToken }) => {
                         <td>
                           <div className="d-flex align-items-center gap-2">
                             <UserCard user={user} />
-                            {isProActive(user) && (
-                              <StarFill className="text-warning" size={16} title="Utilisateur Pro" />
+                            {user.channelPlan !== 'free' && (
+                              <span title={`Plan ${PLAN_CONFIG[user.channelPlan]?.label}`}>
+                                {PLAN_CONFIG[user.channelPlan]?.icon}
+                              </span>
                             )}
                           </div>
                         </td>
@@ -634,7 +929,17 @@ const UsersTab = ({ filters = {}, token: propToken }) => {
                           )}
                         </td>
                         <td>
-                          <small className="text-muted">{new Date(user.createdAt).toLocaleDateString()}</small>
+                          {getPlanBadge(user)}
+                        </td>
+                        <td>
+                          {user.channelPlanExpiresAt && user.channelPlan !== 'free' ? (
+                            <small className="text-muted">
+                              {formatDate(user.channelPlanExpiresAt)}
+                              {getPlanExpiryInfo(user)}
+                            </small>
+                          ) : (
+                            <small className="text-muted">-</small>
+                          )}
                         </td>
                         <td>
                           {user.isVerified ? (
@@ -643,59 +948,41 @@ const UsersTab = ({ filters = {}, token: propToken }) => {
                             <Badge bg="danger" className="px-3 py-2"><XCircleFill className="me-1" /> Non vérifié</Badge>
                           )}
                         </td>
-                        <td>
-                          {isProActive(user) ? (
-                            <Badge bg="primary" className="px-3 py-2">
-                              <StarFill className="me-1" size={12} /> PRO
-                              {getDaysLeft(user) && getDaysLeft(user) <= 30 && (
-                                <small className="ms-1 text-white-50">({getDaysLeft(user)}j)</small>
-                              )}
-                            </Badge>
-                          ) : user?.isPro ? (
-                            <Badge bg="warning" text="dark" className="px-3 py-2">Expiré</Badge>
-                          ) : (
-                            <Badge bg="secondary" className="px-3 py-2">Standard</Badge>
-                          )}
-                        </td>
                         <td className="text-center">
-                          <Dropdown>
-                            <Dropdown.Toggle variant="outline-primary" size="sm" className="rounded-circle" style={{ width: "35px", height: "35px", padding: "0" }}>
-                              <ThreeDotsVertical />
-                            </Dropdown.Toggle>
-                            <Dropdown.Menu className="shadow border-0">
-                              <Dropdown.Item className="text-danger" onClick={() => confirmDelete(user._id)}>
-                                <TrashFill className="me-2" /> Supprimer
-                              </Dropdown.Item>
-                              <Dropdown.Divider />
-                              <Dropdown.Item
-                                className={user.isVerified ? "text-danger" : "text-success"}
-                                onClick={() => handleToggleVerification(user._id)}
-                              >
-                                {user.isVerified ? (
-                                  <XCircleFill className="me-2" />
-                                ) : (
-                                  <CheckCircleFill className="me-2" />
-                                )}
-                                {user.isVerified ? "Dévérifier" : "Vérifier"}
-                              </Dropdown.Item>
-                              <Dropdown.Divider />
-                              {!isProActive(user) && !user?.isPro ? (
-                                <Dropdown.Item 
-                                  className="text-primary"
-                                  onClick={() => handleOpenProModal(user, 'activate')}
-                                >
-                                  <StarFill className="me-2" /> Activer Pro
+                          <div className="d-flex gap-1 justify-content-center">
+                            <Button 
+                              variant="outline-primary" 
+                              size="sm" 
+                              title="Gérer le plan"
+                              onClick={() => handleOpenPlanModal(user)}
+                              style={{ width: "32px", height: "32px", padding: 0 }}
+                            >
+                              <StarFill size={14} />
+                            </Button>
+                            <Button 
+                              variant="outline-info" 
+                              size="sm" 
+                              title="Voir les paiements"
+                              onClick={() => handleViewTransactions(user)}
+                              style={{ width: "32px", height: "32px", padding: 0 }}
+                            >
+                              <CreditCard size={14} />
+                            </Button>
+                            <Dropdown>
+                              <Dropdown.Toggle variant="outline-secondary" size="sm" style={{ width: "32px", height: "32px", padding: 0 }}>
+                                <ThreeDotsVertical size={14} />
+                              </Dropdown.Toggle>
+                              <Dropdown.Menu align="end">
+                                <Dropdown.Item onClick={() => handleToggleVerification(user._id)}>
+                                  {user.isVerified ? "Dévérifier" : "Vérifier"}
                                 </Dropdown.Item>
-                              ) : isProActive(user) || user?.isPro ? (
-                                <Dropdown.Item 
-                                  className="text-warning"
-                                  onClick={() => handleOpenProModal(user, 'deactivate')}
-                                >
-                                  <XCircleFill className="me-2" /> Désactiver Pro
+                                <Dropdown.Divider />
+                                <Dropdown.Item className="text-danger" onClick={() => confirmDelete(user._id)}>
+                                  <TrashFill className="me-2" /> Supprimer
                                 </Dropdown.Item>
-                              ) : null}
-                            </Dropdown.Menu>
-                          </Dropdown>
+                              </Dropdown.Menu>
+                            </Dropdown>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -707,6 +994,7 @@ const UsersTab = ({ filters = {}, token: propToken }) => {
         </Card>
       )}
 
+      {/* Load More */}
       {load && (
         <Row className="my-4">
           <Col>

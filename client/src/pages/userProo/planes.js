@@ -3,9 +3,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { useHistory } from 'react-router-dom';
 import { FaCheck, FaStar, FaArrowRight, FaArrowLeft, FaVideo, FaHdd, FaClock, FaInfoCircle, FaShieldAlt, FaCreditCard, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
-import { PaymentService } from './PaymentService';
+ 
 import './planes.css';
-
+import { postDataAPI } from '../../utils/fetchData';
+ 
 const planes = () => {
   const history = useHistory();
   const { auth } = useSelector(state => state);
@@ -180,42 +181,58 @@ const planes = () => {
       setStep(4);
     }
   };
-  const handleProceedToPayment = async () => {
-    try {
-      console.log('🟢 Solicitando pago al backend...');
-      
-      // ✅ Obtener el token del localStorage o Redux
-      const token = localStorage.getItem('token') || auth?.token;
-      
-      console.log('🔑 Token disponible:', token ? '✅ Sí' : '❌ No');
-      
-      // ✅ URL CORRECTA con /api/
-      const response = await fetch('http://localhost:5000/api/chargily/create-checkout?amount=1000', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,  // ✅ Token incluido aquí
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      const result = await response.json();
-      console.log('📦 Respuesta:', result);
-      
-      // La URL está en result.data.checkout_url
-      const checkoutUrl = result?.data?.checkout_url;
-      
-      if (checkoutUrl) {
-        console.log('✅ Redirigiendo a:', checkoutUrl);
-        window.location.href = checkoutUrl;
-      } else {
-        console.error('❌ No se recibió checkout_url');
-        alert('Error al crear el pago');
-      }
-    } catch (error) {
-      console.error('❌ Error:', error);
-      alert('Error de conexión: ' + error.message);
+ // planes.js - Función handleProceedToPayment CORREGIDA
+// planes.js - handleProceedToPayment CORREGIDO
+const handleProceedToPayment = async () => {
+  try {
+    setLoading(true);
+    
+    // ✅ Obtener token correctamente
+    const token = auth?.token || localStorage.getItem('token');
+    
+    if (!token) {
+      alert('Vous devez être connecté');
+      history.push('/login');
+      return;
     }
-  };
+    
+    const totalPrice = calculateTotalPrice();
+    const discount = getDiscount(selectedDuration, selectedOffer?.id);
+    const freeMonths = getFreeMonths(selectedDuration);
+    
+    const paymentData = {
+      plan_id: selectedOffer?.id,
+      plan_name: selectedOffer?.name,
+      amount: totalPrice,
+      currency: 'dzd',
+      duration_months: selectedDuration,
+      discount_percent: discount,
+      free_months: freeMonths,
+      category: selectedCategory,
+      user_id: user?._id || user?.id
+    };
+    
+    console.log('💳 Enviando pago:', paymentData);
+    
+    // ✅ Pasar el token como tercer parámetro
+    const response = await postDataAPI('create-checkout', paymentData, token);
+    
+    console.log('📦 Respuesta:', response.data);
+    
+    const checkoutUrl = response.data?.data?.checkout_url || response.data?.checkout_url;
+    
+    if (checkoutUrl) {
+      window.location.href = checkoutUrl;
+    } else {
+      alert('Erreur: impossible de créer le paiement');
+    }
+  } catch (error) {
+    console.error('❌ Error:', error);
+    alert('Erreur: ' + (error.response?.data?.error || error.message));
+  } finally {
+    setLoading(false);
+  }
+};
   // Step 1: Slider horizontal
   const Step1 = () => (
     <div className="step-container">

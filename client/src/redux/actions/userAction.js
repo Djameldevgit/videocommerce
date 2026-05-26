@@ -3,23 +3,42 @@ import { imageUpload } from '../../utils/imageUpload';
 import {   getDataAPI, patchDataAPI, deleteDataAPI } from '../../utils/fetchData';
 
 export const USER_TYPES = {
+    // Usuarios normales
     LOADING_USERS: 'LOADING_USERS',
     GET_USERS: 'GET_USERS',
     UPDATE_USER: 'UPDATE_USER',
+    UPDATE_USER_VERIFICATION: 'UPDATE_USER_VERIFICATION',
     DELETE_USER: 'DELETE_USER',
-    // NUEVAS CONSTANTES PARA ACTIVACIÓN/DESACTIVACIÓN
+    
+    // Activar/Desactivar usuario
     ACTIVATE_USER: 'ACTIVATE_USER',
     DEACTIVATE_USER: 'DEACTIVATE_USER',
     TOGGLE_ACTIVE_STATUS: 'TOGGLE_ACTIVE_STATUS',
-    // NUEVAS CONSTANTES PARA BLOQUEO/DESBLOQUEO
+    
+    // Bloqueo/Desbloqueo
     BLOCK_USER: 'BLOCK_USER',
     UNBLOCK_USER: 'UNBLOCK_USER',
-
+    
+    // Usuario Pro (legacy)
     ACTIVATE_PRO: 'ACTIVATE_PRO',
     DEACTIVATE_PRO: 'DEACTIVATE_PRO',
-
-
-
+    
+    // Channel Plan (nuevo sistema)
+    UPDATE_USER_PLAN: 'UPDATE_USER_PLAN',
+    UPDATE_USER_PLAN_SUCCESS: 'UPDATE_USER_PLAN_SUCCESS',
+    UPDATE_USER_PLAN_FAIL: 'UPDATE_USER_PLAN_FAIL',
+    
+    // Usuarios bloqueados (admin)
+    LOADING_BLOCKED_USERS: 'LOADING_BLOCKED_USERS',
+    GET_BLOCKED_USERS: 'GET_BLOCKED_USERS',
+    
+    // Comentarios admin
+    GET_ADMIN_COMMENTS: 'GET_ADMIN_COMMENTS',
+    ADD_ADMIN_COMMENT: 'ADD_ADMIN_COMMENT',
+    
+    // Utilidades
+    CLEAR_USER_ERROR: 'CLEAR_USER_ERROR',
+    RESET_USERS: 'RESET_USERS'
 };
 
 export const updateUserFeatures = ({ userId, features, token }) => async (dispatch) => {
@@ -372,5 +391,102 @@ export const deactivatePro = (userId, token) => async (dispatch) => {
         });
     } finally {
         dispatch({ type: GLOBALTYPES.ALERT, payload: { loading: false } });
+    }
+};
+
+export const updateUserPlan = (userId, planData, token) => async (dispatch) => {
+    try {
+        dispatch({ 
+            type: GLOBALTYPES.ALERT, 
+            payload: { loading: true } 
+        });
+        
+        const res = await patchDataAPI(`admin/users/${userId}/plan`, planData, token);
+        
+        if (res.data.success) {
+            // Actualizar en el store
+            dispatch({
+                type: USER_TYPES.UPDATE_USER,
+                payload: res.data.user
+            });
+            
+            // También despachar evento específico para plan
+            dispatch({
+                type: USER_TYPES.UPDATE_USER_PLAN_SUCCESS,
+                payload: {
+                    userId,
+                    plan: planData.plan,
+                    expiresAt: res.data.user.channelPlanExpiresAt
+                }
+            });
+            
+            dispatch({
+                type: GLOBALTYPES.ALERT,
+                payload: { success: res.data.message || `Plan mis à jour avec succès` }
+            });
+        }
+        
+        return res.data;
+        
+    } catch (err) {
+        console.error('Error updateUserPlan:', err);
+        dispatch({
+            type: GLOBALTYPES.ALERT,
+            payload: { error: err.response?.data?.error || 'Erreur lors de la mise à jour du plan' }
+        });
+        
+        dispatch({
+            type: USER_TYPES.UPDATE_USER_PLAN_FAIL,
+            payload: err.response?.data?.error
+        });
+        
+        throw err;
+    } finally {
+        dispatch({ 
+            type: GLOBALTYPES.ALERT, 
+            payload: { loading: false } 
+        });
+    }
+};
+
+// ============================================
+// ACCIÓN: Obtener transacciones de un usuario (admin)
+// ============================================
+export const getUserTransactions = (userId, token, limit = 50) => async (dispatch) => {
+    try {
+        const res = await getDataAPI(`admin/users/${userId}/transactions?limit=${limit}`, token);
+        return res.data.transactions;
+    } catch (err) {
+        console.error('Error getUserTransactions:', err);
+        return [];
+    }
+};
+
+// ============================================
+// ACCIÓN: Verificar estado del plan del usuario actual
+// ============================================
+export const checkUserPlanStatus = (token) => async (dispatch) => {
+    try {
+        const res = await getDataAPI('chargily/plan-status', token);
+        
+        if (res.data.success) {
+            // Si el plan expiró, actualizar el store
+            if (res.data.isExpired && res.data.plan === 'free') {
+                dispatch({
+                    type: USER_TYPES.UPDATE_USER,
+                    payload: { 
+                        _id: res.data.userId,
+                        channelPlan: 'free',
+                        channelPlanExpiresAt: null,
+                        isPro: false
+                    }
+                });
+            }
+            
+            return res.data;
+        }
+    } catch (err) {
+        console.error('Error checkUserPlanStatus:', err);
+        return null;
     }
 };

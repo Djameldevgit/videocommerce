@@ -1,40 +1,64 @@
-// 📂 middleware/auth.js
-
-const Users = require("../models/userModel")
-const jwt = require('jsonwebtoken')
+// middleware/auth.js - VERSIÓN CORREGIDA
+const jwt = require('jsonwebtoken');
+const User = require('../models/userModel');
 
 const auth = async (req, res, next) => {
-    try {
-        const token = req.header("Authorization")
-
-        if(!token) return res.status(400).json({msg: "Invalid Authentication."})
-
-        const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET)
-        if(!decoded) return res.status(400).json({msg: "Invalid Authentication."})
-
-        const user = await Users.findOne({_id: decoded.id}).select('-password')
-        
-        if(!user) return res.status(400).json({msg: "User not found."})
-
-        // ✅ Pasar toda la información del usuario, incluyendo rol
-        req.user = {
-            _id: user._id,
-            username: user.username,
-            email: user.email,
-            role: user.role || 'user',  // Si no tiene role, por defecto 'user'
-            avatar: user.avatar
-        }
-        
-        console.log('🔑 Usuario autenticado:', {
-            id: req.user._id,
-            username: req.user.username,
-            role: req.user.role
-        })
-        
-        next()
-    } catch (err) {
-        return res.status(500).json({msg: err.message})
+  try {
+    // 1. Obtener token del header Authorization
+    const authHeader = req.header('Authorization');
+    
+    if (!authHeader) {
+      console.log('❌ No Authorization header');
+      return res.status(401).json({ error: 'Accès non autorisé' });
     }
-}
+    
+    // 2. Extraer token (formato: "Bearer <token>")
+    const token = authHeader.startsWith('Bearer ') 
+      ? authHeader.substring(7) 
+      : authHeader;
+    
+    if (!token) {
+      console.log('❌ No token found');
+      return res.status(401).json({ error: 'Token manquant' });
+    }
+    
+    console.log('🔑 Token recibido:', token.substring(0, 30) + '...');
+    
+    // 3. Verificar token
+    const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+    console.log('✅ Token decodificado:', decoded);
+    
+    // 4. Buscar usuario en DB
+    const user = await User.findById(decoded.id || decoded._id || decoded.userId)
+      .select('-password');
+    
+    if (!user) {
+      console.log('❌ Usuario no encontrado');
+      return res.status(401).json({ error: 'Usuario no encontrado' });
+    }
+    
+    // 5. Añadir usuario a req (CON AMBOS FORMATOS para compatibilidad)
+    req.user = {
+      _id: user._id,
+      id: user._id,  // Para compatibilidad
+      ...user.toObject()
+    };
+    
+    console.log('✅ Usuario autenticado:', req.user._id);
+    next();
+    
+  } catch (err) {
+    console.error('❌ Error en auth middleware:', err.message);
+    
+    if (err.name === 'JsonWebTokenError') {
+      return res.status(401).json({ error: 'Token inválido' });
+    }
+    if (err.name === 'TokenExpiredError') {
+      return res.status(401).json({ error: 'Token expirado' });
+    }
+    
+    res.status(500).json({ error: 'Error de autenticación' });
+  }
+};
 
-module.exports = auth
+module.exports = auth;

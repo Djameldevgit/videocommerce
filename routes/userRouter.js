@@ -66,7 +66,12 @@ router.get('/user/:userId/profile', auth, userCtrl.getUserProfile);
 
 // Después (perfil del canal)
 router.get('/channel/:userId', auth, userCtrl.getChannelProfile);
+// routes/adminRoutes.js - AÑADIR ESTAS RUTAS
+// Actualizar plan de usuario
+router.patch('/users/:userId/plan', auth, userCtrl.updateUserPlan);
 
+// Obtener transacciones de un usuario
+router.get('/users/:userId/transactions', auth, userCtrl.getUserTransactions);
 
 router.patch('/user/:userId/profile-view', auth, userCtrl.registerProfileView);
 router.get('/user/:userId/profile-stats', auth, userCtrl.getProfileStats);

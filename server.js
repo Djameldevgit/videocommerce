@@ -121,7 +121,7 @@ app.use('/api', require('./routes/authRouter'));
 app.use('/api', require('./routes/userRouter'));
 app.use('/api', require('./routes/userActionRouter'));
 app.use('/api', require('./routes/rolesRouter'));
-
+app.use('/api', require('./routes/chargilyPlanRouter'));
 // --- Categorías (SOLO UNA VEZ) ---
 app.use('/api/categories', require('./routes/categoryRouter'));  // ✅ Esta se queda
 
