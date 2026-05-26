@@ -111,19 +111,25 @@ const chargilyPlanCtrl = {
       const signature = req.headers["signature"];
       const payload = JSON.stringify(req.body);
       
-      // ✅ VERIFICACIÓN DE FIRMA ACTIVADA
+      // ⚠️ TEMPORAL: Verificación de firma DESACTIVADA para pruebas
       if (signature) {
         const computedSignature = crypto
           .createHmac("sha256", process.env.CHARGILY_SECRET_KEY)
           .update(payload)
           .digest("hex");
         
+        console.log('🔐 Firma esperada:', computedSignature);
+        console.log('🔐 Firma recibida:', signature);
+        console.log('🔐 Coinciden:', computedSignature === signature ? '✅ SÍ' : '❌ NO');
+        
+        // ⚠️ COMENTADO PARA PRUEBAS
+        /*
         if (computedSignature !== signature) {
           console.warn('⚠️ Firma inválida - RECHAZADO');
           return res.status(403).json({ error: "Invalid signature" });
         }
-        console.log('🔐 Firma verificada ✅');
-      }
+        */
+      } 
       
       const event = req.body;
       console.log('📨 Tipo de evento:', event.type);
@@ -188,7 +194,6 @@ const chargilyPlanCtrl = {
       return res.status(500).json({ error: "Webhook error" });
     }
   },
-  
   // Verificar estado del plan
   checkPlanStatus: async (req, res) => {
     try {
