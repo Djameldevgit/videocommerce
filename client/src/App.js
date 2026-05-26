@@ -42,7 +42,6 @@ import PaymentSuccess from './pages/userProo/PaymentSuccess';
 import DonationPage from './pages/donationPage'
 import { getDataAPI } from './utils/fetchData';
 
-// Variables de audio
 let audioElement = null;
 let audioUnlocked = false;
 
@@ -57,6 +56,7 @@ const initAudio = () => {
 
 const forceUnlockAudio = () => {
   if (audioUnlocked || !audioElement) return;
+
   try {
     audioElement.volume = 0;
     const promise = audioElement.play();
@@ -78,7 +78,11 @@ const forceUnlockAudio = () => {
 
 const playSound = () => {
   if (!audioElement) return;
-  if (!audioUnlocked) forceUnlockAudio();
+
+  if (!audioUnlocked) {
+    forceUnlockAudio();
+  }
+
   try {
     audioElement.currentTime = 0;
     audioElement.volume = 0.8;
@@ -113,41 +117,31 @@ function AppContent() {
   const location = useLocation();
 
   // ✅ ============================================
-  // ✅ VERIFICACIÓN DE PLAN - ÚNICO Y CORRECTO
+  // ✅ VERIFICACIÓN DE PLAN DESPUÉS DE PAGO
   // ✅ ============================================
   useEffect(() => {
     const checkPlanUpdate = async () => {
       if (!auth.token) return;
       
       try {
-        console.log('🔍 [PlanCheck] Iniciando verificación...');
-        console.log('🔍 [PlanCheck] Token:', auth.token ? '✅' : '❌');
+        const res = await getDataAPI('chargily/check-plan-status', auth.token);
         
-        // Usar getDataAPI con la ruta correcta
-        const res = await getDataAPI('check-plan-status', auth.token);
-        
-        console.log('🔍 [PlanCheck] Respuesta servidor:', res.data);
-        console.log('🔍 [PlanCheck] Redux actual:', {
+        console.log('🔍 Verificando plan después de pago:');
+        console.log('Redux actual:', {
           plan: auth.user?.channelPlan,
           role: auth.user?.role,
           isPro: auth.user?.isPro
         });
-        console.log('🔍 [PlanCheck] Servidor:', {
-          plan: res.data.user?.channelPlan || res.data.plan,
-          role: res.data.user?.role || res.data.role,
-          isPro: res.data.user?.isPro || res.data.isPro
+        console.log('Servidor:', {
+          plan: res.data.user.channelPlan,
+          role: res.data.user.role,
+          isPro: res.data.user.isPro
         });
-
-        // Obtener datos del servidor (manejar ambas estructuras posibles)
-        const serverPlan = res.data.user?.channelPlan || res.data.plan;
-        const serverRole = res.data.user?.role || res.data.role;
-        const serverIsPro = res.data.user?.isPro || res.data.isPro;
-
-        // Comparar con Redux
-        if (serverPlan !== auth.user?.channelPlan || 
-            serverRole !== auth.user?.role) {
+        
+        if (res.data.user.channelPlan !== auth.user?.channelPlan ||
+            res.data.user.role !== auth.user?.role) {
           
-          console.log('⚠️ [PlanCheck] DIFERENCIA DETECTADA - Actualizando Redux');
+          console.log('⚠️ ACTUALIZANDO REDUX - Plan cambiado');
           
           dispatch({
             type: GLOBALTYPES.AUTH,
@@ -155,10 +149,10 @@ function AppContent() {
               ...auth,
               user: {
                 ...auth.user,
-                channelPlan: serverPlan,
-                role: serverRole,
-                isPro: serverIsPro,
-                channelPlanExpiresAt: res.data.user?.expiresAt || res.data.expiresAt
+                channelPlan: res.data.user.channelPlan,
+                role: res.data.user.role,
+                isPro: res.data.user.isPro,
+                channelPlanExpiresAt: res.data.user.expiresAt
               }
             }
           });
@@ -166,44 +160,22 @@ function AppContent() {
           dispatch({
             type: GLOBALTYPES.ALERT,
             payload: { 
-              success: `✅ Plan ${serverPlan} activado! Rol: ${serverRole}` 
+              success: `✅ Plan ${res.data.user.channelPlan} activado! Rol: ${res.data.user.role}` 
             }
           });
-          
-          console.log('✅ [PlanCheck] Redux actualizado correctamente');
-        } else {
-          console.log('✅ [PlanCheck] Redux ya está sincronizado');
         }
       } catch (error) {
-        console.error('❌ [PlanCheck] Error:', error.message);
-        if (error.response) {
-          console.error('❌ [PlanCheck] Status:', error.response.status);
-          console.error('❌ [PlanCheck] Data:', error.response.data);
-        }
+        console.error("Error verificando plan:", error);
       }
     };
 
-    // Ejecutar verificación
     if (auth.token) {
-      console.log('🚀 [PlanCheck] Iniciando verificación inicial');
       checkPlanUpdate();
-      
-      // También verificar cada 10 segundos (útil mientras se procesa el pago)
-      const interval = setInterval(checkPlanUpdate, 10000);
-      
-      // Verificar cuando la ventana recupera el foco
-      const handleFocus = () => {
-        console.log('👁️ [PlanCheck] Ventana enfocada - Verificando plan');
-        checkPlanUpdate();
-      };
-      window.addEventListener('focus', handleFocus);
-      
-      return () => {
-        clearInterval(interval);
-        window.removeEventListener('focus', handleFocus);
-      };
     }
-  }, [auth.token, auth.user?.channelPlan, auth.user?.role, dispatch]);
+
+    window.addEventListener('focus', checkPlanUpdate);
+    return () => window.removeEventListener('focus', checkPlanUpdate);
+  }, [auth.token]);
 
   // ✅ Inicializar audio al montar
   useEffect(() => {
@@ -214,10 +186,14 @@ function AppContent() {
   // ✅ Detectar interacción del usuario para desbloquear audio
   useEffect(() => {
     const handleInteraction = () => {
-      if (!audioUnlocked) forceUnlockAudio();
+      if (!audioUnlocked) {
+        forceUnlockAudio();
+      }
     };
+
     window.addEventListener('click', handleInteraction);
     window.addEventListener('touchstart', handleInteraction);
+
     return () => {
       window.removeEventListener('click', handleInteraction);
       window.removeEventListener('touchstart', handleInteraction);
@@ -231,8 +207,10 @@ function AppContent() {
         Notification.requestPermission();
       }
     };
+
     window.addEventListener('click', requestPermission);
     window.addEventListener('touchstart', requestPermission);
+
     return () => {
       window.removeEventListener('click', requestPermission);
       window.removeEventListener('touchstart', requestPermission);
@@ -242,39 +220,57 @@ function AppContent() {
   // ✅ Socket
   useEffect(() => {
     dispatch(refreshToken());
+
     const socket = io();
     dispatch({ type: GLOBALTYPES.SOCKET, payload: socket });
+
     return () => socket.close();
   }, [dispatch]);
 
   // ✅ NOTIFICACIONES
   useEffect(() => {
     if (!notify.data || notify.data.length === 0 || !isReady) return;
+
     const latest = notify.data[0];
+
     if (latest._id !== lastNotifyId.current) {
       lastNotifyId.current = latest._id;
+
       const title = latest.text || 'Nouvelle notification';
       const body = latest.content || `${latest.user?.username || 'Quelqu\'un'} a interagi`;
       const icon = latest.image || latest.user?.avatar || '/icon-web-01.png';
       const url = latest.url || '/';
+
       if (isPWAInstalled && 'serviceWorker' in navigator) {
         sendLocalNotification(title, body, url, icon);
       }
+
       console.log('🔔 Notificación recibida, reproduciendo sonido...');
       playSound();
       vibratePhone([200, 100, 200]);
+
       if (Notification.permission === 'granted' && !isPWAInstalled) {
         try {
-          const notification = new Notification(title, {
-            body, icon, badge: icon,
+          const notificationOptions = {
+            body: body,
+            icon: icon,
+            badge: icon,
             requireInteraction: true,
             tag: `notify-${latest._id}`,
             silent: false
-          });
+          };
+
+          const notification = new Notification(title, notificationOptions);
+
           notification.onclick = () => {
             window.focus();
             if (url) window.location.href = url;
           };
+
+          notification.onerror = (err) => {
+            console.log('❌ Error en notificación:', err);
+          };
+
         } catch (notifError) {
           console.log('⚠️ Error creando notificación:', notifError.message);
         }
@@ -284,13 +280,36 @@ function AppContent() {
 
   // ✅ Navbar
   const shouldShowNavbar = (pathname) => {
-    const explicitRoutes = ['/', '/register', '/login', '/bloqueos404', '/notify', 
-      '/create-video-page', '/admindashboard', '/admin/posts', '/message', 
-      '/profile/settings', '/users/dashboard', '/users/roles', '/donation'];
-    const prefixes = ['/edit-video/', '/video/', '/videos/trending', '/create-image-page', 
-      '/edit-image/', '/message/', '/profile/', '/donation/'];
+    const explicitRoutes = [
+      '/',
+      '/register',
+      '/login',
+      '/bloqueos404',
+      '/notify',
+      '/create-video-page',
+      '/admindashboard',
+      '/admin/posts',
+      '/message',
+      '/profile/settings',
+      '/users/dashboard',
+      '/users/roles',
+      '/donation'
+    ];
+
+    const prefixes = [
+      '/edit-video/',
+      '/video/',
+      '/videos/trending',
+      '/create-image-page',
+      '/edit-image/',
+      '/message/',
+      '/profile/',
+      '/donation/'
+    ];
+
     if (explicitRoutes.includes(pathname)) return true;
     if (prefixes.some(prefix => pathname.startsWith(prefix))) return true;
+
     return false;
   };
 
@@ -306,8 +325,10 @@ function AppContent() {
   return (
     <div className="App">
       {shouldShowNavbar(location.pathname) && <Navbar2 />}
+
       <div id="google_translate_element" style={{ display: 'none' }} />
       {auth.token && <SocketClient />}
+
       <Switch>
         <Route exact path="/" component={Home} />
         <Route exact path="/register" component={Register} />
