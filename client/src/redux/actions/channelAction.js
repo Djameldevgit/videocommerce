@@ -59,7 +59,26 @@ export const CHANNEL_TYPES = {
     CLEAR_PENDING_CHANNELS: 'CLEAR_PENDING_CHANNELS',
     
     // Error general
-    CHANNEL_ERROR: 'CHANNEL_ERROR'
+    CHANNEL_ERROR: 'CHANNEL_ERROR',
+
+    DELETE_CHANNEL_REQUEST: 'DELETE_CHANNEL_REQUEST',
+    DELETE_CHANNEL_SUCCESS: 'DELETE_CHANNEL_SUCCESS',
+    DELETE_CHANNEL_FAIL: 'DELETE_CHANNEL_FAIL',
+    
+    REPORT_CHANNEL_REQUEST: 'REPORT_CHANNEL_REQUEST',
+    REPORT_CHANNEL_SUCCESS: 'REPORT_CHANNEL_SUCCESS',
+    REPORT_CHANNEL_FAIL: 'REPORT_CHANNEL_FAIL',
+    
+    BLOCK_CHANNEL_REQUEST: 'BLOCK_CHANNEL_REQUEST',
+    BLOCK_CHANNEL_SUCCESS: 'BLOCK_CHANNEL_SUCCESS',
+    BLOCK_CHANNEL_FAIL: 'BLOCK_CHANNEL_FAIL',
+    
+    REGISTER_CHANNEL_SHARE: 'REGISTER_CHANNEL_SHARE',
+    GET_CHANNEL_CONTACT: 'GET_CHANNEL_CONTACT'
+
+
+
+
 };
 
  
@@ -561,5 +580,166 @@ export const getUserFollowingChannels = (userId, token) => async (dispatch) => {
     } catch (err) {
         console.error('❌ Error getUserFollowingChannels:', err);
         return null;
+    }
+};
+
+// frontend/src/redux/actions/channelAction.js
+
+// frontend/src/redux/actions/channelAction.js
+
+export const deleteChannel = (channelId, reason, token, history) => async (dispatch) => {
+    try {
+        dispatch({ type: CHANNEL_TYPES.DELETE_CHANNEL_REQUEST });
+        
+        // ✅ Extraer token string si viene como objeto
+        let finalToken = token;
+        
+        // Si token es un objeto (como auth completo), extraer el token
+        if (typeof token === 'object' && token !== null) {
+            console.warn('⚠️ Token recibido como objeto, extrayendo...');
+            finalToken = token.token || token.access_token;
+            
+            if (!finalToken) {
+                throw new Error('No se encontró token en el objeto');
+            }
+        }
+        
+        // Verificar que sea string
+        if (typeof finalToken !== 'string') {
+            console.error('Token inválido:', finalToken);
+            throw new Error('Token de autenticación inválido');
+        }
+        
+        console.log('✅ Token válido, longitud:', finalToken.length);
+        
+        const res = await deleteDataAPI(`channels/${channelId}`, { reason }, finalToken);
+        
+        dispatch({
+            type: CHANNEL_TYPES.DELETE_CHANNEL_SUCCESS,
+            payload: channelId
+        });
+        
+        dispatch({
+            type: GLOBALTYPES.ALERT,
+            payload: { success: res.data.message || 'Canal eliminado correctamente' }
+        });
+        
+        if (history) {
+            setTimeout(() => history.push('/my-channels'), 1500);
+        }
+        
+        return { success: true };
+        
+    } catch (err) {
+        console.error('❌ Error deleteChannel:', err);
+        
+        dispatch({
+            type: CHANNEL_TYPES.DELETE_CHANNEL_FAIL,
+            payload: err.response?.data?.error || err.message
+        });
+        
+        dispatch({
+            type: GLOBALTYPES.ALERT,
+            payload: { error: err.response?.data?.error || 'Error al eliminar el canal' }
+        });
+        
+        return { success: false };
+    }
+};
+// ==================== REPORTAR CANAL ====================
+export const reportChannel = (channelId, reportData, auth) => async (dispatch) => {
+    try {
+        dispatch({ type: CHANNEL_TYPES.REPORT_CHANNEL_REQUEST });
+        
+        const res = await postDataAPI(`channels/${channelId}/report`, reportData, auth.token);
+        
+        dispatch({
+            type: CHANNEL_TYPES.REPORT_CHANNEL_SUCCESS,
+            payload: { channelId, reportCount: res.data.reportCount }
+        });
+        
+        dispatch({
+            type: GLOBALTYPES.ALERT,
+            payload: { success: res.data.message || 'Reporte enviado' }
+        });
+        
+        return { success: true };
+        
+    } catch (err) {
+        console.error('❌ Error reportChannel:', err);
+        dispatch({
+            type: CHANNEL_TYPES.REPORT_CHANNEL_FAIL,
+            payload: err.response?.data?.message || 'Error al reportar'
+        });
+        dispatch({
+            type: GLOBALTYPES.ALERT,
+            payload: { error: err.response?.data?.message || 'Error al reportar' }
+        });
+        return { success: false };
+    }
+};
+
+// ==================== BLOQUEAR CANAL ====================
+export const blockChannel = (channelId, auth) => async (dispatch) => {
+    try {
+        dispatch({ type: CHANNEL_TYPES.BLOCK_CHANNEL_REQUEST });
+        
+        const res = await patchDataAPI(`channels/${channelId}/block`, {}, auth.token);
+        
+        dispatch({
+            type: CHANNEL_TYPES.BLOCK_CHANNEL_SUCCESS,
+            payload: { channelId, isBlocked: res.data.isBlocked }
+        });
+        
+        dispatch({
+            type: GLOBALTYPES.ALERT,
+            payload: { success: res.data.message }
+        });
+        
+        return { success: true, isBlocked: res.data.isBlocked };
+        
+    } catch (err) {
+        console.error('❌ Error blockChannel:', err);
+        dispatch({
+            type: CHANNEL_TYPES.BLOCK_CHANNEL_FAIL,
+            payload: err.response?.data?.message || 'Error al bloquear'
+        });
+        return { success: false };
+    }
+};
+
+// ==================== REGISTRAR COMPARTIDO ====================
+export const registerChannelShare = (channelId, auth) => async (dispatch) => {
+    try {
+        const res = await postDataAPI(`channels/${channelId}/share`, {}, auth?.token);
+        
+        dispatch({
+            type: CHANNEL_TYPES.REGISTER_CHANNEL_SHARE,
+            payload: { channelId, shareCount: res.data.shareCount }
+        });
+        
+        return { success: true };
+        
+    } catch (err) {
+        console.error('❌ Error registerShare:', err);
+        return { success: false };
+    }
+};
+
+// ==================== OBTENER INFO DE CONTACTO ====================
+export const getChannelContact = (channelId, auth) => async (dispatch) => {
+    try {
+        const res = await getDataAPI(`channels/${channelId}/contact`, auth.token);
+        
+        dispatch({
+            type: CHANNEL_TYPES.GET_CHANNEL_CONTACT,
+            payload: res.data.contact
+        });
+        
+        return { success: true, contact: res.data.contact };
+        
+    } catch (err) {
+        console.error('❌ Error getChannelContact:', err);
+        return { success: false };
     }
 };

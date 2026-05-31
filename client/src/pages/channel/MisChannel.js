@@ -11,7 +11,8 @@ import {
   Spinner, 
   Badge,
   Alert,
-  Toast
+  Toast,
+  Dropdown
 } from 'react-bootstrap';
 import { 
   Tv, 
@@ -25,11 +26,13 @@ import {
   CheckCircle,
   Building,
   InfoCircle,
-  Clock
+  Clock,
+  ThreeDotsVertical,
+  Trash3
 } from 'react-bootstrap-icons';
-import { getMyChannels } from '../../redux/actions/channelAction';
- 
+import { getMyChannels, deleteChannel, CHANNEL_TYPES } from '../../redux/actions/channelAction';
 import useUserPlan from '../../components/useUserPlan';
+import { GLOBALTYPES } from '../../redux/actions/globalTypes';
 
 const MisChannel = () => {
   const dispatch = useDispatch();
@@ -38,6 +41,11 @@ const MisChannel = () => {
   // ✅ Selectors con valores por defecto para evitar undefined
   const { token, user } = useSelector(state => state.auth || {});
   const { userChannels = [], loading = false } = useSelector(state => state.channel || {});
+  
+  // ✅ Estado para el dropdown y eliminación
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [channelToDelete, setChannelToDelete] = useState(null);
+  const [deletingChannelId, setDeletingChannelId] = useState(null);
   
   // ✅ Hook para obtener el plan del usuario
   const { 
@@ -58,6 +66,16 @@ const MisChannel = () => {
   // ✅ Usar ref para evitar llamadas duplicadas
   const hasLoadedRef = useRef(false);
   const loadingRef = useRef(false);
+
+  // ✅ Función para obtener token como string
+  const getAuthToken = () => {
+    if (!token) return null;
+    if (typeof token === 'string') return token;
+    if (typeof token === 'object' && token !== null) {
+      return token.token || token.access_token || null;
+    }
+    return null;
+  };
 
   // ✅ Cargar canales del usuario
   useEffect(() => {
@@ -113,6 +131,85 @@ const MisChannel = () => {
       return;
     }
     history.push('/channel/new');
+  };
+
+  // ✅ Manejador para ver canal
+  const handleViewChannel = (channelId) => {
+    history.push(`/channel/${channelId}`);
+  };
+
+  // ✅ Manejador para editar canal
+  const handleEditChannel = (channelId) => {
+    history.push(`/channel/${channelId}/edit`);
+  };
+
+  // ✅ Manejador para eliminar canal
+  const handleDeleteClick = (channel) => {
+    setChannelToDelete(channel);
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDeleteChannel = async () => {
+    if (!channelToDelete) return;
+    
+    const authToken = getAuthToken();
+    if (!authToken) {
+      dispatch({ 
+        type: GLOBALTYPES.ALERT, 
+        payload: { error: "Vous devez être connecté" } 
+      });
+      return;
+    }
+    
+    setDeletingChannelId(channelToDelete._id);
+    
+    dispatch({ type: GLOBALTYPES.ALERT, payload: { loading: true } });
+    
+    try {
+      // ✅ Usar fetch directamente para DELETE
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/channels/${channelToDelete._id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ 
+          reason: "Canal supprimé par le propriétaire depuis la page Mes chaînes" 
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        // ✅ IMPORTANTE: Usar la constante correcta del CHANNEL_TYPES
+        dispatch({ 
+          type: CHANNEL_TYPES.DELETE_CHANNEL_SUCCESS,  // ← Usar la constante importada
+          payload: channelToDelete._id 
+        });
+        
+        // ✅ Mostrar mensaje de éxito
+        dispatch({ 
+          type: GLOBALTYPES.ALERT, 
+          payload: { success: data.message || "Canal supprimé avec succès" } 
+        });
+        
+        // ✅ Cerrar modal
+        setShowDeleteConfirm(false);
+        setChannelToDelete(null);
+        
+      } else {
+        throw new Error(data.message || data.error || "Erreur lors de la suppression");
+      }
+    } catch (err) {
+      console.error('❌ Error deleteChannel:', err);
+      dispatch({ 
+        type: GLOBALTYPES.ALERT, 
+        payload: { error: err.message || "Erreur lors de la suppression du canal" } 
+      });
+    } finally {
+      dispatch({ type: GLOBALTYPES.ALERT, payload: { loading: false } });
+      setDeletingChannelId(null);
+    }
   };
 
   // ✅ Renderizar badge del plan
@@ -197,18 +294,6 @@ const MisChannel = () => {
         )}
       </div>
     );
-  };
-
-  // ✅ Renderizar icono del plan
-  const getPlanIconForChannel = (plan) => {
-    const icons = {
-      free: '🆓',
-      basic: '⭐',
-      pro: '🚀',
-      business: '👑',
-      enterprise: '🏢'
-    };
-    return icons[plan] || '📺';
   };
 
   const channelCount = userChannels?.length || 0;
@@ -361,6 +446,34 @@ const MisChannel = () => {
                           <CheckCircle size={12} /> Vérifié
                         </Badge>
                       )}
+                      
+                      {/* ✅ DROPDOWN DE TRES PUNTOS */}
+                      <Dropdown className="position-absolute top-0 end-0 mt-2 me-2">
+                        <Dropdown.Toggle 
+                          variant="light" 
+                          size="sm" 
+                          className="rounded-circle bg-white bg-opacity-75 border-0"
+                          style={{ width: '32px', height: '32px' }}
+                        >
+                          <ThreeDotsVertical size={16} />
+                        </Dropdown.Toggle>
+                        
+                        <Dropdown.Menu align="end">
+                          <Dropdown.Item onClick={() => handleViewChannel(channel._id)}>
+                            <Eye size={14} className="me-2" /> Voir la chaîne
+                          </Dropdown.Item>
+                          <Dropdown.Item onClick={() => handleEditChannel(channel._id)}>
+                            <Pencil size={14} className="me-2" /> Modifier
+                          </Dropdown.Item>
+                          <Dropdown.Divider />
+                          <Dropdown.Item 
+                            onClick={() => handleDeleteClick(channel)}
+                            className="text-danger"
+                          >
+                            <Trash3 size={14} className="me-2" /> Supprimer
+                          </Dropdown.Item>
+                        </Dropdown.Menu>
+                      </Dropdown>
                     </div>
 
                     {/* Body de la tarjeta */}
@@ -426,19 +539,25 @@ const MisChannel = () => {
                     </Card.Body>
 
                     {/* Footer con botones */}
-                    <Card.Footer className="bg-white border-top-0 d-flex justify-content-between gap-2 pb-3">
-                      <Link 
-                        to={`/channel/${channel._id}`} 
-                        className="btn btn-sm btn-outline-primary rounded-pill px-3 flex-grow-1"
-                      >
-                        <Eye size={14} className="me-1" /> Voir
-                      </Link>
-                      <Link 
-                        to={`/channel/${channel._id}/edit`} 
-                        className="btn btn-sm btn-outline-secondary rounded-pill px-3 flex-grow-1"
-                      >
-                        <Pencil size={14} className="me-1" /> Modifier
-                      </Link>
+                    <Card.Footer className="bg-white border-top-0 pb-3">
+                      <div className="d-flex justify-content-center gap-2">
+                        <Button 
+                          variant="outline-primary" 
+                          size="sm"
+                          onClick={() => handleViewChannel(channel._id)}
+                          className="rounded-pill px-3"
+                        >
+                          <Eye size={14} className="me-1" /> Voir
+                        </Button>
+                        <Button 
+                          variant="outline-secondary" 
+                          size="sm"
+                          onClick={() => handleEditChannel(channel._id)}
+                          className="rounded-pill px-3"
+                        >
+                          <Pencil size={14} className="me-1" /> Modifier
+                        </Button>
+                      </div>
                     </Card.Footer>
                   </Card>
                 </Col>
@@ -472,6 +591,56 @@ const MisChannel = () => {
           </>
         )}
       </Container>
+
+      {/* ✅ MODAL DE CONFIRMACIÓN PARA ELIMINAR */}
+      {showDeleteConfirm && channelToDelete && (
+        <div className="modal-overlay-custom" onClick={() => setShowDeleteConfirm(false)}>
+          <div className="modal-content-custom" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-custom">
+              <h3><Trash3 size={20} className="me-2 text-danger" /> Supprimer le canal</h3>
+              <button className="btn-close-custom" onClick={() => setShowDeleteConfirm(false)}>✕</button>
+            </div>
+            <div className="modal-body-custom">
+              <p>Êtes-vous sûr de vouloir supprimer définitivement le canal <strong>{channelToDelete.name}</strong> ?</p>
+              <div className="warning-box-custom">
+                <span>⚠️</span>
+                <span>Cette action supprimera également toutes les vidéos associées et ne peut pas être annulée.</span>
+              </div>
+              <div className="channel-info-custom">
+                <small>ID: {channelToDelete._id}</small><br />
+                <small>Vidéos: {channelToDelete.totalVideos || 0}</small><br />
+                <small>Abonnés: {channelToDelete.followersCount || 0}</small>
+              </div>
+            </div>
+            <div className="modal-footer-custom">
+              <button 
+                className="btn-cancel-custom" 
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deletingChannelId === channelToDelete._id}
+              >
+                Annuler
+              </button>
+              <button 
+                className="btn-delete-custom" 
+                onClick={confirmDeleteChannel}
+                disabled={deletingChannelId === channelToDelete._id}
+              >
+                {deletingChannelId === channelToDelete._id ? (
+                  <>
+                    <Spinner size="sm" animation="border" className="me-2" />
+                    Suppression...
+                  </>
+                ) : (
+                  <>
+                    <Trash3 size={14} className="me-2" />
+                    Supprimer définitivement
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Estilos CSS */}
       <style jsx="true">{`
@@ -529,6 +698,138 @@ const MisChannel = () => {
         
         .progress-bar {
           transition: width 0.3s ease;
+        }
+        
+        /* Estilos del modal */
+        .modal-overlay-custom {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.7);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 10000;
+        }
+        
+        .modal-content-custom {
+          background: white;
+          border-radius: 16px;
+          max-width: 500px;
+          width: 90%;
+          overflow: hidden;
+          animation: modalFadeIn 0.2s ease;
+        }
+        
+        @keyframes modalFadeIn {
+          from {
+            opacity: 0;
+            transform: scale(0.95);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+        
+        .modal-header-custom {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 20px 24px;
+          border-bottom: 1px solid #e9ecef;
+          background: #f8f9fa;
+        }
+        
+        .modal-header-custom h3 {
+          margin: 0;
+          font-size: 1.25rem;
+          display: flex;
+          align-items: center;
+        }
+        
+        .btn-close-custom {
+          background: none;
+          border: none;
+          font-size: 1.5rem;
+          cursor: pointer;
+          color: #6c757d;
+          transition: color 0.2s;
+        }
+        
+        .btn-close-custom:hover {
+          color: #343a40;
+        }
+        
+        .modal-body-custom {
+          padding: 24px;
+        }
+        
+        .warning-box-custom {
+          background: #fff3cd;
+          border: 1px solid #ffc107;
+          border-radius: 8px;
+          padding: 12px;
+          margin: 16px 0;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          color: #856404;
+          font-size: 14px;
+        }
+        
+        .channel-info-custom {
+          background: #f8f9fa;
+          border-radius: 8px;
+          padding: 12px;
+          font-size: 12px;
+          color: #6c757d;
+        }
+        
+        .modal-footer-custom {
+          display: flex;
+          justify-content: flex-end;
+          gap: 12px;
+          padding: 16px 24px;
+          border-top: 1px solid #e9ecef;
+          background: #f8f9fa;
+        }
+        
+        .btn-cancel-custom {
+          padding: 8px 20px;
+          border-radius: 8px;
+          border: 1px solid #dee2e6;
+          background: white;
+          color: #6c757d;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        
+        .btn-cancel-custom:hover {
+          background: #f8f9fa;
+        }
+        
+        .btn-delete-custom {
+          padding: 8px 20px;
+          border-radius: 8px;
+          border: none;
+          background: #dc3545;
+          color: white;
+          cursor: pointer;
+          transition: all 0.2s;
+          display: flex;
+          align-items: center;
+        }
+        
+        .btn-delete-custom:hover:not(:disabled) {
+          background: #c82333;
+        }
+        
+        .btn-delete-custom:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
         }
         
         @media (max-width: 768px) {

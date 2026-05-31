@@ -24,7 +24,7 @@ const useUserPlan = () => {
     return names[plan] || 'Gratuit';
   };
   
-  // ✅ Obtener color del plan
+  // Obtener color del plan
   const getPlanColor = () => {
     const plan = getCurrentPlan();
     const colors = {
@@ -36,7 +36,7 @@ const useUserPlan = () => {
     return colors[plan] || '#6c757d';
   };
   
-  // ✅ Obtener ícono del plan
+  // Obtener ícono del plan
   const getPlanIcon = () => {
     const plan = getCurrentPlan();
     const icons = {
@@ -112,51 +112,52 @@ const useUserPlan = () => {
     return limits[plan] || limits.free;
   };
   
-  // ✅ Verificar si es UserPro (VALOR, no función)
+  // Verificar si es UserPro
   const isUserPro = user?.role === 'userpro';
   
-  // ✅ Verificar si el plan está activo (VALOR, no función)
+  // Verificar si el plan está activo
   const hasActivePlan = () => {
     if (!isUserPro) return false;
     if (!user?.channelPlanExpiresAt) return true;
     return new Date(user.channelPlanExpiresAt) > new Date();
   };
   
-  // ✅ Verificar si el plan ha expirado
+  // Verificar si el plan ha expirado
   const isExpired = () => {
     if (!isUserPro) return false;
     if (!user?.channelPlanExpiresAt) return false;
     return new Date(user.channelPlanExpiresAt) < new Date();
   };
   
-  // ✅ Obtener días restantes
+  // ✅ FUNCIÓN para obtener días restantes
   const getDaysRemaining = () => {
     if (!isUserPro || !user?.channelPlanExpiresAt) return 0;
     const diff = new Date(user.channelPlanExpiresAt) - new Date();
-    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+    const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+    return days > 0 ? days : 0;
   };
   
-  // ✅ Verificar si puede crear un nuevo canal
+  // Verificar si puede crear un nuevo canal
   const canCreateChannel = (currentChannelCount) => {
     const limits = getPlanLimits();
     if (limits.maxChannels === 'unlimited') return true;
     return currentChannelCount < limits.maxChannels;
   };
   
-  // ✅ Verificar si puede subir un video
+  // Verificar si puede subir un video
   const canUploadVideo = (currentVideoCount) => {
     const limits = getPlanLimits();
     if (limits.maxVideos === 'unlimited') return true;
     return currentVideoCount < limits.maxVideos;
   };
   
-  // ✅ Verificar si el video cumple con la duración máxima
+  // Verificar si el video cumple con la duración máxima
   const isValidDuration = (durationInSeconds) => {
     const limits = getPlanLimits();
     return durationInSeconds <= limits.maxDuration;
   };
   
-  // ✅ Verificar si tiene una acción específica disponible
+  // Verificar si tiene una acción específica disponible
   const hasAction = (action) => {
     const limits = getPlanLimits();
     return limits[action] === true;
@@ -169,9 +170,9 @@ const useUserPlan = () => {
     planIcon: getPlanIcon(),
     planLimits: getPlanLimits(),
     isUserPro,
-    hasActivePlan: hasActivePlan(),  // ✅ VALOR booleano, no función
-    isExpired: isExpired(),           // ✅ VALOR booleano
-    getDaysRemaining: getDaysRemaining(), // ✅ VALOR numérico
+    hasActivePlan: hasActivePlan(),     // ✅ Valor booleano
+    isExpired: isExpired(),              // ✅ Valor booleano
+    getDaysRemaining,                    // ✅ AHORA ES UNA FUNCIÓN (sin paréntesis)
     canCreateChannel,
     canUploadVideo,
     isValidDuration,

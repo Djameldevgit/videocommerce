@@ -12,25 +12,29 @@ import {
   faPlay, faCommentDots,
   faInfoCircle, faPhone, faEnvelope as faEnvelopeSolid,
   faGlobe, faMapMarkerAlt,
-  faFlag, faBan, faTrashAlt, faEdit, faImage,
-  faCalendarAlt, faVideo, faEye, faThumbsUp
+  faFlag, faBan, faEdit, faImage,
+  faVideo, faEye, faThumbsUp,
+  faExclamationTriangle, faClock, faHourglassHalf
 } from '@fortawesome/free-solid-svg-icons';
 
 import { 
   toggleFollowChannel, 
   getChannelVideos,
   clearChannelState,
-  getChannelProfile
+  getChannelProfile,
+  reportChannel,
+  blockChannel,
+  registerChannelShare,
+  getChannelContact
 } from '../../redux/actions/channelAction';
 import { toggleSaveVideo, getSavedVideos, getLikedVideos } from '../../redux/actions/userVideoAction';
 import LoadMoreBtn from '../../components/LoadMoreBtn';
- 
- import VideoCardVertical from '../../components/VideoCardVertical';
+import VideoCardVertical from '../../components/VideoCardVertical';
 import './ChannelProfile.css';
 import HeaderVideo from '../HeaderVideo';
 import useUserPlan from '../../components/useUserPlan';
 import { GLOBALTYPES } from '../../redux/actions/globalTypes';
-
+import { CHANNEL_TYPES } from '../../redux/actions/channelAction';
 
 const CLEAR_CHANNEL = 'CLEAR_CHANNEL';
 
@@ -51,6 +55,38 @@ const formatNumber = (num) => {
   if (num >= 1_000_000) return (num / 1_000_000).toFixed(1) + 'M';
   if (num >= 1_000) return (num / 1_000).toFixed(1) + 'K';
   return num.toString();
+};
+
+// ==================== FUNCIÓN PARA OBTENER TOKEN CORRECTAMENTE ====================
+const getAuthToken = (auth) => {
+  if (!auth) return null;
+  
+  if (typeof auth.token === 'string' && auth.token) {
+    return auth.token;
+  }
+  
+  if (typeof auth.token === 'object' && auth.token !== null) {
+    return auth.token.token || auth.token.access_token || null;
+  }
+  
+  const localToken = localStorage.getItem('access_token') || 
+                     localStorage.getItem('token') ||
+                     (() => {
+                       try {
+                         const authStore = localStorage.getItem('auth');
+                         if (authStore) {
+                           const parsed = JSON.parse(authStore);
+                           return parsed.token || parsed.access_token;
+                         }
+                       } catch (e) {
+                         return null;
+                       }
+                       return null;
+                     })();
+  
+  if (localToken) return localToken;
+  
+  return null;
 };
 
 // ==================== LOADING SPINNER ====================
@@ -104,7 +140,10 @@ const AvatarWithFallback = ({ src, alt, className, name, onClick, size = 'large'
 };
 
 // ==================== BANNER COMPONENTE PROFESIONAL ====================
-const ChannelBanner = ({ cover, channelName, planColor, onBack, onMessage, isOwner, onEdit, onShare, onContact, onDelete, onReport, onBlock }) => {
+const ChannelBanner = ({ 
+  cover, channelName, planColor, onBack, onMessage, isOwner, 
+  onEdit, onShare, onContact, onReport, onBlock 
+}) => {
   const [bannerError, setBannerError] = useState(false);
   const [bannerLoaded, setBannerLoaded] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -137,17 +176,30 @@ const ChannelBanner = ({ cover, channelName, planColor, onBack, onMessage, isOwn
             <div className="channel-profile-menu">
               {isOwner ? (
                 <>
-                  <button onClick={onEdit}><FontAwesomeIcon icon={faEdit} /> Modifier</button>
-                  <button onClick={onContact}><FontAwesomeIcon icon={faInfoCircle} /> Contact</button>
-                  <button onClick={onShare}><FontAwesomeIcon icon={faShare} /> Partager</button>
-                  <button onClick={onDelete} className="delete"><FontAwesomeIcon icon={faTrashAlt} /> Supprimer</button>
+                  <button onClick={onEdit}>
+                    <FontAwesomeIcon icon={faEdit} /> Modifier
+                  </button>
+                  <button onClick={onContact}>
+                    <FontAwesomeIcon icon={faInfoCircle} /> Contact
+                  </button>
+                  <button onClick={onShare}>
+                    <FontAwesomeIcon icon={faShare} /> Partager
+                  </button>
                 </>
               ) : (
                 <>
-                  <button onClick={onReport}><FontAwesomeIcon icon={faFlag} /> Signaler</button>
-                  <button onClick={onBlock}><FontAwesomeIcon icon={faBan} /> Bloquer</button>
-                  <button onClick={onMessage}><FontAwesomeIcon icon={faEnvelope} /> Message</button>
-                  <button onClick={onShare}><FontAwesomeIcon icon={faShare} /> Partager</button>
+                  <button onClick={onReport}>
+                    <FontAwesomeIcon icon={faFlag} /> Signaler
+                  </button>
+                  <button onClick={onBlock}>
+                    <FontAwesomeIcon icon={faBan} /> Bloquer
+                  </button>
+                  <button onClick={onMessage}>
+                    <FontAwesomeIcon icon={faEnvelope} /> Message
+                  </button>
+                  <button onClick={onShare}>
+                    <FontAwesomeIcon icon={faShare} /> Partager
+                  </button>
                 </>
               )}
             </div>
@@ -205,15 +257,23 @@ const ChannelProfile = () => {
   const [showContactInfo, setShowContactInfo] = useState(false);
   const [showPlanInfo, setShowPlanInfo] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [reportReason, setReportReason] = useState('');
   const [reportDescription, setReportDescription] = useState('');
+  const [contactInfo, setContactInfo] = useState(null);
+  const [isBlocked, setIsBlocked] = useState(false);
 
   const isOwner = auth.user?._id && channel?.owner?._id && 
     auth.user._id.toString() === channel.owner._id.toString();
   
+  // ✅ Verificar si el canal está pendiente de aprobación
+  const isPending = channel?.pending === true;
+  
   const currentVideoCount = videos.length;
   const maxVideos = planLimits?.maxVideos || 5;
   const canUploadMore = canUploadVideo(currentVideoCount);
+
+  // ==================== OBTENER TOKEN CORRECTAMENTE ====================
+  const token = getAuthToken(auth);
 
   // ==================== EFECTOS ====================
   useEffect(() => {
@@ -221,8 +281,8 @@ const ChannelProfile = () => {
 
     const loadChannelData = async () => {
       try {
-        await dispatch(getChannelProfile(channelId, auth?.token));
-        await dispatch(getChannelVideos(channelId, 1, 12, auth?.token));
+        await dispatch(getChannelProfile(channelId, token));
+        await dispatch(getChannelVideos(channelId, 1, 12, token));
       } catch (err) {
         console.error('Error loading channel:', err);
       }
@@ -234,7 +294,7 @@ const ChannelProfile = () => {
       if (clearChannelState) dispatch(clearChannelState());
       dispatch({ type: CLEAR_CHANNEL });
     };
-  }, [dispatch, channelId, auth?.token]);
+  }, [dispatch, channelId, token]);
 
   useEffect(() => {
     if (error) {
@@ -242,42 +302,146 @@ const ChannelProfile = () => {
     }
   }, [error, dispatch]);
 
-  // ==================== HANDLERS ====================
-  const handleBack = () => history.goBack();
-  const handleMessage = () => history.push(`/message/${channel?.owner?._id}`);
-  const handleEditProfile = () => history.push(`/channel/${channelId}/edit`);
-  const handleAvatarClick = () => { if (isOwner) handleEditProfile(); };
+  // ==================== HANDLERS DEL DROPDOWN ====================
   
-  const handleShareProfile = () => {
-    const url = `${window.location.origin}/channel/${channelId}`;
-    if (navigator.share) {
-      navigator.share({ title: `Canal de ${channel?.name}`, url }).catch(() => {});
-    } else {
-      navigator.clipboard.writeText(url);
-      dispatch({ type: GLOBALTYPES.ALERT, payload: { success: "Lien copié dans le presse-papier" } });
-    }
-  };
-
-  const handleFollow = useCallback(async () => {
-    if (!auth.token) {
+  // 1. Volver atrás
+  const handleBack = () => history.goBack();
+  
+  // 2. Enviar mensaje al dueño del canal
+  const handleMessage = () => {
+    if (!token) {
+      dispatch({ type: GLOBALTYPES.ALERT, payload: { error: "Connectez-vous pour envoyer un message" } });
       history.push('/login');
       return;
     }
-    const result = await dispatch(toggleFollowChannel(channelId, auth.token, auth));
+    history.push(`/message/${channel?.owner?._id}`);
+  };
+  
+  // 3. Editar perfil (solo dueño)
+  const handleEditProfile = () => history.push(`/channel/${channelId}/edit`);
+  const handleAvatarClick = () => { if (isOwner) handleEditProfile(); };
+  
+  // 4. Compartir canal (con analytics)
+  const handleShareProfile = async () => {
+    const url = `${window.location.origin}/channel/${channelId}`;
+    
+    if (token) {
+      await dispatch(registerChannelShare(channelId, { token }));
+    }
+    
+    if (navigator.share) {
+      try {
+        await navigator.share({ 
+          title: `Canal de ${channel?.name}`, 
+          text: `Découvrez le canal ${channel?.name} sur notre plateforme !`,
+          url 
+        });
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          console.log('Error sharing:', err);
+        }
+      }
+    } else {
+      navigator.clipboard.writeText(url);
+      dispatch({ type: GLOBALTYPES.ALERT, payload: { success: "Lien copié dans le presse-papier !" } });
+    }
+  };
+
+  // 5. Ver información de contacto (requiere auth)
+  const handleContact = async () => {
+    if (!token) {
+      dispatch({ type: GLOBALTYPES.ALERT, payload: { error: "Connectez-vous pour voir les informations de contact" } });
+      history.push('/login');
+      return;
+    }
+    
+    if (!showContactInfo) {
+      const result = await dispatch(getChannelContact(channelId, { token }));
+      if (result.success) {
+        setContactInfo(result.contact);
+        setShowContactInfo(true);
+      }
+    } else {
+      setShowContactInfo(false);
+      setContactInfo(null);
+    }
+  };
+
+  // 6. Reportar canal (usuarios externos)
+  const handleReportChannel = async () => {
+    if (!token) {
+      dispatch({ type: GLOBALTYPES.ALERT, payload: { error: "Connectez-vous pour signaler" } });
+      history.push('/login');
+      return;
+    }
+    
+    if (!reportReason) {
+      dispatch({ type: GLOBALTYPES.ALERT, payload: { error: "Veuillez sélectionner une raison" } });
+      return;
+    }
+    
+    const reportData = {
+      reason: reportReason,
+      description: reportDescription
+    };
+    
+    const result = await dispatch(reportChannel(channelId, reportData, { token }));
+    if (result.success) {
+      setShowReportModal(false);
+      setReportReason('');
+      setReportDescription('');
+    }
+  };
+
+  // 7. Bloquear/Desbloquear canal (usuarios externos)
+  const handleBlockChannel = async () => {
+    if (!token) {
+      dispatch({ type: GLOBALTYPES.ALERT, payload: { error: "Connectez-vous pour bloquer" } });
+      history.push('/login');
+      return;
+    }
+    
+    const confirmBlock = window.confirm(
+      isBlocked 
+        ? `Voulez-vous débloquer le canal "${channel?.name}" ?`
+        : `⚠️ Êtes-vous sûr de vouloir bloquer le canal "${channel?.name}" ?\n\nVous ne verrez plus son contenu.`
+    );
+    
+    if (!confirmBlock) return;
+    
+    const result = await dispatch(blockChannel(channelId, { token }));
+    if (result.success) {
+      setIsBlocked(result.isBlocked);
+      if (result.isBlocked) {
+        setTimeout(() => {
+          history.push('/');
+        }, 1500);
+      }
+    }
+  };
+
+  // 8. Seguir canal
+  const handleFollow = useCallback(async () => {
+    if (!token) {
+      history.push('/login');
+      return;
+    }
+    const result = await dispatch(toggleFollowChannel(channelId, { token, user: auth.user }, null));
     if (result?.success && channel) {
       const updatedChannel = { ...channel, isFollowing: result.isFollowing, followersCount: result.followersCount };
       dispatch({ type: 'GET_CHANNEL_PROFILE_SUCCESS', payload: updatedChannel });
     }
-  }, [channelId, auth.token, history, dispatch, auth, channel]);
+  }, [channelId, token, auth.user, history, dispatch, channel]);
 
+  // 9. Guardar video
   const handleSaveVideo = useCallback(async (videoId) => {
-    if (!auth.token) {
+    if (!token) {
       history.push('/login');
       return false;
     }
-    const result = await dispatch(toggleSaveVideo(videoId, auth.token));
+    const result = await dispatch(toggleSaveVideo(videoId, token));
     return result?.success || false;
-  }, [auth.token, history, dispatch]);
+  }, [token, history, dispatch]);
 
   const handleVideoClick = (videoId) => {
     sessionStorage.setItem('returnToChannel', 'true');
@@ -297,22 +461,22 @@ const ChannelProfile = () => {
   const handleTabChange = useCallback((tab) => {
     setActiveTab(tab);
     setCurrentPage(1);
-    if (tab === 'saved' && auth?.token && savedVideos.length === 0) {
-      dispatch(getSavedVideos(1, 20, auth.token));
+    if (tab === 'saved' && token && savedVideos.length === 0) {
+      dispatch(getSavedVideos(1, 20, token));
     }
-    if (tab === 'liked' && auth?.token && likedVideos.length === 0) {
-      dispatch(getLikedVideos(1, 20, auth.token));
+    if (tab === 'liked' && token && likedVideos.length === 0) {
+      dispatch(getLikedVideos(1, 20, token));
     }
-  }, [auth?.token, dispatch, savedVideos.length, likedVideos.length]);
+  }, [token, dispatch, savedVideos.length, likedVideos.length]);
 
   const loadMoreVideos = useCallback(async () => {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
     const nextPage = currentPage + 1;
-    await dispatch(getChannelVideos(channelId, nextPage, 12, auth?.token));
+    await dispatch(getChannelVideos(channelId, nextPage, 12, token));
     setCurrentPage(nextPage);
     setLoadingMore(false);
-  }, [loadingMore, hasMore, currentPage, dispatch, channelId, auth?.token]);
+  }, [loadingMore, hasMore, currentPage, dispatch, channelId, token]);
 
   const getCurrentVideos = () => {
     if (activeTab === 'videos') return videos;
@@ -322,12 +486,51 @@ const ChannelProfile = () => {
   };
 
   const getCurrentHasMore = () => activeTab === 'videos' ? hasMore : false;
-  const getCurrentTotal = () => {
-    if (activeTab === 'videos') return totalVideos;
-    if (activeTab === 'saved') return savedVideos.length;
-    if (activeTab === 'liked') return likedVideos.length;
-    return 0;
+
+  // ✅ Renderizar mensaje de canal pendiente
+  const renderPendingAlert = () => {
+    if (!isPending || !isOwner) return null;
+    
+    return (
+      <div className="pending-alert-container">
+        <div className="pending-alert-icon">
+          <FontAwesomeIcon icon={faHourglassHalf} />
+        </div>
+        <div className="pending-alert-content">
+          <h4>⏳ Canal en attente d'approbation</h4>
+          <p>
+            Votre canal <strong>"{channel?.name}"</strong> a été créé avec succès et est actuellement en cours de vérification par nos administrateurs.
+          </p>
+          <p>
+            Une fois approuvé, il sera visible par tous les utilisateurs. Vous serez notifié dès que son statut changera.
+          </p>
+          <div className="pending-alert-info">
+            <FontAwesomeIcon icon={faClock} className="me-1" />
+            <small>Temps d'attente estimé : 24 à 48 heures ouvrées</small>
+          </div>
+        </div>
+      </div>
+    );
   };
+
+  // Si el canal está bloqueado por el usuario
+  if (isBlocked) {
+    return (
+      <div className="channel-blocked">
+        <div className="blocked-content">
+          <FontAwesomeIcon icon={faBan} size="4x" />
+          <h2>Canal bloqué</h2>
+          <p>Vous avez bloqué ce canal. Vous ne verrez plus son contenu.</p>
+          <button onClick={handleBlockChannel} className="btn-unblock">
+            Débloquer le canal
+          </button>
+          <button onClick={() => history.push('/')} className="btn-back-home">
+            Retour à l'accueil
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // ==================== RENDER ====================
   if (loading && !channel) return <LoadingSpinner />;
@@ -354,10 +557,9 @@ const ChannelProfile = () => {
         isOwner={isOwner}
         onEdit={handleEditProfile}
         onShare={handleShareProfile}
-        onContact={() => setShowContactInfo(!showContactInfo)}
-        onDelete={() => setShowDeleteConfirm(true)}
+        onContact={handleContact}
         onReport={() => setShowReportModal(true)}
-        onBlock={() => {}}
+        onBlock={handleBlockChannel}
       />
 
       {/* AVATAR */}
@@ -376,6 +578,9 @@ const ChannelProfile = () => {
           </div>
         )}
       </div>
+
+      {/* ✅ MENSAJE DE CANAL PENDIENTE (SOLO PARA EL DUEÑO) */}
+      {renderPendingAlert()}
 
       {/* INFO DEL CANAL */}
       <div className="channel-info-section">
@@ -415,6 +620,42 @@ const ChannelProfile = () => {
           </div>
         </div>
 
+        {/* CONTACT INFO MODAL */}
+        {showContactInfo && contactInfo && (
+          <div className="contact-info-modal">
+            <div className="contact-info-header">
+              <h4><FontAwesomeIcon icon={faInfoCircle} /> Informations de contact</h4>
+              <button onClick={() => setShowContactInfo(false)}>✕</button>
+            </div>
+            <div className="contact-info-body">
+              {contactInfo.email && (
+                <div className="contact-item">
+                  <FontAwesomeIcon icon={faEnvelopeSolid} />
+                  <a href={`mailto:${contactInfo.email}`}>{contactInfo.email}</a>
+                </div>
+              )}
+              {contactInfo.phone && (
+                <div className="contact-item">
+                  <FontAwesomeIcon icon={faPhone} />
+                  <a href={`tel:${contactInfo.phone}`}>{contactInfo.phone}</a>
+                </div>
+              )}
+              {contactInfo.website && (
+                <div className="contact-item">
+                  <FontAwesomeIcon icon={faGlobe} />
+                  <a href={contactInfo.website} target="_blank" rel="noopener noreferrer">{contactInfo.website}</a>
+                </div>
+              )}
+              {contactInfo.location?.wilaya && (
+                <div className="contact-item">
+                  <FontAwesomeIcon icon={faMapMarkerAlt} />
+                  <span>{contactInfo.location.wilaya}{contactInfo.location.commune ? `, ${contactInfo.location.commune}` : ''}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* ACTION BUTTONS */}
         <div className="channel-actions">
           {!isOwner ? (
@@ -444,7 +685,7 @@ const ChannelProfile = () => {
             {totalVideos > 0 && <span className="tab-count">{totalVideos}</span>}
           </button>
           
-          {isOwner && auth.token && (
+          {isOwner && token && (
             <>
               <button className={`tab-btn ${activeTab === 'saved' ? 'active' : ''}`} onClick={() => handleTabChange('saved')}>
                 <FontAwesomeIcon icon={faBookmark} /> Enregistrés
@@ -495,8 +736,22 @@ const ChannelProfile = () => {
       
       <HeaderVideo />
 
-      {/* MODAL REPORT */}
-      {showReportModal && (
+      {/* PLAN LIMIT ALERT */}
+      {showPlanInfo && (
+        <div className="plan-limit-toast">
+          <div className="toast-content">
+            <FontAwesomeIcon icon={faExclamationTriangle} />
+            <div>
+              <strong>Limite de téléchargement atteinte</strong>
+              <p>Votre plan {planName} permet maximum {maxVideos} vidéos. Passez à un plan supérieur.</p>
+            </div>
+            <button onClick={() => setShowPlanInfo(false)}>✕</button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL REPORT - Solo para usuarios externos */}
+      {showReportModal && !isOwner && (
         <div className="modal-overlay" onClick={() => setShowReportModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
@@ -505,8 +760,21 @@ const ChannelProfile = () => {
             </div>
             <div className="modal-body">
               <p>Pourquoi signalez-vous <strong>{channel?.name}</strong> ?</p>
+              <select 
+                value={reportReason} 
+                onChange={(e) => setReportReason(e.target.value)}
+                className="report-select"
+              >
+                <option value="">Sélectionnez une raison...</option>
+                <option value="spam">Spam ou contenu trompeur</option>
+                <option value="harassment">Harcèlement ou intimidation</option>
+                <option value="inappropriate">Contenu inapproprié</option>
+                <option value="violence">Violence ou incitation à la haine</option>
+                <option value="copyright">Violation des droits d'auteur</option>
+                <option value="other">Autre raison</option>
+              </select>
               <textarea 
-                placeholder="Décrivez le problème..." 
+                placeholder="Détails supplémentaires (optionnel)..." 
                 value={reportDescription} 
                 onChange={(e) => setReportDescription(e.target.value)} 
                 rows="4"
@@ -514,10 +782,7 @@ const ChannelProfile = () => {
             </div>
             <div className="modal-footer">
               <button className="btn-cancel" onClick={() => setShowReportModal(false)}>Annuler</button>
-              <button className="btn-submit" onClick={() => {
-                setShowReportModal(false);
-                dispatch({ type: GLOBALTYPES.ALERT, payload: { success: "Signalement envoyé" } });
-              }}>Envoyer</button>
+              <button className="btn-submit" onClick={handleReportChannel}>Envoyer le signalement</button>
             </div>
           </div>
         </div>

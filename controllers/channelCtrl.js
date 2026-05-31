@@ -393,6 +393,8 @@ const getChannelById = async (req, res) => {
     }
 };
 
+// backend/controllers/channelCtrl.js
+
 const getChannelProfile = async (req, res) => {
     try {
         const { channelId } = req.params;
@@ -413,18 +415,97 @@ const getChannelProfile = async (req, res) => {
 
         const isOwner = currentUserId && channel.owner._id.toString() === currentUserId.toString();
 
-        // ✅ Verificar estado del canal
-        if (channel.pending && !isOwner && !isAdmin) {
+        // ✅ ADMIN puede ver TODO (incluyendo inactivos y pendientes)
+        if (isAdmin) {
+            console.log(`👑 Admin viendo canal: ${channel.name} (pending: ${channel.pending}, active: ${channel.isActive})`);
+            
+            const profileData = {
+                _id: channel._id.toString(),
+                name: channel.name,
+                slug: channel.slug,
+                description: channel.description || '',
+                avatar: channel.avatar || [],
+                cover: channel.cover || [],
+                wilaya: channel.wilaya || '',
+                commune: channel.commune || '',
+                activity: channel.activity || '',
+                isVerified: channel.isVerified || false,
+                followersCount: channel.followersCount || 0,
+                totalVideos: channel.totalVideos || 0,
+                totalViews: channel.totalViews || 0,
+                totalLikes: channel.totalLikes || 0,
+                owner: channel.owner,
+                isFollowing: false,
+                pending: channel.pending || false,
+                isActive: channel.isActive !== false,
+                email: channel.email || '',
+                phone: channel.phone || '',
+                website: channel.website || '',
+                createdAt: channel.createdAt,
+                updatedAt: channel.updatedAt
+            };
+
+            return res.json({ success: true, profile: profileData });
+        }
+
+        // ✅ DUEÑO puede ver su canal aunque esté inactivo o pendiente
+        if (isOwner) {
+            console.log(`👤 Dueño viendo su canal: ${channel.name} (pending: ${channel.pending}, active: ${channel.isActive})`);
+            
+            // Obtener estadísticas solo para estadísticas
+            const stats = await Video.aggregate([
+                { $match: { channel: new mongoose.Types.ObjectId(channelId), pendiente: false, isActive: true } },
+                { $group: {
+                    _id: null,
+                    totalVideos: { $sum: 1 },
+                    totalLikes: { $sum: { $size: '$likes' } },
+                    totalViews: { $sum: '$views' }
+                }}
+            ]);
+
+            const statsData = stats.length > 0 ? stats[0] : { totalVideos: 0, totalLikes: 0, totalViews: 0 };
+
+            const profileData = {
+                _id: channel._id.toString(),
+                name: channel.name,
+                slug: channel.slug,
+                description: channel.description || '',
+                avatar: channel.avatar || [],
+                cover: channel.cover || [],
+                wilaya: channel.wilaya || '',
+                commune: channel.commune || '',
+                activity: channel.activity || '',
+                isVerified: channel.isVerified || false,
+                followersCount: channel.followersCount || 0,
+                totalVideos: statsData.totalVideos,
+                totalViews: statsData.totalViews,
+                totalLikes: statsData.totalLikes,
+                owner: channel.owner,
+                isFollowing: false,
+                pending: channel.pending || false,
+                isActive: channel.isActive !== false,
+                email: channel.email || '',
+                phone: channel.phone || '',
+                website: channel.website || '',
+                createdAt: channel.createdAt,
+                updatedAt: channel.updatedAt
+            };
+
+            return res.json({ success: true, profile: profileData });
+        }
+
+        // ✅ USUARIO NORMAL solo puede ver canales activos y NO pendientes
+        if (channel.pending) {
             return res.status(404).json({ success: false, message: 'Canal pendiente de aprobación' });
         }
 
-        if (!channel.isActive && !isOwner && !isAdmin) {
+        if (!channel.isActive) {
             return res.status(404).json({ success: false, message: 'Canal no disponible' });
         }
 
         // ✅ Verificar follow
         let isFollowing = false;
-        if (currentUserId && !isOwner) {
+        if (currentUserId) {
             const currentUser = await User.findById(currentUserId).select('followingChannels');
             if (currentUser && currentUser.followingChannels) {
                 isFollowing = currentUser.followingChannels.some(id => id.toString() === channelId);
@@ -444,14 +525,13 @@ const getChannelProfile = async (req, res) => {
 
         const statsData = stats.length > 0 ? stats[0] : { totalVideos: 0, totalLikes: 0, totalViews: 0 };
 
-        // ✅ Construir respuesta (manteniendo arrays)
         const profileData = {
             _id: channel._id.toString(),
             name: channel.name,
             slug: channel.slug,
             description: channel.description || '',
-            avatar: channel.avatar || [],  // ✅ ARRAY
-            cover: channel.cover || [],    // ✅ ARRAY
+            avatar: channel.avatar || [],
+            cover: channel.cover || [],
             wilaya: channel.wilaya || '',
             commune: channel.commune || '',
             activity: channel.activity || '',
@@ -474,8 +554,8 @@ const getChannelProfile = async (req, res) => {
         console.log('✅ Perfil enviado:', {
             id: profileData._id,
             nombre: profileData.name,
-            coverType: Array.isArray(profileData.cover) ? 'array' : typeof profileData.cover,
-            coverLength: profileData.cover.length
+            pending: profileData.pending,
+            isActive: profileData.isActive
         });
 
         res.json({ success: true, profile: profileData });
@@ -487,12 +567,22 @@ const getChannelProfile = async (req, res) => {
 };
 // ==================== OBTENER MIS CANALES ====================
 // ==================== OBTENER MIS CANALES ====================
+// backend/controllers/channelCtrl.js
+
+// backend/controllers/channelCtrl.js
+
 const getMyChannels = async (req, res) => {
     try {
         const userId = req.user._id;
         
-        const channels = await Channel.find({ owner: userId })
+        // ✅ Mostrar TODOS los canales del usuario (incluyendo pendientes)
+        // Solo filtramos por isActive=false si queremos ocultar eliminados
+        const channels = await Channel.find({ 
+            owner: userId
+            // ❌ NO filtrar por isActive: true - el dueño debe ver sus canales pendientes
+        })
             .populate('owner', 'username avatar fullname')
+            .sort({ createdAt: -1 }) // Los más recientes primero
             .lean();
         
         // ✅ Extraer URLs como strings
@@ -522,10 +612,14 @@ const getMyChannels = async (req, res) => {
 
             return {
                 ...channel,
-                avatar: avatarUrl,   // ✅ String
-                cover: coverUrl      // ✅ String
+                avatar: avatarUrl,
+                cover: coverUrl,
+                // ✅ Asegurar que pending existe
+                pending: channel.pending !== undefined ? channel.pending : true
             };
         });
+        
+        console.log(`📋 Usuario ${userId} tiene ${formattedChannels.length} canales (${formattedChannels.filter(c => c.pending).length} pendientes)`);
         
         res.json({ 
             success: true, 
@@ -544,6 +638,8 @@ const getMyChannels = async (req, res) => {
 // ==================== OBTENER PERFIL (con la primera imagen) ====================
 // ==================== OBTENER PERFIL DEL CANAL (CORREGIDO) ====================
  
+// backend/controllers/channelCtrl.js
+
 const getChannelVideos = async (req, res) => {
     try {
         const { channelId } = req.params;
@@ -561,10 +657,17 @@ const getChannelVideos = async (req, res) => {
 
         const isOwner = currentUserId && channel.owner.toString() === currentUserId.toString();
 
-        let videoQuery = { channel: channelId, isActive: true };
+        let videoQuery = { channel: channelId };
         
+        // ✅ ADMIN puede ver TODOS los videos (incluyendo pendientes)
         if (!isOwner && !isAdmin) {
-            videoQuery.pendiente = false;
+            videoQuery = { channel: channelId, isActive: true, pendiente: false };
+        } else if (isAdmin) {
+            // Admin ve todo, sin filtros
+            videoQuery = { channel: channelId };
+        } else if (isOwner) {
+            // Owner ve sus videos (incluyendo pendientes)
+            videoQuery = { channel: channelId };
         }
 
         const videos = await Video.find(videoQuery)
@@ -591,7 +694,7 @@ const getChannelVideos = async (req, res) => {
             page,
             totalPages: Math.ceil(total / limit),
             hasMore,
-            isOwner,
+            isOwner: isOwner || isAdmin,
             channelName: channel.name
         });
 
@@ -786,7 +889,254 @@ const getPendingChannels = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+// backend/controllers/channelCtrl.js
 
+// ==================== ELIMINAR CANAL (SOFT DELETE) ====================
+// backend/controllers/channelCtrl.js
+
+const deleteChannel = async (req, res) => {
+    try {
+        const { channelId } = req.params;
+        const { reason } = req.body;
+        
+        if (!mongoose.Types.ObjectId.isValid(channelId)) {
+            return res.status(400).json({ success: false, message: 'ID inválido' });
+        }
+        
+        const channel = await Channel.findById(channelId);
+        if (!channel) {
+            return res.status(404).json({ success: false, message: 'Canal no encontrado' });
+        }
+        
+        // Verificar permisos (solo dueño o admin)
+        const isOwner = channel.owner.toString() === req.user._id.toString();
+        const isAdmin = req.user.role === 'admin';
+        
+        if (!isOwner && !isAdmin) {
+            return res.status(403).json({ success: false, message: 'No autorizado' });
+        }
+        
+        // ✅ SOFT DELETE - Marcar como inactivo
+        channel.isActive = false;
+        channel.deletedReason = reason || (isOwner ? 'Eliminado por el propietario' : 'Eliminado por administrador');
+        channel.deletedAt = new Date();
+        channel.deletedBy = req.user._id;
+        
+        // ✅ También desactivar todos los videos del canal
+        await Video.updateMany(
+            { channel: channelId },
+            { isActive: false, pendiente: true }
+        );
+        
+        await channel.save();
+        
+        console.log(`✅ Canal eliminado (soft delete): ${channel.name} por ${req.user.username}`);
+        
+        res.json({
+            success: true,
+            message: 'Canal eliminado correctamente',
+            channel: {
+                _id: channel._id,
+                name: channel.name,
+                isActive: channel.isActive
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Error deleteChannel:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// ==================== REPORTAR CANAL ====================
+const reportChannel = async (req, res) => {
+    try {
+        const { channelId } = req.params;
+        const { reason, description } = req.body;
+        
+        if (!mongoose.Types.ObjectId.isValid(channelId)) {
+            return res.status(400).json({ success: false, message: 'ID inválido' });
+        }
+        
+        if (!reason) {
+            return res.status(400).json({ success: false, message: 'La razón es requerida' });
+        }
+        
+        const channel = await Channel.findById(channelId);
+        if (!channel) {
+            return res.status(404).json({ success: false, message: 'Canal no encontrado' });
+        }
+        
+        // Verificar si el usuario ya reportó este canal
+        const alreadyReported = channel.reports.some(
+            report => report.user.toString() === req.user._id.toString()
+        );
+        
+        if (alreadyReported) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Ya has reportado este canal anteriormente' 
+            });
+        }
+        
+        // Agregar reporte
+        channel.reports.push({
+            user: req.user._id,
+            reason,
+            description: description || '',
+            status: 'pending',
+            createdAt: new Date()
+        });
+        
+        channel.reportCount = channel.reports.length;
+        
+        // Si tiene muchos reportes, marcar para revisión automática
+        if (channel.reportCount >= 10) {
+            channel.pending = true; // Requiere revisión
+        }
+        
+        await channel.save();
+        
+        // Notificar a admin (opcional - con socket)
+        // if (req.io) {
+        //     req.io.to('admin-room').emit('new_channel_report', {
+        //         channelId: channel._id,
+        //         channelName: channel.name,
+        //         reportCount: channel.reportCount
+        //     });
+        // }
+        
+        console.log(`📢 Canal reportado: ${channel.name} por ${req.user.username} - Razón: ${reason}`);
+        
+        res.json({
+            success: true,
+            message: 'Reporte enviado correctamente',
+            reportCount: channel.reportCount
+        });
+        
+    } catch (error) {
+        console.error('❌ Error reportChannel:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// ==================== BLOQUEAR CANAL ====================
+const blockChannel = async (req, res) => {
+    try {
+        const { channelId } = req.params;
+        
+        if (!mongoose.Types.ObjectId.isValid(channelId)) {
+            return res.status(400).json({ success: false, message: 'ID inválido' });
+        }
+        
+        const channel = await Channel.findById(channelId);
+        if (!channel) {
+            return res.status(404).json({ success: false, message: 'Canal no encontrado' });
+        }
+        
+        const userId = req.user._id;
+        const isAlreadyBlocked = channel.blockedBy.includes(userId);
+        
+        if (isAlreadyBlocked) {
+            // Desbloquear
+            channel.blockedBy = channel.blockedBy.filter(
+                id => id.toString() !== userId.toString()
+            );
+            channel.isBlocked = channel.blockedBy.length > 0;
+            
+            await channel.save();
+            
+            res.json({
+                success: true,
+                isBlocked: false,
+                message: 'Canal desbloqueado'
+            });
+        } else {
+            // Bloquear
+            channel.blockedBy.push(userId);
+            channel.isBlocked = true;
+            
+            await channel.save();
+            
+            res.json({
+                success: true,
+                isBlocked: true,
+                message: 'Canal bloqueado'
+            });
+        }
+        
+    } catch (error) {
+        console.error('❌ Error blockChannel:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// ==================== REGISTRAR COMPARTIDO ====================
+const registerShare = async (req, res) => {
+    try {
+        const { channelId } = req.params;
+        
+        const channel = await Channel.findById(channelId);
+        if (!channel) {
+            return res.status(404).json({ success: false, message: 'Canal no encontrado' });
+        }
+        
+        channel.shareCount = (channel.shareCount || 0) + 1;
+        channel.lastSharedAt = new Date();
+        
+        await channel.save();
+        
+        res.json({
+            success: true,
+            shareCount: channel.shareCount
+        });
+        
+    } catch (error) {
+        console.error('❌ Error registerShare:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// ==================== OBTENER INFO DE CONTACTO ====================
+const getContactInfo = async (req, res) => {
+    try {
+        const { channelId } = req.params;
+        
+        const channel = await Channel.findById(channelId)
+            .select('email phone website wilaya commune owner')
+            .populate('owner', 'username email phone');
+        
+        if (!channel) {
+            return res.status(404).json({ success: false, message: 'Canal no encontrado' });
+        }
+        
+        // Solo mostrar información si el canal está activo
+        if (!channel.isActive) {
+            return res.status(403).json({ success: false, message: 'Canal no disponible' });
+        }
+        
+        const contactInfo = {
+            email: channel.email || channel.owner.email,
+            phone: channel.phone || channel.owner.phone,
+            website: channel.website,
+            location: {
+                wilaya: channel.wilaya,
+                commune: channel.commune
+            }
+        };
+        
+        res.json({
+            success: true,
+            contact: contactInfo
+        });
+        
+    } catch (error) {
+        console.error('❌ Error getContactInfo:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+ 
 // Exportar todas las funciones
 module.exports = {
     createChannel,
@@ -799,5 +1149,10 @@ module.exports = {
     
     approveChannel ,
     rejectChannel,
-    getPendingChannels 
+    getPendingChannels ,
+    deleteChannel,
+    reportChannel,
+    blockChannel,
+    registerShare,
+    getContactInfo
 };

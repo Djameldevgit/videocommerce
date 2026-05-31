@@ -53,7 +53,8 @@ const initialState = {
   // Estados de carga
   loading: false,
   feedLoading: false,
-  
+  contactInfo: null,
+  isBlocked: false,
   // Errores
   error: null
 };
@@ -412,7 +413,53 @@ case CHANNEL_TYPES.GET_CHANNEL_VIDEOS:
         error: action.payload,
         loading: false
       };
+ // Añadir a tu channelReducer.js
+case CHANNEL_TYPES.DELETE_CHANNEL_SUCCESS:
+  return {
+    ...state,
+    userChannels: state.userChannels.filter(ch => ch._id !== action.payload),
+    channels: state.channels.filter(ch => ch._id !== action.payload),
+    channel: state.channel?._id === action.payload ? null : state.channel,
+    loading: false,
+    error: null
+  };
     
+    case CHANNEL_TYPES.DELETE_CHANNEL_FAIL:
+        return {
+            ...state,
+            loading: false,
+            error: action.payload
+        };
+    
+    case CHANNEL_TYPES.REPORT_CHANNEL_SUCCESS:
+        return {
+            ...state,
+            channel: state.channel ? {
+                ...state.channel,
+                reportCount: action.payload.reportCount
+            } : null
+        };
+    
+    case CHANNEL_TYPES.BLOCK_CHANNEL_SUCCESS:
+        return {
+            ...state,
+            isBlocked: action.payload.isBlocked
+        };
+    
+    case CHANNEL_TYPES.GET_CHANNEL_CONTACT:
+        return {
+            ...state,
+            contactInfo: action.payload
+        };
+    
+    case CHANNEL_TYPES.REGISTER_CHANNEL_SHARE:
+        return {
+            ...state,
+            channel: state.channel ? {
+                ...state.channel,
+                shareCount: action.payload.shareCount
+            } : null
+        };
     // ==================== DEFAULT ====================
     default:
       return state;
