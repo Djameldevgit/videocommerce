@@ -112,6 +112,13 @@ export default DonatePage;
 import express from "express";
 import { createCheckout } from "../controllers/paymentController.js";
 
+
+
+
+
+
+
+
 const router = express.Router();
 
 // crear checkout

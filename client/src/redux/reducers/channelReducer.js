@@ -1,4 +1,4 @@
-// redux/reducers/channelReducer.js
+// frontend/src/redux/reducers/channelReducer.js
 import { CHANNEL_TYPES } from '../actions/channelAction';
 
 const initialState = {
@@ -40,12 +40,65 @@ const initialState = {
     hasMore: false
   },
   
+  // Canales pendientes (solo admin)
+  pendingChannels: {
+    channels: [],
+    total: 0,
+    page: 1,
+    totalPages: 1,
+    loading: false,
+    error: null
+  },
+  
   // Estados de carga
   loading: false,
   feedLoading: false,
   
   // Errores
   error: null
+};
+
+// ✅ FUNCIÓN HELPER PARA EXTRAER URL DE IMAGEN
+const extractImageUrl = (imageData) => {
+  if (!imageData) return '';
+  if (typeof imageData === 'string') return imageData;
+  if (Array.isArray(imageData) && imageData.length > 0) {
+    return imageData[0]?.url || '';
+  }
+  if (imageData?.url) return imageData.url;
+  return '';
+};
+
+// ✅ FUNCIÓN PARA NORMALIZAR UN CANAL
+const normalizeChannel = (channel) => {
+  if (!channel) return null;
+  
+  return {
+    ...channel,
+    avatar: extractImageUrl(channel.avatar),
+    cover: extractImageUrl(channel.cover),
+    phone: channel.phone || '',
+    email: channel.email || '',
+    website: channel.website || '',
+    wilaya: channel.wilaya || '',
+    commune: channel.commune || '',
+    activity: channel.activity || '',
+    description: channel.description || '',
+    pending: channel.pending || false,
+    isActive: channel.isActive !== false,
+    isVerified: channel.isVerified || false,
+    followersCount: channel.followersCount || 0,
+    totalVideos: channel.totalVideos || 0,
+    totalViews: channel.totalViews || 0,
+    totalLikes: channel.totalLikes || 0,
+    isFollowing: channel.isFollowing || false
+  };
+};
+
+// ✅ FUNCIÓN PARA NORMALIZAR LISTA DE CANALES
+const normalizeChannels = (channels) => {
+  if (!Array.isArray(channels)) return [];
+  return channels.map(ch => normalizeChannel(ch));
 };
 
 const channelReducer = (state = initialState, action) => {
@@ -63,11 +116,12 @@ const channelReducer = (state = initialState, action) => {
       return { ...state, loading: true, error: null };
     
     case CHANNEL_TYPES.CREATE_CHANNEL_SUCCESS:
+      const normalizedNewChannel = normalizeChannel(action.payload);
       return {
         ...state,
         loading: false,
-        userChannels: [action.payload, ...state.userChannels],
-        channels: [action.payload, ...state.channels],
+        userChannels: [normalizedNewChannel, ...normalizeChannels(state.userChannels)],
+        channels: [normalizedNewChannel, ...normalizeChannels(state.channels)],
         error: null
       };
     
@@ -75,90 +129,90 @@ const channelReducer = (state = initialState, action) => {
       return { ...state, loading: false, error: action.payload };
     
     // ==================== OBTENER CANAL ACTUAL ====================
-    case CHANNEL_TYPES.GET_CHANNEL:
-      return {
-        ...state,
-        channel: {
-          ...action.payload,
-          wilaya: action.payload?.wilaya || '',
-          commune: action.payload?.commune || '',
-          email: action.payload?.email || '',
-          phone: action.payload?.phone || '',
-          website: action.payload?.website || '',
-          activity: action.payload?.activity || '',
-          description: action.payload?.description || ''
-        },
-        loading: false,
-        error: null
-      };
+    // frontend/src/redux/reducers/channelReducer.js
+case CHANNEL_TYPES.GET_CHANNEL:
+  const payloadData = action.payload;
+  
+  // ✅ Función para extraer URL (igual que en el componente)
+  const extractUrl = (data) => {
+      if (!data) return '';
+      if (typeof data === 'string') return data;
+      if (Array.isArray(data) && data.length > 0) return data[0]?.url || '';
+      if (data.url) return data.url;
+      return '';
+  };
+  
+  return {
+      ...state,
+      channel: {
+          ...payloadData,
+          // ✅ FORZAR que avatar y cover sean strings
+          avatar: extractUrl(payloadData.avatar),
+          cover: extractUrl(payloadData.cover),  // ← CLAVE
+          wilaya: payloadData?.wilaya || '',
+          commune: payloadData?.commune || '',
+          email: payloadData?.email || '',
+          phone: payloadData?.phone || '',
+          website: payloadData?.website || '',
+          activity: payloadData?.activity || '',
+          description: payloadData?.description || ''
+      },
+      loading: false,
+      error: null
+  };
     
     case CHANNEL_TYPES.CLEAR_CHANNEL:
       return { ...state, channel: null };
     
     // ==================== OBTENER CANALES DEL USUARIO ====================
-    // redux/reducers/channelReducer.js - CASE CORREGIDO
-case CHANNEL_TYPES.GET_USER_CHANNELS:
-  const channelsList = Array.isArray(action.payload) ? action.payload : [];
-  
-  // ✅ Asegurar que cada canal tenga los campos necesarios
-  const normalizedChannels = channelsList.map(ch => ({
-    ...ch,
-    phone: ch.phone || '',
-    email: ch.email || '',
-    website: ch.website || '',
-    wilaya: ch.wilaya || '',
-    commune: ch.commune || ''
-  }));
-  
-  return {
-    ...state,
-    userChannels: normalizedChannels,
-    channels: normalizedChannels,
-    loading: false,
-    error: null
-  };
+    case CHANNEL_TYPES.GET_USER_CHANNELS:
+      const normalizedUserChannels = normalizeChannels(action.payload);
+      return {
+        ...state,
+        userChannels: normalizedUserChannels,
+        channels: normalizedUserChannels,
+        loading: false,
+        error: null
+      };
+    
     // ==================== ACTUALIZAR CANAL ====================
     case CHANNEL_TYPES.UPDATE_CHANNEL:
-      const updatedChannelData = action.payload;
-      
-      // Actualizar en userChannels
-      const updatedUserChannelsList = state.userChannels.map(ch => 
-        ch._id === updatedChannelData._id 
-          ? { ...ch, ...updatedChannelData }
-          : ch
-      );
-      
-      // Actualizar en channels (alias)
-      const updatedChannelsList = state.channels.map(ch => 
-        ch._id === updatedChannelData._id 
-          ? { ...ch, ...updatedChannelData }
-          : ch
-      );
+      const updatedNormalizedChannel = normalizeChannel(action.payload);
       
       return {
         ...state,
-        channel: state.channel?._id === updatedChannelData._id
-          ? { ...state.channel, ...updatedChannelData }
+        channel: state.channel?._id === updatedNormalizedChannel._id
+          ? updatedNormalizedChannel
           : state.channel,
-        userChannels: updatedUserChannelsList,
-        channels: updatedChannelsList,
+        userChannels: normalizeChannels(state.userChannels.map(ch => 
+          ch._id === updatedNormalizedChannel._id ? updatedNormalizedChannel : ch
+        )),
+        channels: normalizeChannels(state.channels.map(ch => 
+          ch._id === updatedNormalizedChannel._id ? updatedNormalizedChannel : ch
+        )),
         error: null
       };
     
     // ==================== VIDEOS DEL CANAL ====================
-    case CHANNEL_TYPES.GET_CHANNEL_VIDEOS:
-      return {
-        ...state,
-        channelVideos: {
-          videos: action.payload.videos || [],
-          total: action.payload.total || 0,
-          page: action.payload.page || 1,
-          totalPages: action.payload.totalPages || 1,
-          hasMore: action.payload.hasMore || false
-        },
-        loading: false
-      };
-    
+   // frontend/src/redux/reducers/channelReducer.js
+
+// ==================== VIDEOS DEL CANAL ====================
+case CHANNEL_TYPES.GET_CHANNEL_VIDEOS:
+  return {
+    ...state,
+    // ✅ ACTUALIZAR TAMBIÉN state.videos para compatibilidad
+    videos: action.payload.videos || [],
+    totalVideos: action.payload.total || 0,
+    hasMore: action.payload.hasMore || false,
+    channelVideos: {
+      videos: action.payload.videos || [],
+      total: action.payload.total || 0,
+      page: action.payload.page || 1,
+      totalPages: action.payload.totalPages || 1,
+      hasMore: action.payload.hasMore || false
+    },
+    loading: false
+  };
     case CHANNEL_TYPES.CLEAR_CHANNEL_VIDEOS:
       return {
         ...state,
@@ -228,7 +282,7 @@ case CHANNEL_TYPES.GET_USER_CHANNELS:
     case CHANNEL_TYPES.GET_USER_FOLLOWING_CHANNELS:
       return {
         ...state,
-        followingChannels: action.payload || [],
+        followingChannels: normalizeChannels(action.payload),
         loading: false
       };
     
@@ -247,6 +301,108 @@ case CHANNEL_TYPES.GET_USER_CHANNELS:
           ...state.channel,
           totalViews: (state.channel.totalViews || 0) + (action.payload?.count || 1)
         } : null
+      };
+    
+    // ==================== ADMIN - CANALES PENDIENTES ====================
+    case CHANNEL_TYPES.GET_PENDING_CHANNELS_REQUEST:
+      return {
+        ...state,
+        pendingChannels: {
+          ...state.pendingChannels,
+          loading: true,
+          error: null
+        }
+      };
+    
+    case CHANNEL_TYPES.GET_PENDING_CHANNELS_SUCCESS:
+      return {
+        ...state,
+        pendingChannels: {
+          channels: normalizeChannels(action.payload.channels),
+          total: action.payload.total || 0,
+          page: action.payload.page || 1,
+          totalPages: action.payload.totalPages || 1,
+          loading: false,
+          error: null
+        }
+      };
+    
+    case CHANNEL_TYPES.GET_PENDING_CHANNELS_FAIL:
+      return {
+        ...state,
+        pendingChannels: {
+          ...state.pendingChannels,
+          loading: false,
+          error: action.payload
+        }
+      };
+    
+    // Aprobar canal
+    case CHANNEL_TYPES.APPROVE_CHANNEL_REQUEST:
+      return { ...state, loading: true, error: null };
+    
+    case CHANNEL_TYPES.APPROVE_CHANNEL_SUCCESS:
+      const approvedChannel = normalizeChannel(action.payload);
+      const updatedPendingChannels = state.pendingChannels.channels.filter(
+        ch => ch._id !== approvedChannel._id
+      );
+      
+      return {
+        ...state,
+        loading: false,
+        userChannels: normalizeChannels(state.userChannels.map(ch =>
+          ch._id === approvedChannel._id ? { ...ch, pending: false, isActive: true } : ch
+        )),
+        channels: normalizeChannels(state.channels.map(ch =>
+          ch._id === approvedChannel._id ? { ...ch, pending: false, isActive: true } : ch
+        )),
+        pendingChannels: {
+          ...state.pendingChannels,
+          channels: updatedPendingChannels,
+          total: Math.max(0, state.pendingChannels.total - 1)
+        },
+        error: null
+      };
+    
+    case CHANNEL_TYPES.APPROVE_CHANNEL_FAIL:
+      return { ...state, loading: false, error: action.payload };
+    
+    // Rechazar canal
+    case CHANNEL_TYPES.REJECT_CHANNEL_REQUEST:
+      return { ...state, loading: true, error: null };
+    
+    case CHANNEL_TYPES.REJECT_CHANNEL_SUCCESS:
+      const rejectedChannel = normalizeChannel(action.payload);
+      const updatedPendingAfterReject = state.pendingChannels.channels.filter(
+        ch => ch._id !== rejectedChannel._id
+      );
+      
+      return {
+        ...state,
+        loading: false,
+        pendingChannels: {
+          ...state.pendingChannels,
+          channels: updatedPendingAfterReject,
+          total: Math.max(0, state.pendingChannels.total - 1)
+        },
+        error: null
+      };
+    
+    case CHANNEL_TYPES.REJECT_CHANNEL_FAIL:
+      return { ...state, loading: false, error: action.payload };
+    
+    // Limpiar canales pendientes
+    case CHANNEL_TYPES.CLEAR_PENDING_CHANNELS:
+      return {
+        ...state,
+        pendingChannels: {
+          channels: [],
+          total: 0,
+          page: 1,
+          totalPages: 1,
+          loading: false,
+          error: null
+        }
       };
     
     // ==================== ERROR ====================

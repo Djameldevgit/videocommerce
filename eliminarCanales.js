@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 const Channel = require('./models/channelModel');
 
  
-const User = require('../models/userModel');
+const User = require('./models/userModel');
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/VideoCommerce';
  

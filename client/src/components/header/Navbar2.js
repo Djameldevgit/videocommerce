@@ -27,8 +27,7 @@ import {
   FaBell,
   FaUserCircle,
   FaDownload,
-  FaVideo,
-  FaStar,  // ✅ Añadido FaStar
+  FaStar,
   FaInnosoft
 } from 'react-icons/fa';
 
@@ -56,8 +55,8 @@ const Navbar2 = () => {
   const [showFeaturesModal, setShowFeaturesModal] = useState(false);
   const [showDrawer, setShowDrawer] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [hasChannel, setHasChannel] = useState(false);
 
-  // ✅ NUEVO: Estados para scroll del navbar
   const [isNavbarVisible, setIsNavbarVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
 
@@ -65,11 +64,9 @@ const Navbar2 = () => {
   const dropdownRef = useRef(null);
   const { dir, textAlign, isRTL, shouldIgnoreRTL } = useComponentDirection('Navbar2');
 
-  // Manejo del drawer
   const handleDrawerOpen = () => setShowDrawer(true);
   const handleDrawerClose = () => setShowDrawer(false);
 
-  // Detección de tamaño de pantalla
   useEffect(() => {
     let timeoutId;
     const handleResize = () => {
@@ -86,7 +83,6 @@ const Navbar2 = () => {
     };
   }, []);
 
-  // Efecto de scroll para ocultar/mostrar navbar
   useEffect(() => {
     const controlNavbar = () => {
       const currentScrollY = window.scrollY;
@@ -101,7 +97,15 @@ const Navbar2 = () => {
     return () => window.removeEventListener('scroll', controlNavbar);
   }, [lastScrollY]);
 
-  // Detección PWA
+  // ✅ Verificar si el usuario tiene canal
+  useEffect(() => {
+    if (auth.user && auth.user.channels) {
+      setHasChannel(auth.user.channels.length > 0);
+    } else if (auth.user) {
+      setHasChannel(false);
+    }
+  }, [auth.user]);
+
   useEffect(() => {
     if (window.matchMedia('(display-mode: standalone)').matches) {
       setIsPWAInstalled(true);
@@ -122,7 +126,6 @@ const Navbar2 = () => {
     };
   }, []);
 
-  // Forzar mostrar en desarrollo
   useEffect(() => {
     if (process.env.NODE_ENV === 'development') {
       const timer = setTimeout(() => {
@@ -134,7 +137,6 @@ const Navbar2 = () => {
     }
   }, [showInstallButton, isPWAInstalled]);
 
-  // Verificación PWA mejorada
   useEffect(() => {
     const checkPWAInstallation = () => {
       const isInstalled =
@@ -174,7 +176,6 @@ const Navbar2 = () => {
     }
   }, [showInstallButton]);
 
-  // Manejador de instalación PWA
   const handleInstallPWA = async () => {
     try {
       if (window.installPWA) {
@@ -191,7 +192,6 @@ const Navbar2 = () => {
     }
   };
 
-  // Handlers de autenticación
   const handleLogout = () => {
     setDropdownOpen(false);
     dispatch(logout());
@@ -210,7 +210,20 @@ const Navbar2 = () => {
     history.push('/register');
   };
 
-  // Verificación de settings
+  // ✅ Manejador para crear video
+  const handleCreateVideoClick = () => {
+    if (hasChannel) {
+      history.push('/create-video-page');
+    } else {
+      const confirmCreate = window.confirm(
+        "⚠️ Vous n'avez pas encore de chaîne.\n\nPour publier des vidéos, vous devez d'abord créer une chaîne.\n\nCliquez sur OK pour créer votre chaîne."
+      );
+      if (confirmCreate) {
+        history.push('/channel/new');
+      }
+    }
+  };
+
   if (!settings || Object.keys(settings).length === 0) {
     return (
       <nav className="navbar navbar-light bg-light nb2-fallback" style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1030 }}>
@@ -223,10 +236,8 @@ const Navbar2 = () => {
     ? cart.items.reduce((acc, item) => acc + (item?.quantity || 0), 0)
     : 0;
 
-  // Calcular notificaciones no leídas
   const unreadNotifications = notify?.data?.filter(n => n && !n.isRead).length || 0;
 
-  // MenuItem component
   const MenuItem = ({ icon: Icon, iconColor, to, onClick, children, danger = false }) => {
     const handleClick = (e) => {
       if (onClick) {
@@ -269,7 +280,6 @@ const Navbar2 = () => {
 
   return (
     <>
-      {/* NAVBAR FIJO CON SCROLL */}
       <Navbar
         className={`navbar2 ${!isNavbarVisible ? 'nb2-hidden' : ''}`}
         style={{
@@ -294,7 +304,6 @@ const Navbar2 = () => {
             maxWidth: '100%'
           }}
         >
-          {/* Logo y Brand */}
           <div className="d-flex align-items-center" style={{ minWidth: 0, flex: '0 1 auto' }}>
             <Link
               to="/"
@@ -383,7 +392,6 @@ const Navbar2 = () => {
             )}
           </div>
 
-          {/* Iconos de acción */}
           <div
             className="d-flex align-items-center"
             style={{
@@ -392,7 +400,6 @@ const Navbar2 = () => {
               marginLeft: 'auto'
             }}
           >
-            {/* Búsqueda */}
             <Link
               to="/search"
               className="icon-button"
@@ -415,7 +422,6 @@ const Navbar2 = () => {
               />
             </Link>
 
-            {/* Botón Instalar PWA */}
             {showInstallButton && !isPWAInstalled && (
               <button
                 className="icon-button nb2-btn--install"
@@ -442,10 +448,33 @@ const Navbar2 = () => {
               </button>
             )}
 
-            {/* Botón Crear Video */}
+            {/* ✅ BOTÓN CREAR VIDEO (PLUS) */}
             {auth.user && (
+              <button
+                onClick={handleCreateVideoClick}
+                className="icon-button"
+                style={{
+                  width: isMobile ? '38px' : '42px',
+                  height: isMobile ? '38px' : '42px',
+                  borderRadius: '10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'linear-gradient(135deg, #28a745 0%, #20c997 100%)',
+                  transition: 'all 0.3s ease',
+                  boxShadow: '0 4px 12px rgba(40, 167, 69, 0.25)',
+                  border: 'none',
+                  cursor: 'pointer'
+                }}
+                title={t('createVideo') || 'Créer une vidéo'}
+              >
+                <FaPlus size={isMobile ? 14 : 16} style={{ color: 'white' }} />
+              </button>
+            )}
+
+            {auth.user && (auth.user.role === "Super-utilisateur" || auth.user.role === "admin" || auth.user.role === "user") && (
               <Link
-                to="/create-video-page"
+                to="/creer-annonce"
                 className="icon-button"
                 style={{
                   width: isMobile ? '38px' : '42px',
@@ -459,36 +488,12 @@ const Navbar2 = () => {
                   boxShadow: '0 4px 12px rgba(102, 126, 234, 0.25)',
                   textDecoration: 'none'
                 }}
-                title={t('createVideo') || 'Créer une vidéo'}
-              >
-                <FaVideo size={isMobile ? 14 : 16} style={{ color: 'white' }} />
-              </Link>
-            )}
-
-            {/* Botón Agregar Post */}
-            {auth.user && (auth.user.role === "Super-utilisateur" || auth.user.role === "admin" || auth.user.role === "user") && (
-              <Link
-                to="/creer-annonce"
-                className="icon-button"
-                style={{
-                  width: isMobile ? '38px' : '42px',
-                  height: isMobile ? '38px' : '42px',
-                  borderRadius: '10px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background: 'linear-gradient(135deg, #28a745 0%, #20c997 100%)',
-                  transition: 'all 0.3s ease',
-                  boxShadow: '0 4px 12px rgba(40, 167, 69, 0.25)',
-                  textDecoration: 'none'
-                }}
                 title={t('addPost') || 'Créer une annonce'}
               >
-                <FaPlus size={isMobile ? 14 : 16} style={{ color: 'white' }} />
+                <FaPlusCircle size={isMobile ? 14 : 16} style={{ color: 'white' }} />
               </Link>
             )}
 
-            {/* Notificaciones */}
             {auth.user && (
               <div
                 className="position-relative icon-button"
@@ -536,7 +541,6 @@ const Navbar2 = () => {
               </div>
             )}
 
-            {/* DROPDOWN DE USUARIO */}
             <NavDropdown
               align="end"
               show={dropdownOpen}
@@ -599,7 +603,6 @@ const Navbar2 = () => {
               <div className="dropdown-scroll-wrapper">
                 {auth.user ? (
                   <>
-                    {/* Header del usuario */}
                     <div className="user-header">
                       <div className="d-flex align-items-center gap-3">
                         <div className="user-avatar-wrapper">
@@ -621,7 +624,6 @@ const Navbar2 = () => {
 
                     <NavDropdown.Divider />
 
-                    {/* ✅ BOTÓN PARA VOLVERSE USER PRO (SOLO PARA USUARIOS NORMALES) */}
                     {auth.user.role !== 'admin' && auth.user.role !== 'Moderateur' && (
                       <MenuItem
                         icon={FaUserPlus}
@@ -631,11 +633,11 @@ const Navbar2 = () => {
                         🚀 Devenir Utilisateur Pro
                       </MenuItem>
                     )}
-  <MenuItem icon={FaInfoCircle} iconColor="#6c757d" to="/donation">
+                    
+                    <MenuItem icon={FaInfoCircle} iconColor="#6c757d" to="/donation">
                       {t('donation') || 'donation'}
                     </MenuItem>
-   
-                    
+
                     {auth.user.role !== 'admin' && auth.user.role !== 'Moderateur' && (
                       <MenuItem
                         icon={FaInnosoft}
@@ -645,7 +647,7 @@ const Navbar2 = () => {
                         🚀 Info Utilisateur Pro
                       </MenuItem>
                     )}
-                    {/* Mostrar plan actual si es userPro */}
+                    
                     {auth.user.role === 'userPro' && (
                       <div className="current-plan-badge" style={{ padding: '8px 16px', margin: '4px 8px', background: 'linear-gradient(135deg, #28a74520, #20c99720)', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
                         <FaStar style={{ color: '#ffc107' }} />
@@ -653,12 +655,15 @@ const Navbar2 = () => {
                       </div>
                     )}
 
-                    <MenuItem icon={FaVideo} iconColor="#667eea" to='/create-video-page'>
+                    {/* ✅ MENU ITEM CREAR VIDEO */}
+                    <MenuItem 
+                      icon={FaPlus} 
+                      iconColor="#28a745" 
+                      onClick={handleCreateVideoClick}
+                    >
                       Créer une vidéo
                     </MenuItem>
-                  
 
-                    {/* Admin options */}
                     {auth.user.role === "admin" && (
                       <>
                         <MenuItem icon={FaShieldAlt} iconColor="#ffc107" to='/admin/posts'>
@@ -688,7 +693,6 @@ const Navbar2 = () => {
                       {t('shareApp') || 'Compartir App'}
                     </MenuItem>
 
-                    {/* Panel de Admin */}
                     {auth.user.role === "admin" && (
                       <>
                         <NavDropdown.Divider />
@@ -758,7 +762,6 @@ const Navbar2 = () => {
               </div>
             </NavDropdown>
 
-            {/* Botón de menú móvil */}
             <button
               onClick={handleDrawerOpen}
               className="icon-button"
@@ -788,13 +791,11 @@ const Navbar2 = () => {
         </Container>
       </Navbar>
 
-      {/* Espacio para compensar navbar fijo */}
       <div style={{
         height: isMobile ? '56px' : '64px',
         minHeight: isMobile ? '56px' : '64px'
       }} />
 
-      {/* ESTILOS CSS */}
       <style>{`
         .nb2-hidden {
           transform: translateY(-100%);
@@ -1005,7 +1006,6 @@ const Navbar2 = () => {
         }
       `}</style>
 
-      {/* Modales */}
       <VerifyModal show={showVerifyModal} onClose={() => setShowVerifyModal(false)} />
       <DesactivateModal show={showDeactivatedModal} onClose={() => setShowDeactivatedModal(false)} />
       <MultiCheckboxModal show={showFeaturesModal} onClose={() => setShowFeaturesModal(false)} />

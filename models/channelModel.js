@@ -1,12 +1,16 @@
-// models/Channel.js
+// backend/models/Channel.js
 const mongoose = require('mongoose');
 
 const channelSchema = new mongoose.Schema({
     name: { type: String, required: true, trim: true, maxlength: 50 },
+    slug: { type: String, required: true, unique: true, trim: true },
     activity: { type: String, required: true, trim: true, maxlength: 100 },
     description: { type: String, trim: true, maxlength: 500, default: '' },
-    avatar: { type: String, default: 'https://res.cloudinary.com/dfjipgj2o/image/upload/v1777859039/avatar_cvr2e3.jpg' },
-    cover: { type: String, default: '' },
+    
+    // ✅ ACTUALIZADO: avatar como ARRAY (igual que images en Post)
+    avatar: { type: Array, default: [] },  // Array de objetos { url, public_id }
+    cover: { type: Array, default: [] },   // Array de objetos { url, public_id }
+   
     phone: { type: String, trim: true, default: '' },
     phoneHidden: { type: Boolean, default: false },
     email: { type: String, trim: true, lowercase: true, default: '' },
@@ -17,6 +21,7 @@ const channelSchema = new mongoose.Schema({
         type: { type: String, enum: ['Point'], default: 'Point' },
         coordinates: { type: [Number], default: [0, 0] }
     },
+    pending: { type: Boolean, default: true, index: true },
     delivery: {
         available: { type: Boolean, default: false },
         cost: { type: Number, default: 0 },
@@ -47,16 +52,22 @@ const channelSchema = new mongoose.Schema({
     }
 }, { timestamps: true });
 
+// Índices
 channelSchema.index({ location: '2dsphere' });
 channelSchema.index({ wilaya: 1, commune: 1 });
 channelSchema.index({ owner: 1 });
 channelSchema.index({ name: 'text' });
+channelSchema.index({ slug: 1 }, { unique: true });
 
+// Pre-save middleware
 channelSchema.pre('save', function(next) {
-    if (this.isModified('followers')) this.followersCount = this.followers.length;
+    if (this.isModified('followers')) {
+        this.followersCount = this.followers.length;
+    }
     next();
 });
 
+// Métodos
 channelSchema.methods.toggleFollow = async function(userId) {
     const index = this.followers.indexOf(userId);
     let isFollowing = false;

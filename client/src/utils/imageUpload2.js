@@ -1,74 +1,43 @@
-// utils/imageUpload2.js
-export const imageUpload2 = async (image) => {
-  console.log('🟡 INICIANDO imageUpload2 - Subiendo una sola imagen...');
-  console.log('📸 Imagen recibida:', image);
+// frontend/src/utils/imageUpload2.js
 
-  if (!image || !image.url) {
-    throw new Error('No se proporcionó una imagen válida para subir');
-  }
+export const checkImage = (file) => {
+  let err = ""
+  if(!file) return err = "File does not exist."
 
-  try {
-    // ✅ Si es una imagen nueva (desde File input → blob URL)
-    if (image.url.startsWith('blob:') && !image.isExisting) {
-      console.log('🔄 Convirtiendo blob URL a archivo...');
+  if(file.size > 1024 * 1024) // 1mb
+  err = "The largest image size is 1mb."
 
-      // 1️⃣ Convertir blob URL a File
-      const response = await fetch(image.url);
-      if (!response.ok) throw new Error('No se pudo acceder al blob');
+  if(file.type !== 'image/jpeg' && file.type !== 'image/png' )
+  err = "Image format is incorrect."
+  
+  return err;
+}
 
-      const blob = await response.blob();
-      const file = new File([blob], image.name || `image-${Date.now()}.jpg`, {
-        type: blob.type || 'image/jpeg',
-      });
+export const imageUpload2 = async (images) => {
+  let imgArr = [];
+  for(const item of images){
+      const formData = new FormData()
 
-      console.log('📁 Blob convertido a File:', file.name, `${(file.size / 1024).toFixed(2)} KB`);
-
-      // 2️⃣ Subir a Cloudinary
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('upload_preset', 'vetementsdjamel');
-      formData.append('cloud_name', 'dfjipgj2o');
-
-      const res = await fetch('https://api.cloudinary.com/v1_1/dfjipgj2o/image/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(`Cloudinary error: ${res.status} - ${errorText}`);
+      if(item.camera){
+          formData.append("file", item.camera)
+      }else{
+          formData.append("file", item)
       }
+      
+      // ✅ CAMBIADO: Usando TUS datos de Cloudinary
+      formData.append("upload_preset", "video_commerce")  // ✅ TU preset
+      formData.append("cloud_name", "dzd58nm3l")          // ✅ TU cloud name
 
-      const data = await res.json();
-
-      console.log('✅ UPLOAD EXITOSO a Cloudinary:', {
-        public_id: data.public_id,
-        url: data.secure_url,
-        formato: data.format,
-      });
-
-      return {
-        public_id: data.public_id,
-        url: data.secure_url,
-      };
-    }
-
-    // ✅ Si la imagen ya existe en Cloudinary
-    else if (image.isExisting && image.url.includes('cloudinary.com')) {
-      console.log('✅ Imagen ya existente en Cloudinary:', image.public_id);
-      return {
-        public_id: image.public_id,
-        url: image.url,
-      };
-    }
-
-    // ⚠️ Caso no válido
-    else {
-      throw new Error('⚠️ Imagen no válida o no procesable');
-    }
-
-  } catch (error) {
-    console.error('❌ ERROR en imageUpload2:', error.message);
-    throw error;
+      const res = await fetch("https://api.cloudinary.com/v1_1/dzd58nm3l/upload", {  // ✅ TU cloud name
+          method: "POST",
+          body: formData
+      })
+      
+      const data = await res.json()
+      
+      console.log('📸 Cloudinary response:', data)
+      
+      imgArr.push({public_id: data.public_id, url: data.secure_url})
   }
-};
+  return imgArr;
+}

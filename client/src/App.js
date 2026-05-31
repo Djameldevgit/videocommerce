@@ -29,7 +29,7 @@ import EditImageWizard from './pages/video/EditImageWizar';
 import Conversation from './pages/message/[id]';
 import Message from './pages/message/index';
 import Posts from './pages/aprobation/Posts';
-import CreateChannel from './pages/channel/CreateChannel';
+ 
 import EditChannel from './pages/channel/EditChannel';
 import ChannelProfile from './pages/channel/ChannelProfile';
 import MisChannel from './pages/channel/MisChannel';
@@ -41,6 +41,7 @@ import planes from './pages/userProo/planes';
 import PaymentSuccess from './pages/userProo/PaymentSuccess';
 import DonationPage from './pages/donationPage'
 import { getDataAPI } from './utils/fetchData';
+import CreateChannelWizard from './pages/channel/createChannelWizard';
 
 let audioElement = null;
 let audioUnlocked = false;
@@ -340,8 +341,10 @@ function AppContent() {
         <Route exact path="/video/:id" component={DetailVideoPage} />
         <Route exact path="/video/userVideo/:userId/info" component={InfoUserVideo} />
         <Route exact path="/videos/trending" component={TrendingVideos} />
-        <Route exact path="/channel/new" component={CreateChannel} />
-        <Route exact path="/channel/:channelId/settings" component={EditChannel} />
+      
+        <Route exact path="/channel/new" component={CreateChannelWizard} />
+
+        <Route exact path="/channel/:channelId/edit" component={EditChannel} />
         <Route exact path="/channel/:channelId" component={ChannelProfile} />
         <Route exact path="/my-channels" component={MisChannel} />
         <Route path="/video/channelFeed/:channelId" component={ChannelFeed} />

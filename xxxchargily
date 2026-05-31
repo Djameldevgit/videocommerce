@@ -1,21 +1,5 @@
- Usuario click "Comprar"
-        
- React  Backend
-        
- Backend:
-   - crea ORDER (pending)
-   - crea checkout session en Chargily
-        
- Chargily responde: checkout_url
-        
- React redirige usuario a Chargily
-        
- Usuario paga (fuera de tu sistema)
-        
- Chargily  banco (procesa pago)
-        
- Chargily  WEBHOOK  Backend
-        
- Backend valida y actualiza ORDER (paid)
-        
- React refresca UI
+chargily
+artealger2020argelia@gmail.com    telefonos  658556296
+ 
+ contrasena                                djamelbaoualichargily2026ultima 
+la nueva que pide charigily                djamelbaoualichargily2026nueva 

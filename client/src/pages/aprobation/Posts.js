@@ -1,21 +1,21 @@
-// pages/admin/Posts.js - Actualizado con pestaña Videos
+// pages/admin/Posts.js - Actualizado con pestaña Videos y Canales
 import React, { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { useLocation, useHistory } from 'react-router-dom';
 import { Container, Button, Alert } from 'react-bootstrap';
-import { FaBars, FaSync, FaVideo } from 'react-icons/fa';
+import { FaBars, FaSync, FaVideo, FaStore } from 'react-icons/fa';
 
 import AdminSidebar from '../../components/adminitration/adminApove/AdminSidebar';
- 
 import VideosTable from '../../components/adminitration/adminApove/VideosTable';
- 
+import ChannelsTable from '../../components/adminitration/adminApove/ChannelsTable';
+
 const Posts = () => {
   const location = useLocation();
   const history = useHistory();
   const { auth } = useSelector(state => state);
   
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('posts');
+  const [activeTab, setActiveTab] = useState('videos');
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -25,7 +25,8 @@ const Posts = () => {
     posts: { total: 0, page: 1, totalPages: 1 },
     boutiques: { total: 0, page: 1, totalPages: 1 },
     productos: { total: 0, page: 1, totalPages: 1 },
-    videos: { total: 0, page: 1, totalPages: 1 }
+    videos: { total: 0, page: 1, totalPages: 1 },
+    channels: { total: 0, page: 1, totalPages: 1 }
   });
   
   useEffect(() => {
@@ -46,7 +47,8 @@ const Posts = () => {
     const category = params.get('category');
     const subcategory = params.get('subcategory');
     
-    if (tab && ['videos'].includes(tab)) {
+    // ✅ Soporte para tabs 'videos' y 'channels'
+    if (tab && ['videos', 'channels'].includes(tab)) {
       setActiveTab(tab);
     }
     
@@ -96,6 +98,10 @@ const Posts = () => {
     }));
   };
   
+  const handleLoadingChange = (isLoading) => {
+    setLoading(isLoading);
+  };
+  
   const isAdmin = auth.user?.role === 'admin' || auth.user?.role === 'moderator';
   
   if (!isAdmin) {
@@ -133,8 +139,8 @@ const Posts = () => {
           <div className="adm-header-left">
             <div>
               <h4 className="adm-title">
-       
                 {activeTab === 'videos' && '🎬 Gestion des Vidéos'}
+                {activeTab === 'channels' && '📺 Gestion des Canaux'}
               </h4>
               <p className="adm-subtitle">
                 {selectedCategory ? `Filtré par: ${selectedCategory.name}` : 'Éléments en attente de validation'}
@@ -147,11 +153,10 @@ const Posts = () => {
           </button>
         </div>
         
-        {/* 🔥 Tabs con iconos - estilo móvil horizontal */}
+        {/* Tabs con iconos - estilo móvil horizontal */}
         <div className="adm-tabs-container-with-menu">
           <div className="adm-tabs-wrapper">
-          
-          
+            {/* Tab Videos */}
             <button
               className={`adm-tab ${activeTab === 'videos' ? 'adm-tab-active' : ''}`}
               onClick={() => handleSelectTab('videos')}
@@ -160,6 +165,18 @@ const Posts = () => {
               <span>Vidéos</span>
               {pagination.videos.total > 0 && (
                 <span className="adm-tab-count">{pagination.videos.total}</span>
+              )}
+            </button>
+            
+            {/* Tab Canales */}
+            <button
+              className={`adm-tab ${activeTab === 'channels' ? 'adm-tab-active' : ''}`}
+              onClick={() => handleSelectTab('channels')}
+            >
+              <span>📺</span>
+              <span>Canaux</span>
+              {pagination.channels.total > 0 && (
+                <span className="adm-tab-count">{pagination.channels.total}</span>
               )}
             </button>
           </div>
@@ -175,16 +192,21 @@ const Posts = () => {
         </div>
         
         <div className="adm-tables-container">
-         
-          
-         
-          
-         
+          {/* Tabla de Videos */}
           {activeTab === 'videos' && (
             <VideosTable
               key={`videos-${refreshKey}`}
-              onLoadingChange={setLoading}
+              onLoadingChange={handleLoadingChange}
               onPaginationUpdate={(data) => handlePaginationUpdate('videos', data)}
+            />
+          )}
+          
+          {/* Tabla de Canales */}
+          {activeTab === 'channels' && (
+            <ChannelsTable
+              key={`channels-${refreshKey}`}
+              onLoadingChange={handleLoadingChange}
+              onPaginationUpdate={(data) => handlePaginationUpdate('channels', data)}
             />
           )}
         </div>

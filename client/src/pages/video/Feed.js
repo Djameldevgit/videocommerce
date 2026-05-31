@@ -22,7 +22,9 @@ import { likeVideo, shareVideo, deleteVideo } from '../../redux/actions/videoAct
 import { aprobarVideo, eliminarVideo } from '../../redux/actions/videoApproveAction';
 import { GLOBALTYPES } from '../../redux/actions/globalTypes';
 import { toggleSaveVideo } from '../../redux/actions/profileAction';
-import { getChannelProfile } from '../../redux/actions/channelAction';
+ import { getChannelProfile } from '../../redux/actions/channelAction';
+ 
+
 import VideoComments from './VideoComments';
 import moment from 'moment';
 import 'moment/locale/fr';

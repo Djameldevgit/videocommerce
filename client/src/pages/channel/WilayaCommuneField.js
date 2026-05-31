@@ -1,4 +1,4 @@
-// components/CATEGORIES/camposComun/WilayaCommuneField.js
+// frontend/src/pages/CreateChannel/WilayaCommuneField.js
 import React, { useState, useEffect } from 'react';
 import wilayasData from './wilayas.json';
 
@@ -40,7 +40,9 @@ const WilayaCommuneField = (props) => {
       props.handleChangeInput({ target: { name: 'commune', value: '' } });
     } else if (isUsingDirectProps) {
       props.onWilayaChange(value);
-      props.onCommuneChange('');
+      if (props.onCommuneChange) {
+        props.onCommuneChange('');
+      }
     }
   };
 
@@ -57,9 +59,9 @@ const WilayaCommuneField = (props) => {
   return (
     <>
       {/* Wilaya */}
-      <div className="mb-3">
-        <label className="form-label fw-bold">
-          Wilaya <span className="text-danger">*</span>
+      <div className="form-group">
+        <label className="form-label">
+          Wilaya <span className="required-star">*</span>
         </label>
         <select
           className="form-select"
@@ -82,9 +84,9 @@ const WilayaCommuneField = (props) => {
       
       {/* Commune */}
       {currentWilaya && communes.length > 0 && (
-        <div className="mb-3">
-          <label className="form-label fw-bold">
-            Commune <span className="text-danger">*</span>
+        <div className="form-group">
+          <label className="form-label">
+            Commune <span className="required-star">*</span>
           </label>
           <select
             className="form-select"
@@ -106,7 +108,7 @@ const WilayaCommuneField = (props) => {
       )}
       
       {currentWilaya && communes.length === 0 && (
-        <div className="alert alert-info py-2 mb-3">
+        <div className="alert-info">
           <small>Aucune commune disponible pour cette wilaya</small>
         </div>
       )}

@@ -1,19 +1,21 @@
 // src/pages/channel/EditChannel.jsx - VERSIÓN CORREGIDA
-import React, { useEffect, useState } from 'react';
+
+import React, { useEffect, useState, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useParams, useHistory } from 'react-router-dom';
 import { Container, Row, Col, Card, Form, Button, Spinner, Alert } from 'react-bootstrap';
-import { Tv, ArrowLeft, InfoCircle, Save, CheckCircle } from 'react-bootstrap-icons';
-import { getChannelProfile, updateChannelProfile } from '../../redux/actions/channelAction';
+import { Tv, ArrowLeft, InfoCircle, Save, CheckCircle, Image, Upload } from 'react-bootstrap-icons';
+import { getChannelById, updateChannel } from '../../redux/actions/channelAction';
 import { getMainCategories } from '../../redux/actions/categoryAction';
 import WilayaCommuneField from './WilayaCommuneField';
+import { imageUpload2 } from '../../utils/imageUpload2';
 
 const EditChannel = () => {
   const { channelId } = useParams();
   const history = useHistory();
   const dispatch = useDispatch();
   const { channel, loading: channelLoading } = useSelector(state => state.channel);
-  const { auth, token } = useSelector(state => state.auth);
+  const { auth } = useSelector(state => state);
   const { categories, loading: loadingCategories } = useSelector(state => state.category);
   
   const [formData, setFormData] = useState({
@@ -24,12 +26,23 @@ const EditChannel = () => {
     commune: '',
     phone: '',
     email: '',
-    website: '',
-    avatar: '',
-    cover: ''
+    website: ''
   });
+  
+  // Estados para imágenes
+  const [avatarPreview, setAvatarPreview] = useState('');
+  const [coverPreview, setCoverPreview] = useState('');
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [coverFile, setCoverFile] = useState(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const [removedAvatar, setRemovedAvatar] = useState(false);
+  const [removedCover, setRemovedCover] = useState(false);
+  
+  const avatarInputRef = useRef(null);
+  const coverInputRef = useRef(null);
+  
   const [loading, setLoading] = useState(false);
-  const [validated, setValidated] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
@@ -41,16 +54,15 @@ const EditChannel = () => {
     }
   }, [dispatch, categories]);
 
-  // ✅ CORREGIDO: Cargar datos del canal y actualizar formulario
+  // Cargar datos del canal
   useEffect(() => {
     const loadChannelData = async () => {
       if (!channelId) return;
       
       try {
-        // Si no hay canal o el canal no es el que necesitamos, cargarlo
         if (!channel || channel._id !== channelId) {
-          const result = await dispatch(getChannelProfile(channelId, token));
-          console.log('📺 Canal cargado:', result?.profile);
+          const result = await dispatch(getChannelById(channelId));
+          console.log('📺 Canal cargado:', result?.channel);
         }
       } catch (err) {
         console.error('Error cargando canal:', err);
@@ -59,19 +71,15 @@ const EditChannel = () => {
     };
     
     loadChannelData();
-  }, [channelId, dispatch, token]);
+  }, [channelId, dispatch]);
 
-  // ✅ CORREGIDO: Actualizar formulario cuando el canal está disponible
+  // Actualizar formulario cuando el canal está disponible
   useEffect(() => {
     if (channel && channel._id === channelId && initialLoad) {
-      console.log('📝 Actualizando formulario con datos del canal:', {
+      console.log('📝 Datos del canal:', {
         name: channel.name,
-        activity: channel.activity,
-        wilaya: channel.wilaya,
-        commune: channel.commune,
-        email: channel.email,
-        phone: channel.phone,
-        website: channel.website
+        avatar: channel.avatar,
+        cover: channel.cover
       });
       
       setFormData({
@@ -82,14 +90,91 @@ const EditChannel = () => {
         commune: channel.commune || '',
         phone: channel.phone || '',
         email: channel.email || '',
-        website: channel.website || '',
-        avatar: channel.avatar || '',
-        cover: channel.cover || ''
+        website: channel.website || ''
       });
       
+      // ✅ Establecer previsualizaciones con las URLs existentes
+      setAvatarPreview(channel.avatar || '');
+      setCoverPreview(channel.cover || '');
       setInitialLoad(false);
     }
   }, [channel, channelId, initialLoad]);
+
+  // Manejar cambio de avatar
+  const handleAvatarChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setError('Veuillez sélectionner une image valide (JPG, PNG, GIF)');
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      setError("L'image ne doit pas dépasser 2MB");
+      return;
+    }
+
+    setUploadingAvatar(true);
+    setAvatarFile(file);
+    setRemovedAvatar(false);
+    
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setAvatarPreview(reader.result);
+      setUploadingAvatar(false);
+      setError(null);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Manejar cambio de cover
+  const handleCoverChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setError('Veuillez sélectionner une image valide (JPG, PNG, GIF)');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError("L'image de couverture ne doit pas dépasser 5MB");
+      return;
+    }
+
+    setUploadingCover(true);
+    setCoverFile(file);
+    setRemovedCover(false);
+    
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setCoverPreview(reader.result);
+      setUploadingCover(false);
+      setError(null);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Eliminar avatar
+  const handleRemoveAvatar = () => {
+    setAvatarPreview('');
+    setAvatarFile(null);
+    setRemovedAvatar(true);
+    if (avatarInputRef.current) {
+      avatarInputRef.current.value = '';
+    }
+  };
+
+  // Eliminar cover
+  const handleRemoveCover = () => {
+    setCoverPreview('');
+    setCoverFile(null);
+    setRemovedCover(true);
+    if (coverInputRef.current) {
+      coverInputRef.current.value = '';
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -98,88 +183,96 @@ const EditChannel = () => {
     if (success) setSuccess(false);
   };
 
+  // ✅ HANDLE SUBMIT CORREGIDO
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validaciones
     if (!formData.name.trim()) {
       setError("Le nom de la chaîne est obligatoire");
-      setValidated(true);
       return;
     }
     
     if (!formData.activity) {
       setError("Veuillez sélectionner une activité/secteur");
-      setValidated(true);
       return;
     }
     
     setLoading(true);
     setError(null);
-    setSuccess(false);
     
     try {
-      console.log('📤 Enviando actualización:', formData);
+      // ✅ Array para las imágenes (como en createChannel)
+      let avatarArray = [];
+      let coverArray = [];
       
-      const res = await dispatch(updateChannelProfile(
-        channelId, 
-        formData, 
-        token, 
-        auth, 
-        null // socket si lo tienes
-      ));
-      
-      console.log('📥 Respuesta:', res);
-      
-      if (res?.success) {
-        setSuccess(true);
-        
-        // ✅ Actualizar el formulario con la respuesta
-        if (res.channel) {
-          setFormData(prev => ({
-            ...prev,
-            name: res.channel.name || prev.name,
-            activity: res.channel.activity || prev.activity,
-            description: res.channel.description || prev.description,
-            wilaya: res.channel.wilaya || prev.wilaya,
-            commune: res.channel.commune || prev.commune,
-            phone: res.channel.phone || prev.phone,
-            email: res.channel.email || prev.email,
-            website: res.channel.website || prev.website
-          }));
+      // ✅ Procesar avatar
+      if (!removedAvatar) {
+        if (avatarFile) {
+          // Nueva imagen subida
+          console.log('📸 Subiendo nuevo avatar...');
+          const uploaded = await imageUpload2([avatarFile]);
+          avatarArray = uploaded;
+          console.log('✅ Avatar subido:', avatarArray);
+        } else if (avatarPreview && avatarPreview.includes('cloudinary.com')) {
+          // Imagen existente - mantener como array
+          avatarArray = [{ url: avatarPreview, public_id: `avatar_${channelId}` }];
         }
-        
-        // Redirigir después de 2 segundos
+      }
+      
+      // ✅ Procesar cover - MISMA LÓGICA QUE AVATAR
+      if (!removedCover) {
+        if (coverFile) {
+          // Nueva imagen subida
+          console.log('🖼️ Subiendo nuevo cover...');
+          const uploaded = await imageUpload2([coverFile]);
+          coverArray = uploaded;
+          console.log('✅ Cover subido:', coverArray);
+        } else if (coverPreview && coverPreview.includes('cloudinary.com')) {
+          // Imagen existente - mantener como array
+          coverArray = [{ url: coverPreview, public_id: `cover_${channelId}` }];
+        }
+      }
+      
+      // ✅ Preparar datos para actualizar
+      const updateData = {
+        name: formData.name,
+        activity: formData.activity,
+        description: formData.description || '',
+        wilaya: formData.wilaya || '',
+        commune: formData.commune || '',
+        phone: formData.phone || '',
+        email: formData.email || '',
+        website: formData.website || '',
+        avatar: avatarArray,   // ✅ Array como en createChannel
+        cover: coverArray      // ✅ Array como en createChannel
+      };
+      
+      console.log('📤 Enviando actualización:', {
+        ...updateData,
+        avatar: avatarArray.length,
+        cover: coverArray.length
+      });
+      
+      // ✅ Llamar a updateChannel
+      const result = await dispatch(updateChannel({
+        channelId,
+        channelData: updateData,
+        avatar: avatarArray,
+        cover: coverArray,
+        auth
+      }));
+      
+      if (result?.success) {
+        setSuccess(true);
         setTimeout(() => {
           history.push(`/channel/${channelId}`);
         }, 2000);
       } else {
-        const errorMsg = res?.message || "Erreur lors de la mise à jour";
-        
-        if (errorMsg.includes('déjà') || errorMsg.includes('existe')) {
-          setError(`❌ Un canal avec le nom "${formData.name}" existe déjà.`);
-        } else {
-          setError(errorMsg);
-        }
+        setError(result?.error || "Erreur lors de la mise à jour");
       }
     } catch (err) {
-      console.error('❌ Error en updateChannel:', err);
-      
-      if (err.message?.includes('Network')) {
-        setError("❌ Problème de connexion réseau. Vérifiez votre connexion internet.");
-      } else if (err.response?.status === 401) {
-        setError("❌ Session expirée. Veuillez vous reconnecter.");
-        setTimeout(() => history.push('/login'), 2000);
-      } else if (err.response?.status === 400) {
-        const serverMsg = err.response?.data?.message;
-        if (serverMsg?.includes('nom') || serverMsg?.includes('name')) {
-          setError(`❌ Le nom "${formData.name}" est déjà utilisé. Choisissez un autre nom.`);
-        } else {
-          setError(serverMsg || "❌ Données invalides. Vérifiez les champs.");
-        }
-      } else {
-        setError(err.message || "Une erreur est survenue. Veuillez réessayer.");
-      }
+      console.error('❌ Error:', err);
+      setError(err.message || "Une erreur est survenue");
     } finally {
       setLoading(false);
     }
@@ -195,19 +288,6 @@ const EditChannel = () => {
     );
   }
 
-  // Si no hay canal después de cargar
-  if (!channel && !channelLoading) {
-    return (
-      <Container className="py-5">
-        <Alert variant="danger">
-          <Alert.Heading>Erreur</Alert.Heading>
-          <p>Impossible de charger les données du canal. Veuillez réessayer.</p>
-          <Button onClick={() => history.goBack()}>Retour</Button>
-        </Alert>
-      </Container>
-    );
-  }
-
   return (
     <div className="bg-light" style={{ minHeight: '100vh', padding: '2rem 0' }}>
       <Container>
@@ -220,7 +300,7 @@ const EditChannel = () => {
         </Button>
 
         <Row className="justify-content-center">
-          <Col lg={8}>
+          <Col lg={10}>
             <Card className="border-0 shadow-sm">
               <Card.Header className="bg-white border-0 pt-4 pb-0">
                 <div className="d-flex align-items-center gap-2">
@@ -230,212 +310,244 @@ const EditChannel = () => {
                 <p className="text-muted mt-2">Mettez à jour les informations de votre chaîne commerciale</p>
               </Card.Header>
               <Card.Body className="p-4">
-                {/* Mensaje de error */}
                 {error && (
-                  <Alert 
-                    variant="danger" 
-                    className="mb-4"
-                    onClose={() => setError(null)}
-                    dismissible
-                  >
-                    <div className="d-flex align-items-center gap-2">
-                      <span>⚠️</span>
-                      <div>
-                        <strong>Erreur :</strong> {error}
-                      </div>
-                    </div>
+                  <Alert variant="danger" className="mb-4" onClose={() => setError(null)} dismissible>
+                    <strong>Erreur :</strong> {error}
                   </Alert>
                 )}
                 
-                {/* Mensaje de éxito */}
                 {success && (
-                  <Alert 
-                    variant="success" 
-                    className="mb-4"
-                    onClose={() => setSuccess(false)}
-                    dismissible
-                  >
-                    <div className="d-flex align-items-center gap-2">
-                      <CheckCircle size={20} />
-                      <div>
-                        <strong>✅ Chaîne mise à jour avec succès !</strong>
-                        <br />
-                        <small>Redirection vers votre chaîne...</small>
-                      </div>
-                    </div>
+                  <Alert variant="success" className="mb-4" onClose={() => setSuccess(false)} dismissible>
+                    <strong>✅ Chaîne mise à jour avec succès !</strong>
                   </Alert>
                 )}
 
-                <Form noValidate validated={validated} onSubmit={handleSubmit}>
-                  <Row className="g-3">
-                    <Col md={6}>
-                      <Form.Group>
-                        <Form.Label>
-                          Nom de la chaîne <span className="text-danger">*</span>
-                        </Form.Label>
-                        <Form.Control
-                          type="text"
-                          name="name"
-                          value={formData.name}
-                          onChange={handleChange}
-                          required
-                          placeholder="ex: Électroménager Ben Omar"
-                          isInvalid={validated && !formData.name.trim()}
-                          disabled={loading}
-                        />
-                        <Form.Control.Feedback type="invalid">
-                          Veuillez saisir le nom de votre chaîne.
-                        </Form.Control.Feedback>
-                        <Form.Text className="text-muted">
-                          Choisissez un nom unique pour votre chaîne.
-                        </Form.Text>
-                      </Form.Group>
-                    </Col>
-
-                    <Col md={6}>
-                      <Form.Group>
-                        <Form.Label>
-                          Activité / Secteur <span className="text-danger">*</span>
-                        </Form.Label>
-                        <Form.Select
-                          name="activity"
-                          value={formData.activity}
-                          onChange={handleChange}
-                          required
-                          disabled={loadingCategories || loading}
-                          isInvalid={validated && !formData.activity}
+                <Form onSubmit={handleSubmit}>
+                  {/* SECCIÓN DE IMÁGENES */}
+                  <div className="mb-4 pb-2 border-bottom">
+                    <h5 className="fw-bold mb-3">Images de la chaîne</h5>
+                    <Row>
+                      <Col md={6} className="mb-3">
+                        <Form.Label className="fw-semibold">Avatar</Form.Label>
+                        <div 
+                          className="avatar-upload-box text-center"
+                          style={{
+                            width: '150px',
+                            height: '150px',
+                            borderRadius: '50%',
+                            border: '2px dashed #ccc',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            overflow: 'hidden',
+                            background: '#f8f9fa',
+                            margin: '0 auto'
+                          }}
+                          onClick={() => avatarInputRef.current?.click()}
                         >
-                          <option value="">Sélectionnez un secteur</option>
-                          {loadingCategories && (
-                            <option value="" disabled>Chargement des catégories...</option>
-                          )}
-                          {!loadingCategories && categories?.length > 0 ? (
-                            categories.map(cat => (
-                              <option key={cat._id} value={cat._id}>
-                                {cat.icon} {cat.name}
-                              </option>
-                            ))
+                          <input
+                            type="file"
+                            ref={avatarInputRef}
+                            accept="image/jpeg, image/png, image/jpg, image/gif"
+                            onChange={handleAvatarChange}
+                            disabled={uploadingAvatar}
+                            style={{ display: 'none' }}
+                          />
+                          
+                          {avatarPreview ? (
+                            <img 
+                              src={avatarPreview} 
+                              alt="Avatar"
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            />
                           ) : (
-                            !loadingCategories && (
-                              <option value="" disabled>Aucune catégorie disponible</option>
-                            )
+                            <>
+                              <Image size={32} className="text-muted mb-2" />
+                              <span className="small text-muted">Cliquez pour uploader</span>
+                            </>
                           )}
-                        </Form.Select>
-                        <Form.Control.Feedback type="invalid">
-                          Veuillez sélectionner un secteur d'activité.
-                        </Form.Control.Feedback>
-                      </Form.Group>
-                    </Col>
+                        </div>
+                        {avatarPreview && (
+                          <Button 
+                            variant="danger" 
+                            size="sm" 
+                            className="mt-2 d-block mx-auto"
+                            onClick={handleRemoveAvatar}
+                          >
+                            Supprimer
+                          </Button>
+                        )}
+                      </Col>
 
-                    <Col xs={12}>
-                      <Form.Group>
-                        <Form.Label>Description</Form.Label>
-                        <Form.Control
-                          as="textarea"
-                          rows={4}
-                          name="description"
-                          value={formData.description}
-                          onChange={handleChange}
-                          placeholder="Décrivez votre activité, vos produits, services..."
-                          disabled={loading}
-                        />
-                        <Form.Text className="text-muted">
-                          Une description claire aide vos clients à vous comprendre.
-                        </Form.Text>
-                      </Form.Group>
-                    </Col>
+                      <Col md={6}>
+                        <Form.Label className="fw-semibold">Image de couverture</Form.Label>
+                        <div 
+                          className="cover-upload-box"
+                          style={{
+                            width: '100%',
+                            height: '150px',
+                            borderRadius: '12px',
+                            border: '2px dashed #ccc',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            overflow: 'hidden',
+                            background: '#f8f9fa'
+                          }}
+                          onClick={() => coverInputRef.current?.click()}
+                        >
+                          <input
+                            type="file"
+                            ref={coverInputRef}
+                            accept="image/jpeg, image/png, image/jpg, image/gif"
+                            onChange={handleCoverChange}
+                            disabled={uploadingCover}
+                            style={{ display: 'none' }}
+                          />
+                          
+                          {coverPreview ? (
+                            <img 
+                              src={coverPreview} 
+                              alt="Cover"
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            />
+                          ) : (
+                            <>
+                              <Upload size={24} className="text-muted mb-2" />
+                              <span className="small text-muted">Cliquez pour uploader</span>
+                            </>
+                          )}
+                        </div>
+                        {coverPreview && (
+                          <Button 
+                            variant="danger" 
+                            size="sm" 
+                            className="mt-2"
+                            onClick={handleRemoveCover}
+                          >
+                            Supprimer
+                          </Button>
+                        )}
+                      </Col>
+                    </Row>
+                  </div>
 
-                    {/* ✅ Wilaya y Commune - Ahora funcionará correctamente */}
-                    <Col xs={12}>
-                      <WilayaCommuneField
-                        postData={formData}
-                        handleChangeInput={handleChange}
-                      />
-                    </Col>
+                  {/* INFORMACIÓN BÁSICA */}
+                  <div className="mb-4">
+                    <h5 className="fw-bold mb-3">Informations générales</h5>
+                    <Row className="g-3">
+                      <Col md={6}>
+                        <Form.Group>
+                          <Form.Label>Nom de la chaîne *</Form.Label>
+                          <Form.Control
+                            type="text"
+                            name="name"
+                            value={formData.name}
+                            onChange={handleChange}
+                            required
+                          />
+                        </Form.Group>
+                      </Col>
 
-                    <Col md={6}>
-                      <Form.Group>
-                        <Form.Label>Téléphone</Form.Label>
-                        <Form.Control
-                          type="tel"
-                          name="phone"
-                          value={formData.phone}
-                          onChange={handleChange}
-                          placeholder="+213 5XX XX XX XX"
-                          disabled={loading}
-                        />
-                        <Form.Text className="text-muted">
-                          Format: +213 5XX XX XX XX
-                        </Form.Text>
-                      </Form.Group>
-                    </Col>
+                      <Col md={6}>
+                        <Form.Group>
+                          <Form.Label>Activité *</Form.Label>
+                          <Form.Select
+                            name="activity"
+                            value={formData.activity}
+                            onChange={handleChange}
+                            required
+                          >
+                            <option value="">Sélectionnez une activité</option>
+                            {categories?.map(cat => (
+                              <option key={cat._id} value={cat.name}>{cat.name}</option>
+                            ))}
+                          </Form.Select>
+                        </Form.Group>
+                      </Col>
 
-                    {/* ✅ Email - Ahora se mostrará correctamente */}
-                    <Col md={6}>
-                      <Form.Group>
-                        <Form.Label>Email</Form.Label>
-                        <Form.Control
-                          type="email"
-                          name="email"
-                          value={formData.email}
-                          onChange={handleChange}
-                          placeholder="contact@exemple.com"
-                          disabled={loading}
-                        />
-                        <Form.Text className="text-muted">
-                          Email de contact pour votre entreprise
-                        </Form.Text>
-                      </Form.Group>
-                    </Col>
+                      <Col xs={12}>
+                        <Form.Group>
+                          <Form.Label>Description</Form.Label>
+                          <Form.Control
+                            as="textarea"
+                            rows={4}
+                            name="description"
+                            value={formData.description}
+                            onChange={handleChange}
+                          />
+                        </Form.Group>
+                      </Col>
+                    </Row>
+                  </div>
 
-                    <Col xs={12}>
-                      <Form.Group>
-                        <Form.Label>Site web</Form.Label>
-                        <Form.Control
-                          type="url"
-                          name="website"
-                          value={formData.website}
-                          onChange={handleChange}
-                          placeholder="https://www.monsite.com"
-                          disabled={loading}
-                        />
-                      </Form.Group>
-                    </Col>
-                  </Row>
+                  {/* LOCALISATION */}
+                  <div className="mb-4">
+                    <h5 className="fw-bold mb-3">Localisation</h5>
+                    <WilayaCommuneField
+                      wilaya={formData.wilaya}
+                      commune={formData.commune}
+                      onWilayaChange={(w) => setFormData(prev => ({ ...prev, wilaya: w }))}
+                      onCommuneChange={(c) => setFormData(prev => ({ ...prev, commune: c }))}
+                    />
+                  </div>
 
-                  <div className="d-flex justify-content-end gap-2 mt-4">
-                    <Button 
-                      variant="secondary" 
-                      onClick={() => history.push('/my-channels')}
-                      disabled={loading}
-                    >
+                  {/* COORDONNÉES */}
+                  <div className="mb-4">
+                    <h5 className="fw-bold mb-3">Coordonnées</h5>
+                    <Row className="g-3">
+                      <Col md={6}>
+                        <Form.Group>
+                          <Form.Label>Téléphone</Form.Label>
+                          <Form.Control
+                            type="tel"
+                            name="phone"
+                            value={formData.phone}
+                            onChange={handleChange}
+                          />
+                        </Form.Group>
+                      </Col>
+
+                      <Col md={6}>
+                        <Form.Group>
+                          <Form.Label>Email</Form.Label>
+                          <Form.Control
+                            type="email"
+                            name="email"
+                            value={formData.email}
+                            onChange={handleChange}
+                          />
+                        </Form.Group>
+                      </Col>
+
+                      <Col xs={12}>
+                        <Form.Group>
+                          <Form.Label>Site web</Form.Label>
+                          <Form.Control
+                            type="url"
+                            name="website"
+                            value={formData.website}
+                            onChange={handleChange}
+                          />
+                        </Form.Group>
+                      </Col>
+                    </Row>
+                  </div>
+
+                  <div className="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                    <Button variant="secondary" onClick={() => history.push('/my-channels')}>
                       Annuler
                     </Button>
-                    <Button 
-                      type="submit" 
-                      variant="primary" 
-                      disabled={loading || loadingCategories}
-                      className="d-flex align-items-center gap-2"
-                    >
-                      {loading ? (
-                        <>
-                          <Spinner as="span" animation="border" size="sm" />
-                          Mise à jour...
-                        </>
-                      ) : (
-                        <>
-                          <Save size={16} />
-                          Enregistrer
-                        </>
-                      )}
+                    <Button type="submit" variant="primary" disabled={loading}>
+                      {loading ? <Spinner size="sm" animation="border" /> : 'Enregistrer'}
                     </Button>
                   </div>
                 </Form>
               </Card.Body>
-              <Card.Footer className="bg-white border-0 text-muted small pb-4">
-                <InfoCircle size={14} className="me-1" />
-                Les modifications seront visibles sur votre chaîne publique et dans vos vidéos.
-              </Card.Footer>
             </Card>
           </Col>
         </Row>

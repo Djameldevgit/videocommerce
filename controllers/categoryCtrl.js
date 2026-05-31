@@ -129,24 +129,58 @@ const getCategoriesWithVideos = async (req, res) => {
     
     const categoriesWithVideos = await Promise.all(
       categories.map(async (category) => {
-        const videos = await Video.find({
-          category: category._id,
-          pendiente: false,
-          isActive: true
-        })
-          .sort({ createdAt: -1 })
-          .limit(videosPerCategory)
-          .populate('user', 'username avatar isPro')
-          .populate('category', 'slug name')
-          .populate('channel', '_id name avatar slug')   // ← 🔥 LÍNEA CLAVE
-          .lean();
-        
-        console.log(`   📹 ${category.name}: ${videos.length} videos encontrados`);
-        if (videos.length > 0) {
-          console.log(`      Ejemplo: ${videos[0].title} - canal: ${videos[0].channel.name || 'SIN CANAL'}`);
+        try {
+          const videos = await Video.find({
+            category: category._id,
+            pendiente: false,
+            isActive: true
+          })
+            .sort({ createdAt: -1 })
+            .limit(videosPerCategory)
+            .populate('user', 'username avatar isPro')
+            .populate('category', 'slug name')
+            .populate('channel', '_id name avatar slug')
+            .lean();
+          
+          // ✅ SANEAMIENTO: Filtrar videos con canal nulo o problemático
+          const validVideos = videos.filter(video => {
+            // Verificar que el video existe
+            if (!video) return false;
+            
+            // Verificar que el canal existe y no es null
+            if (!video.channel) {
+              console.log(`   ⚠️ Video ${video.title} (${video._id}) tiene canal nulo - omitiendo`);
+              return false;
+            }
+            
+            // Verificar que el canal tiene nombre
+            if (!video.channel.name) {
+              console.log(`   ⚠️ Video ${video.title} (${video._id}) tiene canal sin nombre - omitiendo`);
+              return false;
+            }
+            
+            return true;
+          });
+          
+          console.log(`   📹 ${category.name}: ${videos.length} videos encontrados, ${validVideos.length} válidos`);
+          
+          if (validVideos.length > 0) {
+            console.log(`      Ejemplo: ${validVideos[0].title} - canal: ${validVideos[0].channel.name || 'SIN CANAL'}`);
+          }
+          
+          return { 
+            ...category, 
+            videos: validVideos,
+            videoCount: validVideos.length
+          };
+        } catch (err) {
+          console.error(`   ❌ Error procesando categoría ${category.name}:`, err.message);
+          return { 
+            ...category, 
+            videos: [],
+            videoCount: 0
+          };
         }
-        
-        return { ...category, videos };
       })
     );
     

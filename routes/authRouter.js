@@ -12,7 +12,7 @@ router.post('/register', authCtrl.register)
 router.post('/login', authCtrl.login)
 router.post('/logout', authCtrl.logout)
 // En authRoutes.js
-router.get('/current-user', auth, authCtrl.getCurrentUser);
+//router.get('/current-user', auth, authCtrl.getCurrentUser);
 // Token y activación
 router.post('/refresh_token', authCtrl.generateAccessToken)
 router.post('/activate', authCtrl.activationAccount)

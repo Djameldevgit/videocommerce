@@ -18,7 +18,7 @@ import StepMusicSelection from './StepMusicSelection';
 import { createImagePost } from '../../redux/actions/imageAction';
 import { GLOBALTYPES } from '../../redux/actions/globalTypes';
 import { imageUpload2 } from '../../utils/imageUpload2';
- 
+  
 const CreateImageWizard = ({ onSuccess, onCancel }) => {
   const dispatch = useDispatch();
   const history = useHistory();

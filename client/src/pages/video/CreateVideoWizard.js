@@ -1,4 +1,4 @@
-// CreateVideoWizard.jsx - CORREGIDO (sin bucle)
+// CreateVideoWizard.jsx - VERSIÓN SIMPLIFICADA (sin actualización de canal)
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useHistory } from 'react-router-dom';
@@ -8,7 +8,8 @@ import StepIndicator from './StepIndicator';
 import StepMusicSelection from './StepMusicSelection';
 import { createVideo } from '../../redux/actions/videoAction';
 import { getSliderCategories } from '../../redux/actions/categoryAction';
-import { getUserChannels } from '../../redux/actions/channelAction';
+import { getMyChannels } from '../../redux/actions/channelAction';
+ 
 import { videoUpload } from '../../utils/imageUpload';
 import { GLOBALTYPES } from '../../redux/actions/globalTypes';
 import './CreateVideoWizard.css';
@@ -32,11 +33,11 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
   const [showCommercial, setShowCommercial] = useState(false);
   const [selectedChannelId, setSelectedChannelId] = useState('');
 
-  // ✅ Refs para evitar bucles
+  // Refs para evitar bucles
   const hasLoadedChannelsRef = useRef(false);
   const hasLoadedCategoriesRef = useRef(false);
 
-  // Estado principal (solo datos del video)
+  // Estado principal
   const [wizardData, setWizardData] = useState({
     videoSource: null,
     videoFile: null,
@@ -62,7 +63,7 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
   const isProActive = user?.isPro && (!user?.proExpiryDate || new Date(user.proExpiryDate) > new Date());
   const maxDuration = 60;
 
-  // === Cargar categorías (SOLO UNA VEZ)
+  // Cargar categorías (SOLO UNA VEZ)
   useEffect(() => {
     if (sliderCategories.length === 0 && !sliderLoading && !hasLoadedCategoriesRef.current) {
       hasLoadedCategoriesRef.current = true;
@@ -70,11 +71,11 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
     }
   }, [dispatch, sliderCategories.length, sliderLoading]);
 
-  // === Cargar canales del usuario (SOLO UNA VEZ)
+  // Cargar canales del usuario (SOLO UNA VEZ)
   useEffect(() => {
     if (auth.token && userChannels.length === 0 && !channelsLoading && !hasLoadedChannelsRef.current) {
       hasLoadedChannelsRef.current = true;
-      dispatch(getUserChannels(auth.token));
+      dispatch(getMyChannels(auth.token));
     }
   }, [auth.token, dispatch, userChannels.length, channelsLoading]);
 
@@ -123,6 +124,7 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
   // Obtener el canal seleccionado
   const selectedChannel = userChannels.find(ch => ch._id === selectedChannelId);
 
+  // ✅ Función simplificada - solo validar, sin sugerir actualización
   const validateChannelForCommercial = () => {
     const hasCommercialData = !!wizardData.saleType;
     if (!hasCommercialData) return true;
@@ -130,14 +132,14 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
     if (!selectedChannel?.wilaya || !selectedChannel?.commune) {
       setError(
         '❌ Ce canal ne possède pas de wilaya et commune. ' +
-        'Veuillez compléter ces informations dans les paramètres du canal avant de publier une vidéo commerciale.'
+        'Veuillez compléter ces informations avant de publier une vidéo commerciale.'
       );
       return false;
     }
     if (!selectedChannel?.phone && !selectedChannel?.email) {
       setError(
         '❌ Ce canal ne possède pas de téléphone ou email. ' +
-        'Veuillez ajouter un moyen de contact dans les paramètres du canal.'
+        'Veuillez ajouter un moyen de contact.'
       );
       return false;
     }
@@ -285,7 +287,7 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
     }
   };
 
-  // Render paso 1
+  // ✅ Render paso 1 - SIN CAMBIOS
   const renderStep1 = () => (
     <div className="step1-container" style={{ padding: '0 8px', minHeight: '60vh', display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '40px', marginBottom: '20px', padding: '10px 0' }}>
@@ -331,7 +333,7 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
     </div>
   );
 
-  // Render paso 3
+  // ✅ Render paso 3 - SIMPLIFICADO (sin botón de actualizar canal)
   const renderStep3 = () => {
     const channelMissingWilaya = selectedChannel && (!selectedChannel.wilaya || !selectedChannel.commune);
     const channelMissingContact = selectedChannel && (!selectedChannel.phone && !selectedChannel.email);
@@ -341,6 +343,7 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
       <div className="step3-container" style={{ padding: '0' }}>
         <h5 className="mb-4" style={{ color: 'white', fontWeight: 'bold' }}>📝 Détails de la vidéo</h5>
 
+        {/* ✅ Canal - Mostrar nombre y actividad */}
         <div className="mb-3">
           <label className="form-label fw-bold" style={{ color: 'white' }}>Canal *</label>
           <select
@@ -351,12 +354,15 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
             disabled={channelsLoading}
           >
             {userChannels.map(ch => (
-              <option key={ch._id} value={ch._id}>{ch.name} ({ch.activity})</option>
+              <option key={ch._id} value={ch._id}>
+                {ch.name} {ch.activity && `(${ch.activity})`}
+              </option>
             ))}
           </select>
           <small className="text-muted">Sélectionnez le canal qui publie cette vidéo</small>
         </div>
 
+        {/* ✅ Categoría */}
         <div className="mb-3">
           <label className="form-label fw-bold" style={{ color: 'white' }}>Catégorie *</label>
           <select
@@ -372,6 +378,7 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
           </select>
         </div>
 
+        {/* ✅ Título */}
         <div className="mb-3">
           <label className="form-label fw-bold" style={{ color: 'white' }}>Titre *</label>
           <input
@@ -386,6 +393,7 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
           <small className="text-muted">{wizardData.titre.length}/100</small>
         </div>
 
+        {/* ✅ Descripción */}
         <div className="mb-3">
           <label className="form-label" style={{ color: 'white' }}>Description (optionnelle)</label>
           <textarea
@@ -398,6 +406,7 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
           />
         </div>
 
+        {/* ✅ Sección comercial (opcional) - SIN BOTÓN DE ACTUALIZAR */}
         <div className="mt-4">
           <Button
             variant="outline-light"
@@ -411,20 +420,17 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
 
           {showCommercial && (
             <div className="mt-3 p-3" style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '16px', animation: 'fadeIn 0.3s ease' }}>
+              {/* ⚠️ ADVERTENCIA - solo informativa, sin botón de actualizar */}
               {showChannelWarning && (
                 <Alert variant="warning" className="mb-3">
                   <div>⚠️ Ce canal ne possède pas toutes les informations nécessaires pour les vidéos commerciales :</div>
-                  <ul className="mt-2 mb-2">
+                  <ul className="mt-2 mb-0">
                     {channelMissingWilaya && <li>• Wilaya et commune manquants</li>}
                     {channelMissingContact && <li>• Téléphone ou email manquant</li>}
                   </ul>
-                  <Button
-                    variant="outline-warning"
-                    size="sm"
-                    onClick={() => history.push(`/channel/${selectedChannelId}/settings`)}
-                  >
-                    ✏️ Modifier le canal
-                  </Button>
+                  <small className="d-block mt-2">
+                    ℹ️ Veuillez mettre à jour votre canal dans les paramètres pour utiliser les fonctionnalités commerciales.
+                  </small>
                 </Alert>
               )}
 
@@ -442,6 +448,7 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
                   <option value="both">Vente au détail et en gros</option>
                 </select>
               </div>
+
               <div className="mb-3">
                 <label className="form-label" style={{ color: 'white' }}>Adresse de la boutique</label>
                 <input
@@ -457,6 +464,7 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
           )}
         </div>
 
+        {/* Preview video */}
         {wizardData.videoPreview && (
           <div className="mt-4 p-3" style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '12px' }}>
             <label className="form-label" style={{ color: 'white', fontWeight: 500 }}>Aperçu vidéo</label>

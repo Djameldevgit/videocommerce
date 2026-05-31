@@ -70,7 +70,53 @@ export const getCategoriesWithVideos = (page = 1, limit = 2) => async (dispatch)
     return { success: false };
   }
 };
+ 
 
+// ✅ Obtener videos guardados
+export const getSavedVideos = (token, page = 1, limit = 12) => async (dispatch) => {
+  try {
+    console.log('📥 getSavedVideos - token presente:', !!token);
+    
+    // ✅ URL CORRECTA - sin token en la URL
+    const url = `user/saved-videos?page=${page}&limit=${limit}`;
+    const res = await getDataAPI(url, token);
+    
+    console.log('✅ getSavedVideos - respuesta:', res.data?.savedVideos?.length || 0, 'videos');
+    
+    dispatch({
+      type: 'GET_SAVED_VIDEOS',
+      payload: res.data.savedVideos || []
+    });
+    
+    return res.data;
+  } catch (err) {
+    console.error('❌ getSavedVideos error:', err);
+    return { success: false };
+  }
+};
+
+// ✅ Obtener videos liked
+export const getLikedVideos = (token, page = 1, limit = 12) => async (dispatch) => {
+  try {
+    console.log('📥 getLikedVideos - token presente:', !!token);
+    
+    // ✅ URL CORRECTA - sin token en la URL
+    const url = `user/liked-videos?page=${page}&limit=${limit}`;
+    const res = await getDataAPI(url, token);
+    
+    console.log('✅ getLikedVideos - respuesta:', res.data?.likedVideos?.length || 0, 'videos');
+    
+    dispatch({
+      type: 'GET_LIKED_VIDEOS',
+      payload: res.data.likedVideos || []
+    });
+    
+    return res.data;
+  } catch (err) {
+    console.error('❌ getLikedVideos error:', err);
+    return { success: false };
+  }
+};
 export const loadMoreCategories = (page = 1, limit = 2) => async (dispatch, getState) => {
   try {
     dispatch({ type: types.LOAD_MORE_CATEGORIES });

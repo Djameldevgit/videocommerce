@@ -27,7 +27,8 @@ import {
   InfoCircle,
   Clock
 } from 'react-bootstrap-icons';
-import { getUserChannels } from '../../redux/actions/channelAction';
+import { getMyChannels } from '../../redux/actions/channelAction';
+ 
 import useUserPlan from '../../components/useUserPlan';
 
 const MisChannel = () => {
@@ -69,7 +70,7 @@ const MisChannel = () => {
       hasLoadedRef.current = true;
       
       console.log('📱 Cargando canales del usuario...');
-      await dispatch(getUserChannels(token));
+      await dispatch(getMyChannels(token));
       
       loadingRef.current = false;
     };
@@ -433,7 +434,7 @@ const MisChannel = () => {
                         <Eye size={14} className="me-1" /> Voir
                       </Link>
                       <Link 
-                        to={`/channel/${channel._id}/settings`} 
+                        to={`/channel/${channel._id}/edit`} 
                         className="btn btn-sm btn-outline-secondary rounded-pill px-3 flex-grow-1"
                       >
                         <Pencil size={14} className="me-1" /> Modifier

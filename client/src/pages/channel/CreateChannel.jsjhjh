@@ -1,0 +1,309 @@
+// frontend/src/pages/CreateChannel/CreateChannel.jsx
+import React, { useState, useEffect } from 'react';
+import { useHistory, useLocation } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { createChannel } from '../../redux/actions/channelAction';
+import { getSliderCategories } from '../../redux/actions/categoryAction';
+import ImageUploadField from '../../components/ImageUploadField';
+import WilayaCommuneField from './WilayaCommuneField';
+import './CreateChannel.css';
+
+const CreateChannel = () => {
+  const history = useHistory();
+  const location = useLocation();
+  const dispatch = useDispatch();
+  
+  const { loading, error, success } = useSelector(state => state.channel);
+  const { auth, category } = useSelector(state => state);
+  const { sliderCategories = [], loading: loadingCategories = false } = category || {};
+  
+  const [errors, setErrors] = useState({});
+  
+  // ✅ Estados para imágenes - SOLO FILES
+  const [avatarImages, setAvatarImages] = useState([]);
+  const [coverImages, setCoverImages] = useState([]);
+  
+  const [formData, setFormData] = useState({
+    name: '',
+    activity: '',
+    description: '',
+    phone: '',
+    email: auth?.user?.email || '',
+    website: '',
+    wilaya: '',
+    commune: ''
+  });
+
+  // Cargar categorías
+  useEffect(() => {
+    if (!sliderCategories || sliderCategories.length === 0) {
+      dispatch(getSliderCategories());
+    }
+  }, [dispatch, sliderCategories]);
+
+  const from = location.state?.from || '/dashboard';
+
+  // Redirigir al éxito
+  useEffect(() => {
+    if (success) {
+      history.push(from, {
+        message: 'Canal créé avec succès !'
+      });
+    }
+  }, [success, history, from]);
+
+  // Mostrar errores
+  useEffect(() => {
+    if (error) {
+      setErrors({ submit: error });
+    }
+  }, [error]);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
+    }
+  };
+
+  const handleWilayaChange = (wilaya) => {
+    setFormData(prev => ({
+      ...prev,
+      wilaya: wilaya,
+      commune: ''
+    }));
+  };
+
+  const handleCommuneChange = (commune) => {
+    setFormData(prev => ({
+      ...prev,
+      commune: commune
+    }));
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+    
+    if (!formData.name.trim()) {
+      newErrors.name = 'Le nom du canal est requis';
+    } else if (formData.name.length < 3) {
+      newErrors.name = 'Le nom doit contenir au moins 3 caractères';
+    }
+    
+    if (!formData.activity) {
+      newErrors.activity = 'Veuillez sélectionner une activité commerciale';
+    }
+    
+    if (!formData.wilaya) {
+      newErrors.wilaya = 'Veuillez sélectionner une wilaya';
+    }
+    
+    if (!formData.commune) {
+      newErrors.commune = 'Veuillez sélectionner une commune';
+    }
+    
+    return newErrors;
+  };
+
+  // ✅ HANDLE SUBMIT CORREGIDO
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    console.log('📤 Enviando formulario...');
+    console.log('Avatar files:', avatarImages);
+    console.log('Cover files:', coverImages);
+    
+    const validationErrors = validateForm();
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+    
+    const channelData = {
+      name: formData.name,
+      activity: formData.activity,
+      description: formData.description || '',
+      phone: formData.phone || '',
+      email: formData.email || '',
+      website: formData.website || '',
+      wilaya: formData.wilaya,
+      commune: formData.commune
+    };
+    
+    const result = await dispatch(createChannel({
+      channelData,
+      avatar: avatarImages,
+      cover: coverImages,
+      auth
+    }));
+    
+    if (result?.success) {
+      history.push('/my-channels');
+    }
+  };
+
+  const handleGoBack = () => {
+    history.goBack();
+  };
+
+  if (loadingCategories) {
+    return <div className="text-center py-5">Cargando categorías...</div>;
+  }
+
+  return (
+    <div className="create-channel-container">
+      <div className="create-channel-wrapper">
+        <div className="create-channel-header">
+          <h1>Créer votre Chaîne Commerciale</h1>
+          <p>Partagez vos produits et services en vidéos courtes</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="create-channel-form">
+          {/* Avatar y Cover */}
+          <div className="form-section">
+            <h2>Images de la Chaîne</h2>
+            
+            <ImageUploadField
+              images={avatarImages}
+              setImages={setAvatarImages}
+              label="Avatar de la chaîne"
+              multiple={false}
+              maxImages={1}
+            />
+            <small className="help-text">Format recommandé: carré 500x500px</small>
+            
+            <div className="mt-4">
+              <ImageUploadField
+                images={coverImages}
+                setImages={setCoverImages}
+                label="Image de couverture"
+                multiple={false}
+                maxImages={1}
+              />
+              <small className="help-text">Format recommandé: 1500x500px</small>
+            </div>
+          </div>
+
+          {/* Informations de Base */}
+          <div className="form-section">
+            <h2>Informations de Base</h2>
+            
+            <div className="form-group">
+              <label>Nom de la chaîne *</label>
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleChange}
+                placeholder="Ex: TechZone Algérie"
+                className={errors.name ? 'error' : ''}
+              />
+              {errors.name && <span className="error-message">{errors.name}</span>}
+            </div>
+
+            <div className="form-group">
+              <label>Activité Commerciale *</label>
+              <select
+                name="activity"
+                value={formData.activity}
+                onChange={handleChange}
+                className={errors.activity ? 'error' : ''}
+              >
+                <option value="">Sélectionnez une activité</option>
+                {sliderCategories.map(cat => (
+                  <option key={cat._id} value={cat.name}>{cat.name}</option>
+                ))}
+              </select>
+              {errors.activity && <span className="error-message">{errors.activity}</span>}
+            </div>
+
+            <div className="form-group">
+              <label>Description</label>
+              <textarea
+                name="description"
+                value={formData.description}
+                onChange={handleChange}
+                rows="4"
+                placeholder="Décrivez votre entreprise..."
+              />
+            </div>
+          </div>
+
+          {/* Coordonnées */}
+          <div className="form-section">
+            <h2>Coordonnées</h2>
+            
+            <div className="form-row">
+              <div className="form-group">
+                <label>Téléphone</label>
+                <input
+                  type="tel"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  placeholder="+213 5XX XX XX XX"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Email</label>
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  placeholder="contact@entreprise.com"
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label>Site Web</label>
+              <input
+                type="url"
+                name="website"
+                value={formData.website}
+                onChange={handleChange}
+                placeholder="https://monsite.com"
+              />
+            </div>
+          </div>
+
+          {/* Localisation */}
+          <div className="form-section">
+            <h2>Localisation</h2>
+            <WilayaCommuneField
+              wilaya={formData.wilaya}
+              commune={formData.commune}
+              onWilayaChange={handleWilayaChange}
+              onCommuneChange={handleCommuneChange}
+            />
+            {(errors.wilaya || errors.commune) && (
+              <div className="error-message">{errors.wilaya || errors.commune}</div>
+            )}
+          </div>
+
+          {errors.submit && (
+            <div className="error-submit">❌ {errors.submit}</div>
+          )}
+
+          <div className="form-actions">
+            <button type="button" onClick={handleGoBack} className="btn-secondary" disabled={loading}>
+              Annuler
+            </button>
+            <button type="submit" className="btn-primary" disabled={loading}>
+              {loading ? 'Création en cours...' : 'Créer la Chaîne'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default CreateChannel;

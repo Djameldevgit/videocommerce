@@ -1,3 +1,4 @@
+// backend/routes/channelRoutes.js
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
@@ -8,34 +9,28 @@ const {
   toggleFollowChannel,
   getChannelVideos,
   getMyChannels,
-  getChannelStats,
-  deleteChannel
+ 
+  deleteChannel,
+  approveChannel,
+  rejectChannel,
+  getPendingChannels
 } = require('../controllers/channelCtrl');
 
 // ========== RUTAS PÚBLICAS (sin auth) ==========
-// Obtener videos de un canal (paginado) – DEBE IR ANTES de /channels/:channelId
-router.get('/channels/:channelId/videos', getChannelVideos);
-
-// Obtener perfil público de un canal
 router.get('/channels/:channelId', getChannelProfile);
-
+router.get('/channels/:channelId/videos', getChannelVideos); 
 // ========== RUTAS CON AUTENTICACIÓN ==========
-// Crear canal
 router.post('/channels', auth, createChannel);
-
-// Obtener canales del usuario logueado
-router.get('/users/my-channels', auth, getMyChannels);
-
-// 🔥 Ruta para seguir/dejar de seguir (debe ser PATCH, y antes de la ruta genérica PATCH)
+router.get('/my-channels', auth, getMyChannels);           // ✅ Esta funciona
+router.get('/users/my-channels', auth, getMyChannels);     // ✅ También agregar esta para compatibilidad
 router.patch('/channels/:channelId/follow', auth, toggleFollowChannel);
+router.patch('/channels/:channelId', auth, updateChannel);  // ← Debe ser :channelId
+//router.get('/channels/:channelId/stats', auth, getChannelStats);
+//router.delete('/channels/:channelId', auth, deleteChannel);
 
-// Actualizar canal (solo dueño/admin) – esta es genérica, debe ir DESPUÉS de las rutas específicas
-router.patch('/channels/:channelId', auth, updateChannel);
-
-// Estadísticas (solo dueño/admin)
-router.get('/channels/:channelId/stats', auth, getChannelStats);
-
-// Eliminar canal
-router.delete('/channels/:channelId', auth, deleteChannel);
+// ========== RUTAS SOLO ADMIN ==========
+router.get('/admin/channels/pending', auth, getPendingChannels);
+router.patch('/admin/channels/:channelId/approve', auth, approveChannel);
+router.patch('/admin/channels/:channelId/reject', auth, rejectChannel);
 
 module.exports = router;

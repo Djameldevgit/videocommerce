@@ -1,4 +1,5 @@
 const axios = require('axios');
+
 const Users = require('../models/userModel')
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
@@ -7,166 +8,150 @@ const sendCustomEmail = require('./sendCustomEmail')
 const { google } = require('googleapis')
 const { OAuth2 } = google.auth
 const { CLIENT_URL } = process.env
-const Channel = require('../models/channelModel');
+
 const client = new OAuth2(process.env.GOOGLE_CLIENT_ID)
-
-// ✅ FUNCIONES ACTUALIZADAS para incluir channelPlan
-const createAccessToken = (payload) => {
-    // payload debe contener id, role y channelPlan
-    return jwt.sign(payload, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '7d' })
-}
-
-const createRefreshToken = (payload) => {
-    return jwt.sign(payload, process.env.REFRESH_TOKEN_SECRET, { expiresIn: '30d' })
-}
-
-const createActivationToken = (payload) => {
-    return jwt.sign(payload, process.env.ACTIVATION_TOKEN_SECRET, { expiresIn: '5m' })
-}
-
-// ✅ Función auxiliar para obtener usuario con sus datos completos
-const getUserWithPlan = async (userId) => {
-    const user = await Users.findById(userId)
-        .select('-password')
-        .populate("followers following", "avatar username followers following");
-
-    if (!user) return null;
-
-    // Asegurar que channelPlan existe
-    return {
-        ...user._doc,
-        channelPlan: user.channelPlan || 'free',
-        channelPlanExpiresAt: user.channelPlanExpiresAt,
-        channelPlanAutoRenew: user.channelPlanAutoRenew || false
-    };
-}
-
+ 
+ 
+ 
 const authCtrl = {
+ 
     register: async (req, res) => {
         try {
-            const { username, email, password } = req.body;
+            const { username, email, password } = req.body
+            
+            // Validaciones básicas
             if (!username || !email || !password) {
-                return res.status(400).json({ msg: "Veuillez remplir tous les champs." });
+                return res.status(400).json({msg: "Please fill in all fields."})
             }
-            let newUserName = username.toLowerCase().replace(/ /g, '');
-            const user_name = await Users.findOne({ username: newUserName });
-            if (user_name) return res.status(400).json({ msg: "Ce nom d'utilisateur existe déjà." });
-            const user_email = await Users.findOne({ email });
-            if (user_email) return res.status(400).json({ msg: "Cet email existe déjà." });
-            if (password.length < 6)
-                return res.status(400).json({ msg: "Le mot de passe doit contenir au moins 6 caractères." });
-
-            const passwordHash = await bcrypt.hash(password, 12);
+    
+            let newUserName = username.toLowerCase().replace(/ /g, '')
+    
+            const user_name = await Users.findOne({username: newUserName})
+            if(user_name) return res.status(400).json({msg: "This username already exists."})
+    
+            const user_email = await Users.findOne({email})
+            if(user_email) return res.status(400).json({msg: "This email already exists."})
+    
+            if(password.length < 6)
+            return res.status(400).json({msg: "Password must be at least 6 characters."})
+    
+            const passwordHash = await bcrypt.hash(password, 12)
+    
             const newUser = new Users({
-                username: newUserName,
-                email,
-                password: passwordHash,
-                channelPlan: 'free',        // ✅ Plan por defecto
-                channelPlanAutoRenew: false
-            });
-            await newUser.save();
-
-            // ✅ CREAR CANAL POR DEFECTO
-            const defaultChannel = new Channel({
-                name: `Canal de ${newUserName}`,
-                activity: 'General',
-                owner: newUser._id,
-                avatar: newUser.avatar || 'https://res.cloudinary.com/dfjipgj2o/image/upload/v1777859039/avatar_cvr2e3.jpg',
-                isActive: true,
-            });
-            await defaultChannel.save();
-
-            // ✅ TOKEN con channelPlan
-            const access_token = createAccessToken({
-                id: newUser._id,
-                role: newUser.role || 'user',
-                channelPlan: 'free'
-            });
-            const refresh_token = createRefreshToken({ id: newUser._id });
-
+                username: newUserName, 
+                email, 
+                password: passwordHash
+            })
+    
+            const access_token = createAccessToken({id: newUser._id})
+            const refresh_token = createRefreshToken({id: newUser._id})
+    
             res.cookie('refreshtoken', refresh_token, {
                 httpOnly: true,
                 path: '/api/refresh_token',
-                maxAge: 30 * 24 * 60 * 60 * 1000
-            });
-
+                maxAge: 30*24*60*60*1000 // 30 days
+            })
+    
+            await newUser.save()
+    
             res.json({
-                msg: 'Inscription réussie !',
+                msg: 'Register Success!',
                 access_token,
                 user: {
                     ...newUser._doc,
-                    password: '',
-                    channelPlan: 'free',
-                    channelPlanExpiresAt: null
-                },
-                channel: { _id: defaultChannel._id, name: defaultChannel.name }
-            });
+                    password: ''
+                }
+            })
         } catch (err) {
-            return res.status(500).json({ msg: err.message });
+            return res.status(500).json({msg: err.message})
         }
     },
-
     login: async (req, res) => {
         try {
             const { email, password } = req.body
 
-            const user = await Users.findOne({ email })
-                .populate("followers following", "avatar username followers following")
+            const user = await Users.findOne({email})
+            .populate("followers following", "avatar username   followers following")
 
-            if (!user) return res.status(400).json({ msg: "Cet email n'existe pas." })
+            if(!user) return res.status(400).json({msg: "This email does not exist."})
 
             const isMatch = await bcrypt.compare(password, user.password)
-            if (!isMatch) return res.status(400).json({ msg: "Le mot de passe est incorrect." })
+            if(!isMatch) return res.status(400).json({msg: "Password is incorrect."})
 
-            // ✅ TOKEN con channelPlan
-            const access_token = createAccessToken({
-                id: user._id,
-                role: user.role || 'user',
-                channelPlan: user.channelPlan || 'free'
-            })
-            const refresh_token = createRefreshToken({ id: user._id })
+            const access_token = createAccessToken({id: user._id})
+            const refresh_token = createRefreshToken({id: user._id})
 
             res.cookie('refreshtoken', refresh_token, {
                 httpOnly: true,
                 path: '/api/refresh_token',
-                maxAge: 30 * 24 * 60 * 60 * 1000 // 30 jours
+                maxAge: 30*24*60*60*1000 // 30days
             })
 
             res.json({
-                msg: 'Connexion réussie !',
+                msg: 'Login Success!',
                 access_token,
                 user: {
-                    ...user._doc,
-                    password: '',
-                    channelPlan: user.channelPlan || 'free',
-                    channelPlanExpiresAt: user.channelPlanExpiresAt,
-                    channelPlanAutoRenew: user.channelPlanAutoRenew || false
+                    password: ''
                 }
             })
         } catch (err) {
-            return res.status(500).json({ msg: err.message })
+            return res.status(500).json({msg: err.message})
         }
     },
+    login: async (req, res) => {
+        try {
+            const { email, password } = req.body
 
+            const user = await Users.findOne({email})
+            .populate("followers following", "avatar username  followers following")
+
+            if(!user) return res.status(400).json({msg: "This email does not exist."})
+
+            const isMatch = await bcrypt.compare(password, user.password)
+            if(!isMatch) return res.status(400).json({msg: "Password is incorrect."})
+
+            const access_token = createAccessToken({id: user._id})
+            const refresh_token = createRefreshToken({id: user._id})
+
+            res.cookie('refreshtoken', refresh_token, {
+                httpOnly: true,
+                path: '/api/refresh_token',
+                maxAge: 30*24*60*60*1000 // 30days
+            })
+
+            res.json({
+                msg: 'Login Success!',
+                access_token,
+                user: {
+                    ...user._doc,
+                    password: ''
+                }
+            })
+        } catch (err) {
+            return res.status(500).json({msg: err.message})
+        }
+    },
     sendActivationEmail: async (req, res) => {
         try {
             const user = await Users.findById(req.user._id);
             if (!user)
-                return res.status(400).json({ msg: "Utilisateur non trouvé." });
+                return res.status(400).json({ msg: req.__('auth.user_not_found') });
 
             if (user.isVerified)
-                return res.status(400).json({ msg: "Votre compte est déjà vérifié." });
+                return res.status(400).json({ msg: req.__('auth.already_verified') });
 
             const activation_token = createActivationToken({ id: user._id });
             const url = `${CLIENT_URL}/user/activate/${activation_token}`;
 
             await sendMail(user.email, url, req.getLocale(), 'activation');
 
-            res.json({ msg: "Email d'activation envoyé avec succès." });
+            res.json({ msg: req.__('activation_email_sent') });
         } catch (err) {
-            return res.status(500).json({ msg: "Erreur serveur, veuillez réessayer." });
+            return res.status(500).json({ msg: req.__('auth.server_error') });
         }
     },
+
+
 
     activationAccount: async (req, res) => {
         try {
@@ -175,66 +160,59 @@ const authCtrl = {
             const { id } = decoded;
 
             const user = await Users.findById(id);
-            if (!user) return res.status(400).json({ msg: "Utilisateur non trouvé." });
+            if (!user) return res.status(400).json({ msg: req.__('auth.user_not_found') });
 
             if (user.isVerified)
-                return res.status(400).json({ msg: "Compte déjà vérifié." });
+                return res.status(400).json({ msg: req.__('auth.already_verified') });
 
             user.isVerified = true;
             await user.save();
 
+            // Devolver usuario actualizado
             res.json({
-                msg: "Compte activé avec succès !",
-                user: {
-                    ...user._doc,
-                    password: '',
-                    channelPlan: user.channelPlan || 'free'
-                }
+                msg: req.__('auth.account_activated'),
+                user
             });
         } catch (err) {
-            return res.status(500).json({ msg: "Erreur serveur, veuillez réessayer." });
+            return res.status(500).json({ msg: req.__('auth.server_error') });
         }
     },
-
-    toggleVerification: async (req, res) => {
+    toggleVerification : async (req, res) => {
         try {
-            const { id } = req.params;
-            const user = await Users.findById(id);
-            if (!user) return res.status(404).json({ msg: "Utilisateur non trouvé." });
-
-            user.isVerified = !user.isVerified;
-            await user.save();
-
-            res.json({
-                msg: `L'utilisateur est maintenant ${user.isVerified ? "vérifié ✅" : "non vérifié ❌"}`,
-                user: {
-                    ...user._doc,
-                    password: '',
-                    channelPlan: user.channelPlan || 'free'
-                },
-            });
+          const { id } = req.params; // userId
+          const user = await Users.findById(id);
+          if (!user) return res.status(404).json({ msg: "Usuario no encontrado" });
+      
+          user.isVerified = !user.isVerified; // alternar true/false
+          await user.save();
+      
+          res.json({
+            msg: `El usuario ahora está ${user.isVerified ? "verificado ✅" : "no verificado ❌"}`,
+            user,
+          });
         } catch (err) {
-            return res.status(500).json({ msg: "Erreur serveur." });
+          return res.status(500).json({ msg: "Error en el servidor" });
         }
-    },
+      },
 
     forgotPassword: async (req, res) => {
         try {
             const { email } = req.body;
             const user = await Users.findOne({ email });
             if (!user)
-                return res.status(400).json({ msg: "Cet email n'existe pas." });
+                return res.status(400).json({ msg: req.__('auth.email_not_exist') });
 
-            const access_token = createAccessToken({ id: user._id, role: user.role, channelPlan: user.channelPlan || 'free' });
+            const access_token = createAccessToken({ id: user._id });
             const url = `${CLIENT_URL}/user/reset/${access_token}`;
 
             await sendMail(user.email, url, req.getLocale(), 'reset');
 
-            res.json({ msg: "Email de réinitialisation envoyé avec succès." });
+            res.json({ msg: req.__('auth.reset_email_sent') });
         } catch (err) {
-            return res.status(500).json({ msg: "Erreur serveur, veuillez réessayer." });
+            return res.status(500).json({ msg: req.__('auth.server_error') });
         }
     },
+
 
     resetPassword: async (req, res) => {
         try {
@@ -246,35 +224,42 @@ const authCtrl = {
                 { password: passwordHash }
             );
 
-            res.json({ msg: "Mot de passe changé avec succès." });
+            res.json({ msg: req.__('auth.password_changed') });
         } catch (err) {
-            return res.status(500).json({ msg: "Erreur serveur, veuillez réessayer." });
+            return res.status(500).json({ msg: req.__('auth.server_error') });
         }
     },
+
+
+
 
     sendEmailsParaUsers: async (req, res) => {
         try {
             const { recipients, subject, message, url } = req.body;
-            const lang = req.getLocale() || 'fr';
+            const lang = req.getLocale() || 'es';
 
             if (!recipients || !Array.isArray(recipients) || recipients.length === 0)
-                return res.status(400).json({ msg: 'Aucun destinataire sélectionné.' });
+                return res.status(400).json({ msg: 'No se seleccionaron destinatarios.' });
 
             if (!subject || !message)
-                return res.status(400).json({ msg: 'Sujet ou message manquant.' });
+                return res.status(400).json({ msg: 'Faltan el asunto o el mensaje.' });
 
             const users = await Users.find({ _id: { $in: recipients } });
             const emails = users.map(user => user.email);
 
             for (const email of emails) {
-                await sendMail(email, url || '#', lang, 'informatif', subject, message);
+                await sendMail(email, url || '#', lang, 'informativo', subject, message);
             }
 
-            return res.json({ msg: `✅ Emails envoyés à ${emails.length} utilisateurs.` });
+
+            return res.json({ msg: `✅ Correos enviados a ${emails.length} usuarios.` });
+
         } catch (err) {
             return res.status(500).json({ msg: err.message });
         }
     },
+
+
 
     googleLogin: async (req, res) => {
         try {
@@ -288,7 +273,7 @@ const authCtrl = {
             const { email_verified, email, name, picture } = verify.payload;
 
             if (!email_verified) {
-                return res.status(400).json({ msg: "Vérification de l'email échouée." });
+                return res.status(400).json({ msg: "Email verification failed." });
             }
 
             const password = email + process.env.GOOGLE_SECRET;
@@ -299,12 +284,13 @@ const authCtrl = {
             if (user) {
                 const isMatch = await bcrypt.compare(password, user.password);
                 if (!isMatch)
-                    return res.status(400).json({ msg: "Mot de passe incorrect." });
-
+                    return res.status(400).json({ msg: "Password is incorrect." });
+                // ✅ Si existe pero aún no está verificado, lo marcamos como verificado:
                 if (!user.isVerified) {
                     user.isVerified = true;
                     await user.save();
                 }
+
             } else {
                 const username = email.split("@")[0].toLowerCase().replace(/\s/g, '');
 
@@ -314,37 +300,31 @@ const authCtrl = {
                     email,
                     password: passwordHash,
                     avatar: picture,
-                    isVerified: true,
-                    channelPlan: 'free'  // ✅ Plan por defecto
+                    isVerified: true // ✅ Usuario de confianza, marcado como verificado
                 });
 
                 await user.save();
             }
 
-            const access_token = createAccessToken({
-                id: user._id,
-                role: user.role || 'user',
-                channelPlan: user.channelPlan || 'free'
-            });
+
+            const access_token = createAccessToken({ id: user._id });
             const refresh_token = createRefreshToken({ id: user._id });
 
             res.cookie("refreshtoken", refresh_token, {
                 httpOnly: true,
                 path: "/api/refresh_token",
-                maxAge: 30 * 24 * 60 * 60 * 1000
+                maxAge: 30 * 24 * 60 * 60 * 1000 // 30 días
             });
 
             res.json({
-                msg: "Connexion réussie !",
+                msg: "Login success!",
                 access_token,
                 user: {
                     ...user._doc,
-                    password: '',
-                    channelPlan: user.channelPlan || 'free',
-                    channelPlanExpiresAt: user.channelPlanExpiresAt,
-                    channelPlanAutoRenew: user.channelPlanAutoRenew || false
+                    password: ''
                 }
             });
+
         } catch (err) {
             return res.status(500).json({ msg: err.message });
         }
@@ -354,150 +334,128 @@ const authCtrl = {
         try {
             const { accessToken, userID } = req.body;
 
+            // 1. Llamada a la API de Facebook para obtener datos del usuario
             const URL = `https://graph.facebook.com/v2.9/${userID}?fields=id,name,email,picture&access_token=${accessToken}`;
             const response = await axios.get(URL);
 
             const { email, name, picture } = response.data;
 
             if (!email)
-                return res.status(400).json({ msg: "Votre compte Facebook n'a pas d'email confirmé." });
+                return res.status(400).json({ msg: "Tu cuenta de Facebook no tiene un correo confirmado." });
 
+            // 2. Creamos una contraseña segura basada en el email y una secret
             const password = email + process.env.FACEBOOK_SECRET;
             const passwordHash = await bcrypt.hash(password, 12);
 
+            // 3. Buscamos el usuario por email
             let user = await Users.findOne({ email });
 
             if (user) {
+                // Si existe, validamos la contraseña generada
                 const isMatch = await bcrypt.compare(password, user.password);
-                if (!isMatch) return res.status(400).json({ msg: "Échec d'authentification." });
+                if (!isMatch) return res.status(400).json({ msg: "Autenticación fallida." });
 
+                // Si existe y no está verificado, lo marcamos como verificado
                 if (!user.isVerified) {
                     user.isVerified = true;
                     await user.save();
                 }
             } else {
+                // 4. Si no existe, generamos un username a partir del correo
                 const username = email.split("@")[0].toLowerCase().replace(/\s/g, '');
 
+                // 5. Creamos el nuevo usuario
                 user = new Users({
                     name,
                     username,
                     email,
                     password: passwordHash,
                     avatar: picture.data.url,
-                    isVerified: true,
-                    channelPlan: 'free'  // ✅ Plan por defecto
+                    isVerified: true  // 👈 Se considera confiable porque viene de Facebook
                 });
 
                 await user.save();
             }
 
-            const access_token = createAccessToken({
-                id: user._id,
-                role: user.role || 'user',
-                channelPlan: user.channelPlan || 'free'
-            });
+            // 6. Creamos y devolvemos tokens
+            const access_token = createAccessToken({ id: user._id });
             const refresh_token = createRefreshToken({ id: user._id });
 
             res.cookie('refreshtoken', refresh_token, {
                 httpOnly: true,
                 path: '/api/refresh_token',
-                maxAge: 30 * 24 * 60 * 60 * 1000
+                maxAge: 30 * 24 * 60 * 60 * 1000 // 30 días
             });
 
             res.json({
-                msg: "Connexion réussie !",
+                msg: "Inicio de sesión exitoso",
                 access_token,
                 user: {
                     ...user._doc,
-                    password: '',
-                    channelPlan: user.channelPlan || 'free',
-                    channelPlanExpiresAt: user.channelPlanExpiresAt,
-                    channelPlanAutoRenew: user.channelPlanAutoRenew || false
+                    password: ''
                 }
             });
+
         } catch (err) {
             console.error(err);
-            return res.status(500).json({ msg: "Erreur serveur lors de la connexion avec Facebook." });
+            return res.status(500).json({ msg: "Error del servidor en login con Facebook." });
         }
     },
 
     logout: async (req, res) => {
         try {
             res.clearCookie('refreshtoken', { path: '/api/refresh_token' })
-            return res.json({ msg: "Déconnexion réussie !" })
+            return res.json({ msg: req.__('auth.logout_success') })
         } catch (err) {
-            return res.status(500).json({ msg: "Erreur serveur, veuillez réessayer." })
+            return res.status(500).json({ msg: req.__('auth.server_error') })
         }
     },
+
+
+
+
+
+
+
 
     generateAccessToken: async (req, res) => {
         try {
             const rf_token = req.cookies.refreshtoken
             if (!rf_token)
-                return res.status(400).json({ msg: "Veuillez vous connecter." })
+                return res.status(400).json({ msg: req.__('auth.login_required') })
 
             jwt.verify(rf_token, process.env.REFRESH_TOKEN_SECRET, async (err, result) => {
                 if (err)
-                    return res.status(400).json({ msg: "Veuillez vous connecter." })
+                    return res.status(400).json({ msg: req.__('auth.login_required') })
 
                 const user = await Users.findById(result.id).select("-password")
                     .populate('followers following', 'avatar username followers following')
 
                 if (!user)
-                    return res.status(400).json({ msg: "Utilisateur non trouvé." })
+                    return res.status(400).json({ msg: req.__('auth.user_not_found') })
 
-                // ✅ TOKEN actualizado con channelPlan
-                const access_token = createAccessToken({
-                    id: result.id,
-                    role: user.role || 'user',
-                    channelPlan: user.channelPlan || 'free'
-                })
+                const access_token = createAccessToken({ id: result.id })
 
                 res.json({
                     access_token,
-                    user: {
-                        ...user._doc,
-                        channelPlan: user.channelPlan || 'free',
-                        channelPlanExpiresAt: user.channelPlanExpiresAt,
-                        channelPlanAutoRenew: user.channelPlanAutoRenew || false
-                    }
+                    user
                 })
             })
         } catch (err) {
-            return res.status(500).json({ msg: "Erreur serveur, veuillez réessayer." })
-        }
-    },
-
-    getCurrentUser: async (req, res) => {
-        try {
-            const user = await Users.findById(req.user._id)
-                .select('-password')
-                .populate("followers following", "avatar username followers following");
-
-            if (!user) {
-                return res.status(404).json({ msg: "Utilisateur non trouvé" });
-            }
-
-            // Generar NUEVO token con el rol actualizado
-            const newToken = createAccessToken({
-                id: user._id,
-                role: user.role || 'user',
-                channelPlan: user.channelPlan || 'free'
-            });
-
-            res.json({
-                access_token: newToken,
-                user: {
-                    ...user._doc,
-                    channelPlan: user.channelPlan || 'free',
-                    channelPlanExpiresAt: user.channelPlanExpiresAt
-                }
-            });
-        } catch (err) {
-            return res.status(500).json({ msg: err.message });
+            return res.status(500).json({ msg: req.__('auth.server_error') })
         }
     }
+}
 
+const createActivationToken = (payload) => {
+    return jwt.sign(payload, process.env.ACTIVATION_TOKEN_SECRET, { expiresIn: '5m' })
+}
+const createAccessToken = (payload) => {
+    return jwt.sign(payload, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1d' })
+}
+
+const createRefreshToken = (payload) => {
+    return jwt.sign(payload, process.env.REFRESH_TOKEN_SECRET, { expiresIn: '30d' })
 }
 
 module.exports = authCtrl
