@@ -214,11 +214,7 @@ const Profile = () => {
       </Card>
     );
   };
-
-  // ==================== RENDER STATS CARDS ====================
-  
-
-  // ==================== RENDER INFO PERSONAL ====================
+ 
   const renderPersonalInfo = () => {
     const infoItems = [
       { icon: <Envelope />, label: 'Email', value: currentUser?.email, condition: currentUser?.email },
