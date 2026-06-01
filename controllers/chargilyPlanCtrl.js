@@ -1,4 +1,3 @@
-// controllers/chargilyPlanCtrl.js
 const axios = require('axios');
 const crypto = require('crypto');
 const User = require('../models/userModel');
@@ -18,21 +17,32 @@ const chargilyPlanCtrl = {
       
       const user = await User.findById(userId).select('email username');
       
-      console.log('📤 Creando checkout para usuario:', userId);
-      console.log('📦 Plan:', plan_id, 'Monto:', amount);
+      // 🔥 CONFIGURACIÓN DINÁMICA SEGÚN MODO
+      const isLive = process.env.CHARGILY_MODE === 'live';
       
-      const baseClientUrl = process.env.CLIENT_URL || 'http://localhost:3000';
-      const baseApiUrl = process.env.API_URL || 'http://localhost:5000';
+      // URL Base correcta según el modo
+      const baseUrl = isLive 
+        ? 'https://pay.chargily.net/api/v2/checkouts'      // LIVE: sin /test/
+        : 'https://pay.chargily.net/test/api/v2/checkouts'; // TEST: con /test/
       
-      // ✅ CORREGIDO: /api/webhook
-      const webhookUrl = process.env.WEBHOOK_URL
+      // URLs del cliente (frontend)
+      const baseClientUrl = process.env.CLIENT_URL || (isLive 
+        ? 'https://videocommerce.onrender.com' 
+        : 'http://localhost:3000');
+      
+      // URL del webhook (debe ser pública)
+      const webhookUrl = process.env.WEBHOOK_URL 
         ? `${process.env.WEBHOOK_URL}/api/webhook`
-        : `${baseApiUrl}/api/webhook`;
+        : `${baseClientUrl}/api/webhook`;
       
-      console.log('📡 Webhook URL:', webhookUrl);
+      console.log(`🎯 Modo: ${isLive ? '🔴 LIVE (dinero real)' : '🟡 TEST (simulación)'}`);
+      console.log(`🌐 API URL: ${baseUrl}`);
+      console.log(`📡 Webhook URL: ${webhookUrl}`);
+      console.log(`💰 Monto: ${amount} DZD`);
+      console.log(`👤 Usuario: ${user.email}`);
       
       const response = await axios.post(
-        "https://pay.chargily.net/test/api/v2/checkouts",
+        baseUrl,  // ← Ahora usa la variable dinámica
         {
           amount: Number(amount),
           currency: "dzd",
@@ -61,6 +71,7 @@ const chargilyPlanCtrl = {
         }
       );
       
+      // Guardar transacción en BD
       const transaction = new Transaction({
         checkout_id: response.data.id,
         user_id: userId,
@@ -82,10 +93,12 @@ const chargilyPlanCtrl = {
       await transaction.save();
       console.log('✅ Transacción registrada en BD:', transaction._id);
       
+      // Devolver la URL de checkout al frontend
       return res.json({
         success: true,
-        data: response.data,
-        transaction_id: transaction._id
+        checkout_url: response.data.checkout_url,  // ← Importante para redirigir
+        transaction_id: transaction._id,
+        mode: isLive ? 'live' : 'test'
       });
       
     } catch (err) {
@@ -106,13 +119,20 @@ const chargilyPlanCtrl = {
     try {
       console.log('\n🔔 ===== WEBHOOK RECIBIDO =====');
       console.log('📅 Hora:', new Date().toISOString());
-      console.log('📦 Body:', JSON.stringify(req.body, null, 2));
       
       const signature = req.headers["signature"];
       const payload = JSON.stringify(req.body);
+      const isLive = process.env.CHARGILY_MODE === 'live';
       
-      // ⚠️ TEMPORAL: Verificación de firma DESACTIVADA para pruebas
-      if (signature) {
+      // 🔐 VERIFICACIÓN DE FIRMA - OBLIGATORIA EN LIVE
+      if (isLive) {
+        console.log('🔐 Modo LIVE - Verificando firma...');
+        
+        if (!signature) {
+          console.warn('⚠️ No signature provided - REJECTED');
+          return res.status(403).json({ error: "Missing signature" });
+        }
+        
         const computedSignature = crypto
           .createHmac("sha256", process.env.CHARGILY_SECRET_KEY)
           .update(payload)
@@ -120,16 +140,16 @@ const chargilyPlanCtrl = {
         
         console.log('🔐 Firma esperada:', computedSignature);
         console.log('🔐 Firma recibida:', signature);
-        console.log('🔐 Coinciden:', computedSignature === signature ? '✅ SÍ' : '❌ NO');
         
-        // ⚠️ COMENTADO PARA PRUEBAS
-        /*
         if (computedSignature !== signature) {
-          console.warn('⚠️ Firma inválida - RECHAZADO');
+          console.warn('⚠️ Invalid signature - REJECTED');
           return res.status(403).json({ error: "Invalid signature" });
         }
-        */
-      } 
+        
+        console.log('✅ Firma verificada correctamente');
+      } else {
+        console.log('🟡 Modo TEST - Verificación de firma omitida');
+      }
       
       const event = req.body;
       console.log('📨 Tipo de evento:', event.type);
@@ -142,7 +162,9 @@ const chargilyPlanCtrl = {
         console.log(`🎉 PAGO CONFIRMADO: ${checkoutId}`);
         console.log('👤 User ID:', metadata.user_id);
         console.log('📦 Plan:', metadata.plan_id);
+        console.log('💰 Monto:', checkoutData.amount, checkoutData.currency);
         
+        // Buscar transacción pendiente
         const transaction = await Transaction.findOne({ checkout_id: checkoutId });
         
         if (!transaction) {
@@ -151,22 +173,25 @@ const chargilyPlanCtrl = {
         }
         
         if (transaction.status === 'paid') {
-          console.log('⏭️ Ya procesada');
+          console.log('⏭️ Transacción ya procesada anteriormente');
           return res.json({ received: true });
         }
         
+        // Calcular fecha de expiración del plan
         const totalMonths = (metadata.duration_months || 1) + (metadata.free_months || 0);
         const expiresAt = new Date();
         expiresAt.setMonth(expiresAt.getMonth() + totalMonths);
         
+        // Actualizar transacción
         transaction.status = 'paid';
         transaction.payment_completed_at = new Date();
         transaction.plan_expires_at = expiresAt;
         transaction.webhook_received = event;
+        transaction.chargily_payment_id = checkoutData.payment_intent || checkoutData.id;
         await transaction.save();
-        console.log('✅ Transacción → PAID');
+        console.log('✅ Transacción actualizada a PAID');
         
-        // ✅ ACTUALIZAR USUARIO
+        // ✅ ACTUALIZAR USUARIO (liberar el producto/plan)
         const updatedUser = await User.findByIdAndUpdate(
           transaction.user_id,
           {
@@ -177,13 +202,20 @@ const chargilyPlanCtrl = {
             role: 'userpro'
           },
           { new: true }
-        ).select('username email channelPlan role isPro');
+        ).select('username email channelPlan role isPro channelPlanExpiresAt');
         
         console.log('✅ USUARIO ACTUALIZADO:');
+        console.log('   ID:', transaction.user_id);
         console.log('   Nombre:', updatedUser.username);
         console.log('   Plan:', updatedUser.channelPlan);
         console.log('   Role:', updatedUser.role);
         console.log('   isPro:', updatedUser.isPro);
+        console.log('   Expira:', expiresAt.toISOString());
+        
+        // Aquí puedes agregar lógica adicional:
+        // - Enviar email de confirmación
+        // - Registrar en sistema de facturación
+        // - Actualizar cache, etc.
       }
       
       console.log('===== FIN WEBHOOK =====\n');
@@ -194,12 +226,13 @@ const chargilyPlanCtrl = {
       return res.status(500).json({ error: "Webhook error" });
     }
   },
-  // Verificar estado del plan
+  
+  // Verificar estado del plan del usuario
   checkPlanStatus: async (req, res) => {
     try {
       const userId = req.user._id;
       const user = await User.findById(userId)
-        .select('channelPlan channelPlanExpiresAt isPro role username');
+        .select('channelPlan channelPlanExpiresAt isPro role username email');
       
       if (!user) {
         return res.status(404).json({ error: 'Utilisateur non trouvé' });
@@ -208,7 +241,9 @@ const chargilyPlanCtrl = {
       const now = new Date();
       const isExpired = user.channelPlanExpiresAt && new Date(user.channelPlanExpiresAt) < now;
       
+      // Si el plan expiró, degradar a free
       if (isExpired && user.channelPlan !== 'free') {
+        console.log(`⏰ Plan expirado para usuario ${user.username}, degradando a free`);
         await User.findByIdAndUpdate(userId, {
           channelPlan: 'free',
           channelPlanExpiresAt: null,
@@ -227,7 +262,8 @@ const chargilyPlanCtrl = {
           role: user.role,
           expiresAt: user.channelPlanExpiresAt,
           isExpired: isExpired,
-          isPro: user.isPro
+          isPro: user.isPro,
+          email: user.email
         }
       });
       
@@ -254,7 +290,11 @@ const chargilyPlanCtrl = {
       res.json({
         success: true,
         transactions,
-        pagination: { total, page: parseInt(page), totalPages: Math.ceil(total / parseInt(limit)) }
+        pagination: {
+          total,
+          page: parseInt(page),
+          pages: Math.ceil(total / parseInt(limit))
+        }
       });
     } catch (err) {
       console.error('❌ Error getUserTransactions:', err);
