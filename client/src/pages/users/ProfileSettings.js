@@ -29,8 +29,9 @@ import {
 } from 'react-bootstrap-icons';
 import { updateProfileUser } from '../../redux/actions/profileAction';
 import { GLOBALTYPES } from '../../redux/actions/globalTypes';
-import { imageUpload } from '../../utils/imageUpload'; // 👈 IMPORT MANQUANTE
-
+ 
+import { imageUpload } from '../../utils/imageUpload';
+ 
 const ProfileSettings = () => {
   const dispatch = useDispatch();
   const history = useHistory();

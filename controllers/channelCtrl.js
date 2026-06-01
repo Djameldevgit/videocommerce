@@ -413,46 +413,14 @@ const getChannelProfile = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Canal no encontrado' });
         }
 
+        // ✅ PRIMERO: Verificar si es el DUEÑO (independientemente de si es admin)
         const isOwner = currentUserId && channel.owner._id.toString() === currentUserId.toString();
 
-        // ✅ ADMIN puede ver TODO (incluyendo inactivos y pendientes)
-        if (isAdmin) {
-            console.log(`👑 Admin viendo canal: ${channel.name} (pending: ${channel.pending}, active: ${channel.isActive})`);
-            
-            const profileData = {
-                _id: channel._id.toString(),
-                name: channel.name,
-                slug: channel.slug,
-                description: channel.description || '',
-                avatar: channel.avatar || [],
-                cover: channel.cover || [],
-                wilaya: channel.wilaya || '',
-                commune: channel.commune || '',
-                activity: channel.activity || '',
-                isVerified: channel.isVerified || false,
-                followersCount: channel.followersCount || 0,
-                totalVideos: channel.totalVideos || 0,
-                totalViews: channel.totalViews || 0,
-                totalLikes: channel.totalLikes || 0,
-                owner: channel.owner,
-                isFollowing: false,
-                pending: channel.pending || false,
-                isActive: channel.isActive !== false,
-                email: channel.email || '',
-                phone: channel.phone || '',
-                website: channel.website || '',
-                createdAt: channel.createdAt,
-                updatedAt: channel.updatedAt
-            };
-
-            return res.json({ success: true, profile: profileData });
-        }
-
-        // ✅ DUEÑO puede ver su canal aunque esté inactivo o pendiente
+        // ✅ SI ES DUEÑO (incluyendo admins que son dueños del canal)
         if (isOwner) {
-            console.log(`👤 Dueño viendo su canal: ${channel.name} (pending: ${channel.pending}, active: ${channel.isActive})`);
+            console.log(`👑 Dueño (admin o no) viendo su canal: ${channel.name} (pending: ${channel.pending}, active: ${channel.isActive})`);
             
-            // Obtener estadísticas solo para estadísticas
+            // Obtener estadísticas de videos
             const stats = await Video.aggregate([
                 { $match: { channel: new mongoose.Types.ObjectId(channelId), pendiente: false, isActive: true } },
                 { $group: {
@@ -494,7 +462,40 @@ const getChannelProfile = async (req, res) => {
             return res.json({ success: true, profile: profileData });
         }
 
-        // ✅ USUARIO NORMAL solo puede ver canales activos y NO pendientes
+        // ✅ ADMIN (pero NO dueño) puede ver TODO (incluyendo inactivos y pendientes)
+        if (isAdmin) {
+            console.log(`👑 Admin (no dueño) viendo canal: ${channel.name} (pending: ${channel.pending}, active: ${channel.isActive})`);
+            
+            const profileData = {
+                _id: channel._id.toString(),
+                name: channel.name,
+                slug: channel.slug,
+                description: channel.description || '',
+                avatar: channel.avatar || [],
+                cover: channel.cover || [],
+                wilaya: channel.wilaya || '',
+                commune: channel.commune || '',
+                activity: channel.activity || '',
+                isVerified: channel.isVerified || false,
+                followersCount: channel.followersCount || 0,
+                totalVideos: channel.totalVideos || 0,
+                totalViews: channel.totalViews || 0,
+                totalLikes: channel.totalLikes || 0,
+                owner: channel.owner,
+                isFollowing: false,
+                pending: channel.pending || false,
+                isActive: channel.isActive !== false,
+                email: channel.email || '',
+                phone: channel.phone || '',
+                website: channel.website || '',
+                createdAt: channel.createdAt,
+                updatedAt: channel.updatedAt
+            };
+
+            return res.json({ success: true, profile: profileData });
+        }
+
+        // ✅ USUARIO NORMAL (no dueño, no admin) solo puede ver canales activos y NO pendientes
         if (channel.pending) {
             return res.status(404).json({ success: false, message: 'Canal pendiente de aprobación' });
         }
@@ -503,7 +504,7 @@ const getChannelProfile = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Canal no disponible' });
         }
 
-        // ✅ Verificar follow
+        // Verificar follow
         let isFollowing = false;
         if (currentUserId) {
             const currentUser = await User.findById(currentUserId).select('followingChannels');
@@ -512,7 +513,7 @@ const getChannelProfile = async (req, res) => {
             }
         }
 
-        // ✅ Obtener estadísticas
+        // Obtener estadísticas
         const stats = await Video.aggregate([
             { $match: { channel: new mongoose.Types.ObjectId(channelId), pendiente: false, isActive: true } },
             { $group: {
@@ -565,24 +566,18 @@ const getChannelProfile = async (req, res) => {
         res.status(500).json({ success: false, message: err.message });
     }
 };
-// ==================== OBTENER MIS CANALES ====================
-// ==================== OBTENER MIS CANALES ====================
-// backend/controllers/channelCtrl.js
-
-// backend/controllers/channelCtrl.js
-
 const getMyChannels = async (req, res) => {
     try {
         const userId = req.user._id;
         
-        // ✅ Mostrar TODOS los canales del usuario (incluyendo pendientes)
-        // Solo filtramos por isActive=false si queremos ocultar eliminados
+        // ✅ SOLO DEVOLVER CANALES ACTIVOS (isActive: true)
+        // El dueño debe ver sus canales activos, los inactivos (eliminados) no
         const channels = await Channel.find({ 
-            owner: userId
-            // ❌ NO filtrar por isActive: true - el dueño debe ver sus canales pendientes
+            owner: userId,
+            isActive: true  // ← FILTRO CLAVE: solo canales activos
         })
             .populate('owner', 'username avatar fullname')
-            .sort({ createdAt: -1 }) // Los más recientes primero
+            .sort({ createdAt: -1 })
             .lean();
         
         // ✅ Extraer URLs como strings
@@ -614,12 +609,11 @@ const getMyChannels = async (req, res) => {
                 ...channel,
                 avatar: avatarUrl,
                 cover: coverUrl,
-                // ✅ Asegurar que pending existe
-                pending: channel.pending !== undefined ? channel.pending : true
+                pending: channel.pending !== undefined ? channel.pending : false
             };
         });
         
-        console.log(`📋 Usuario ${userId} tiene ${formattedChannels.length} canales (${formattedChannels.filter(c => c.pending).length} pendientes)`);
+        console.log(`📋 Usuario ${userId} tiene ${formattedChannels.length} canales activos`);
         
         res.json({ 
             success: true, 

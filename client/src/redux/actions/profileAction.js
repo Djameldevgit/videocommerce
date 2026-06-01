@@ -258,10 +258,15 @@ export const getProfileUsers = ({ id, auth }) => async (dispatch) => {
 // ============================================
 // 🟢 UPDATE PROFILE USER
 // ============================================
+// ============================================
+// 🟢 UPDATE PROFILE USER - CON SUBIDA DE IMAGEN
+// ============================================
 export const updateProfileUser = ({ userData, avatar, auth }) => async (dispatch) => {
-    console.log('🚀 updateProfileUser - userData:', userData);
-    console.log('🚀 updateProfileUser - avatar:', avatar ? 'presente' : 'null');
+    console.log('🚀 updateProfileUser iniciado');
+    console.log('📝 userData:', userData);
+    console.log('🖼️ avatar recibido:', avatar ? `File: ${avatar.name}` : 'null o undefined');
     
+    // Validaciones
     if(userData.fullname && userData.fullname.length > 25) {
         return dispatch({
             type: GLOBALTYPES.ALERT, 
@@ -278,26 +283,73 @@ export const updateProfileUser = ({ userData, avatar, auth }) => async (dispatch
   
     try {
         dispatch({ type: GLOBALTYPES.ALERT, payload: { loading: true } });
-  
+        
+        // ============================================
+        // ✅ PROCESAR AVATAR SI ES UN ARCHIVO NUEVO
+        // ============================================
+        let avatarUrl = auth.user.avatar; // Mantener avatar actual por defecto
+        
+        if (avatar && avatar instanceof File) {
+            console.log('📤 Subiendo nuevo avatar a Cloudinary...');
+            
+            // Subir a Cloudinary usando imageUpload2
+            const uploadedImages = await imageUpload([avatar]);
+            
+            if (uploadedImages && uploadedImages.length > 0) {
+                avatarUrl = uploadedImages[0].url;
+                console.log('✅ Avatar subido:', avatarUrl);
+            } else {
+                console.warn('⚠️ No se pudo subir el avatar');
+            }
+        } else if (avatar && typeof avatar === 'string') {
+            // Si ya es una URL (mantener existente)
+            avatarUrl = avatar;
+            console.log('🖼️ Avatar existente (URL):', avatarUrl.substring(0, 50));
+        } else if (avatar === null || avatar === '') {
+            // Si se envió null o vacío, mantener el actual
+            avatarUrl = auth.user.avatar;
+        }
+        
+        // ============================================
+        // ✅ CONSTRUIR DATOS A ENVIAR
+        // ============================================
         const updatedData = {
             fullname: userData.fullname || auth.user.fullname,
-            mobile: userData.mobile || auth.user.mobile || '',
-            address: userData.address || auth.user.address || '',
-            story: userData.story || auth.user.story || '',
-            website: userData.website || auth.user.website || '',
-            avatar: userData.avatar || auth.user.avatar
+            mobile: userData.mobile !== undefined ? userData.mobile : (auth.user.mobile || ''),
+            address: userData.address !== undefined ? userData.address : (auth.user.address || ''),
+            story: userData.story !== undefined ? userData.story : (auth.user.story || ''),
+            website: userData.website !== undefined ? userData.website : (auth.user.website || ''),
+            avatar: avatarUrl
         };
   
-        console.log('📦 Enviando al backend:', updatedData);
+        console.log('📦 Enviando al backend:', {
+            ...updatedData,
+            avatar: updatedData.avatar ? updatedData.avatar.substring(0, 50) + '...' : 'null'
+        });
   
         const res = await patchDataAPI("user", updatedData, auth.token);
       
         if (res.data && (res.data.msg || res.data.success)) {
+            // Actualizar el estado de auth con el nuevo avatar
             dispatch({
                 type: GLOBALTYPES.AUTH,
                 payload: {
                     ...auth,
-                    user: { ...auth.user, ...updatedData }
+                    user: { 
+                        ...auth.user, 
+                        ...updatedData,
+                        avatar: avatarUrl
+                    }
+                }
+            });
+  
+            // También actualizar el perfil en el estado de profile si existe
+            dispatch({
+                type: PROFILE_TYPES.UPDATE_PROFILE,
+                payload: {
+                    ...auth.user,
+                    ...updatedData,
+                    avatar: avatarUrl
                 }
             });
   
@@ -306,7 +358,7 @@ export const updateProfileUser = ({ userData, avatar, auth }) => async (dispatch
                 payload: { success: res.data.msg || res.data.success || 'Perfil actualizado correctamente' }
             });
   
-            console.log('✅ Perfil actualizado correctamente');
+            console.log('✅ Perfil actualizado correctamente con nuevo avatar');
         }
       
     } catch (err) {
@@ -325,7 +377,6 @@ export const updateProfileUser = ({ userData, avatar, auth }) => async (dispatch
         dispatch({ type: GLOBALTYPES.ALERT, payload: { loading: false } });
     }
 };
-
 // ============================================
 // 🟢 FOLLOW USER - VERSIÓN MEJORADA
 // ============================================

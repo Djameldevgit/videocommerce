@@ -289,11 +289,11 @@ const EditChannel = () => {
   }
 
   return (
-    <div className="bg-light" style={{ minHeight: '100vh', padding: '2rem 0' }}>
+    <div className="bg-light" style={{ minHeight: '100vh'  }}>
       <Container>
         <Button 
           variant="link" 
-          className="text-decoration-none mb-3 d-inline-flex align-items-center gap-1"
+          className="text-decoration-none mb-1 d-inline-flex align-items-center gap-1"
           onClick={() => history.goBack()}
         >
           <ArrowLeft size={16} /> Retour
@@ -307,9 +307,8 @@ const EditChannel = () => {
                   <Tv size={28} className="text-primary" />
                   <h2 className="h4 fw-bold mb-0">Modifier la chaîne</h2>
                 </div>
-                <p className="text-muted mt-2">Mettez à jour les informations de votre chaîne commerciale</p>
-              </Card.Header>
-              <Card.Body className="p-4">
+                 </Card.Header>
+              <Card className="p-4">
                 {error && (
                   <Alert variant="danger" className="mb-4" onClose={() => setError(null)} dismissible>
                     <strong>Erreur :</strong> {error}
@@ -324,9 +323,63 @@ const EditChannel = () => {
 
                 <Form onSubmit={handleSubmit}>
                   {/* SECCIÓN DE IMÁGENES */}
-                  <div className="mb-4 pb-2 border-bottom">
-                    <h5 className="fw-bold mb-3">Images de la chaîne</h5>
-                    <Row>
+                  <div className="mb-3 pb-2 border-bottom">
+                       <Row>
+                    
+
+                      <Col md={6}>
+                        <Form.Label className="fw-semibold">Image de couverture</Form.Label>
+                        <div 
+                          className="cover-upload-box"
+                          style={{
+                            width: '100%',
+                            height: '100px',
+                            borderRadius: '12px',
+                            border: '2px dashed #ccc',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            overflow: 'hidden',
+                            background: '#f8f9fa'
+                          }}
+                          onClick={() => coverInputRef.current?.click()}
+                        >
+                          <input
+                            type="file"
+                            ref={coverInputRef}
+                            accept="image/jpeg, image/png, image/jpg, image/gif"
+                            onChange={handleCoverChange}
+                            disabled={uploadingCover}
+                            style={{ display: 'none' }}
+                          />
+                          
+                          {coverPreview ? (
+                            <img 
+                              src={coverPreview} 
+                              alt="Cover"
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            />
+                          ) : (
+                            <>
+                              <Upload size={24} className="text-muted mb-2" />
+                              <span className="small text-muted">Cliquez pour uploader</span>
+                            </>
+                          )}
+                        </div>
+                        {coverPreview && (
+                          <Button 
+                            variant="danger" 
+                            size="sm" 
+                            className="mt-2"
+                            onClick={handleRemoveCover}
+                          >
+                            Supprimer
+                          </Button>
+                        )}
+                      </Col>
+
                       <Col md={6} className="mb-3">
                         <Form.Label className="fw-semibold">Avatar</Form.Label>
                         <div 
@@ -381,58 +434,10 @@ const EditChannel = () => {
                         )}
                       </Col>
 
-                      <Col md={6}>
-                        <Form.Label className="fw-semibold">Image de couverture</Form.Label>
-                        <div 
-                          className="cover-upload-box"
-                          style={{
-                            width: '100%',
-                            height: '150px',
-                            borderRadius: '12px',
-                            border: '2px dashed #ccc',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'pointer',
-                            overflow: 'hidden',
-                            background: '#f8f9fa'
-                          }}
-                          onClick={() => coverInputRef.current?.click()}
-                        >
-                          <input
-                            type="file"
-                            ref={coverInputRef}
-                            accept="image/jpeg, image/png, image/jpg, image/gif"
-                            onChange={handleCoverChange}
-                            disabled={uploadingCover}
-                            style={{ display: 'none' }}
-                          />
-                          
-                          {coverPreview ? (
-                            <img 
-                              src={coverPreview} 
-                              alt="Cover"
-                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                            />
-                          ) : (
-                            <>
-                              <Upload size={24} className="text-muted mb-2" />
-                              <span className="small text-muted">Cliquez pour uploader</span>
-                            </>
-                          )}
-                        </div>
-                        {coverPreview && (
-                          <Button 
-                            variant="danger" 
-                            size="sm" 
-                            className="mt-2"
-                            onClick={handleRemoveCover}
-                          >
-                            Supprimer
-                          </Button>
-                        )}
-                      </Col>
+
+
+
+
                     </Row>
                   </div>
 
@@ -547,7 +552,7 @@ const EditChannel = () => {
                     </Button>
                   </div>
                 </Form>
-              </Card.Body>
+              </Card>
             </Card>
           </Col>
         </Row>

@@ -166,7 +166,6 @@ const MisChannel = () => {
     dispatch({ type: GLOBALTYPES.ALERT, payload: { loading: true } });
     
     try {
-      // ✅ Usar fetch directamente para DELETE
       const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/channels/${channelToDelete._id}`, {
         method: 'DELETE',
         headers: {
@@ -181,19 +180,23 @@ const MisChannel = () => {
       const data = await response.json();
       
       if (response.ok && data.success) {
-        // ✅ IMPORTANTE: Usar la constante correcta del CHANNEL_TYPES
+        // ✅ FORZAR ACTUALIZACIÓN DIRECTA DEL ESTADO LOCAL
+        // Método 1: Usar la constante correcta (ya está definida en CHANNEL_TYPES)
         dispatch({ 
-          type: CHANNEL_TYPES.DELETE_CHANNEL_SUCCESS,  // ← Usar la constante importada
+          type: CHANNEL_TYPES.DELETE_CHANNEL_SUCCESS, 
           payload: channelToDelete._id 
         });
         
-        // ✅ Mostrar mensaje de éxito
+        // Método 2: También refrescar desde el servidor (doble seguridad)
+        setTimeout(async () => {
+          await dispatch(getMyChannels(authToken));
+        }, 500);
+        
         dispatch({ 
           type: GLOBALTYPES.ALERT, 
           payload: { success: data.message || "Canal supprimé avec succès" } 
         });
         
-        // ✅ Cerrar modal
         setShowDeleteConfirm(false);
         setChannelToDelete(null);
         
