@@ -1,4 +1,4 @@
-// src/components/planes.js - VERSIÓN COMPLETA CORREGIDA
+// src/components/planes.js - VERSIÓN ACTUALIZADA PARA LIVE
 import React, { useState, useRef, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { useHistory } from 'react-router-dom';
@@ -6,17 +6,20 @@ import { FaCheck, FaStar, FaArrowRight, FaArrowLeft, FaVideo, FaHdd, FaClock, Fa
  
 import './planes.css';
 import { postDataAPI } from '../../utils/fetchData';
+
+// ✅ URL base para producción
+const API_URL = process.env.REACT_APP_API_URL || 'https://videocommerce.onrender.com/api';
  
-const planes = () => {
+const Planes = () => {
   const history = useHistory();
   const { auth } = useSelector(state => state);
   
-  // ✅ Extraer token y user correctamente
   const token = auth?.token;
   const user = auth?.user;
   
   console.log('🔑 Token en planes:', token ? `${token.substring(0, 30)}...` : 'No hay token');
   console.log('👤 User en planes:', user?._id || user?.id);
+  console.log('🌐 API URL:', API_URL);
   
   const [step, setStep] = useState(1);
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -24,12 +27,10 @@ const planes = () => {
   const [selectedOffer, setSelectedOffer] = useState(null);
   const [loading, setLoading] = useState(false);
   
-  // Refs para el slider
   const sliderRef = useRef(null);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [showRightArrow, setShowRightArrow] = useState(true);
 
-  // Catégories (con emojis para mejor visual)
   const categories = [
     { id: 'automobile', name: 'Automobiles & Véhicules', icon: '🚗', color: '#dc3545' },
     { id: 'informatique', name: 'Informatique', icon: '💻', color: '#007bff' },
@@ -125,7 +126,6 @@ const planes = () => {
     }
   ];
 
-  // Verificar posición del slider
   const checkScrollPosition = () => {
     if (sliderRef.current) {
       const { scrollLeft, scrollWidth, clientWidth } = sliderRef.current;
@@ -181,59 +181,96 @@ const planes = () => {
       setStep(4);
     }
   };
- // planes.js - Función handleProceedToPayment CORREGIDA
-// planes.js - handleProceedToPayment CORREGIDO
-const handleProceedToPayment = async () => {
-  try {
-    setLoading(true);
-    
-    // ✅ Obtener token correctamente
-    const token = auth?.token || localStorage.getItem('token');
-    
-    if (!token) {
-      alert('Vous devez être connecté');
-      history.push('/login');
-      return;
+
+  // ✅ FUNCIÓN CORREGIDA PARA LIVE
+  const handleProceedToPayment = async () => {
+    try {
+      setLoading(true);
+      
+      const token = auth?.token || localStorage.getItem('token');
+      
+      if (!token) {
+        alert('Vous devez être connecté');
+        history.push('/login');
+        return;
+      }
+      
+      // Si es plan gratuito, activar directamente
+      if (selectedOffer?.id === 'free') {
+        console.log('🎁 Plan gratuito - activando directamente');
+        
+        const response = await fetch(`${API_URL}/activate-free-plan`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            plan_id: 'free',
+            category: selectedCategory
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+          alert('Plan gratuit activé avec succès !');
+          history.push('/dashboard');
+        } else {
+          alert(data.error || 'Erreur lors de l\'activation du plan gratuit');
+        }
+        return;
+      }
+      
+      // Para planes de pago
+      const totalPrice = calculateTotalPrice();
+      const discount = getDiscount(selectedDuration, selectedOffer?.id);
+      const freeMonths = getFreeMonths(selectedDuration);
+      
+      const paymentData = {
+        plan_id: selectedOffer?.id,
+        plan_name: selectedOffer?.name,
+        amount: totalPrice,
+        currency: 'dzd',
+        duration_months: selectedDuration,
+        discount_percent: discount,
+        free_months: freeMonths,
+        category: selectedCategory
+      };
+      
+      console.log('💳 Enviando pago a:', `${API_URL}/create-plan-checkout`);
+      console.log('💰 Datos:', paymentData);
+      
+      // ✅ CORREGIDO: Usar el endpoint correcto 'create-plan-checkout'
+      const response = await postDataAPI('create-plan-checkout', paymentData, token);
+      
+      console.log('📦 Respuesta completa:', response);
+      console.log('📦 response.data:', response.data);
+      
+      // ✅ CORREGIDO: Extraer checkout_url de la respuesta correcta
+      const checkoutUrl = response.data?.checkout_url || response.data?.data?.checkout_url;
+      
+      console.log('🔗 Checkout URL:', checkoutUrl);
+      
+      if (checkoutUrl) {
+        // Redirigir a la pasarela de pago de Chargily
+        window.location.href = checkoutUrl;
+      } else {
+        console.error('❌ Respuesta sin checkout_url:', response.data);
+        alert('Erreur: impossible de créer le paiement. Vérifiez la console.');
+      }
+      
+    } catch (error) {
+      console.error('❌ Error detallado:', error);
+      console.error('❌ Response error:', error.response?.data);
+      const errorMsg = error.response?.data?.error || error.message || 'Erreur inconnue';
+      alert(`Erreur: ${errorMsg}`);
+    } finally {
+      setLoading(false);
     }
-    
-    const totalPrice = calculateTotalPrice();
-    const discount = getDiscount(selectedDuration, selectedOffer?.id);
-    const freeMonths = getFreeMonths(selectedDuration);
-    
-    const paymentData = {
-      plan_id: selectedOffer?.id,
-      plan_name: selectedOffer?.name,
-      amount: totalPrice,
-      currency: 'dzd',
-      duration_months: selectedDuration,
-      discount_percent: discount,
-      free_months: freeMonths,
-      category: selectedCategory,
-      user_id: user?._id || user?.id
-    };
-    
-    console.log('💳 Enviando pago:', paymentData);
-    
-    // ✅ Pasar el token como tercer parámetro
-    const response = await postDataAPI('create-checkout', paymentData, token);
-    
-    console.log('📦 Respuesta:', response.data);
-    
-    const checkoutUrl = response.data?.data?.checkout_url || response.data?.checkout_url;
-    
-    if (checkoutUrl) {
-      window.location.href = checkoutUrl;
-    } else {
-      alert('Erreur: impossible de créer le paiement');
-    }
-  } catch (error) {
-    console.error('❌ Error:', error);
-    alert('Erreur: ' + (error.response?.data?.error || error.message));
-  } finally {
-    setLoading(false);
-  }
-};
-  // Step 1: Slider horizontal
+  };
+
+  // Step 1
   const Step1 = () => (
     <div className="step-container">
       <div className="step-header">
@@ -277,7 +314,7 @@ const handleProceedToPayment = async () => {
     </div>
   );
 
-  // Step 2 - Duración
+  // Step 2
   const Step2 = () => (
     <div className="step-container">
       <div className="step-header">
@@ -320,7 +357,7 @@ const handleProceedToPayment = async () => {
     </div>
   );
 
-  // Step 3 - Planes
+  // Step 3
   const Step3 = () => (
     <div className="step-container">
       <div className="step-header">
@@ -406,7 +443,7 @@ const handleProceedToPayment = async () => {
     </div>
   );
 
-  // Step 4 - Resumen
+  // Step 4
   const Step4 = () => {
     const freeMonths = getFreeMonths(selectedDuration);
     const discount = getDiscount(selectedDuration, selectedOffer?.id);
@@ -567,4 +604,4 @@ const handleProceedToPayment = async () => {
   );
 };
 
-export default planes;
+export default Planes;
