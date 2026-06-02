@@ -6,7 +6,7 @@ const chargilyPlanCtrl = require('../controllers/chargilyPlanCtrl');
 
 // ✅ Ruta para crear checkout (requiere autenticación)
 // CORREGIDO: El nombre debe coincidir con lo que llama el frontend
-router.post('/create-plan-checkout', auth, chargilyPlanCtrl.createPlanCheckout);
+router.post('/create-checkout', auth, chargilyPlanCtrl.createPlanCheckout);
 
 // ✅ Webhook (NO requiere auth - Chargily lo llama)
 router.post('/webhook', chargilyPlanCtrl.handlePlanWebhook);

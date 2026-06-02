@@ -234,11 +234,11 @@ const handleProceedToPayment = async () => {
       category: selectedCategory
     };
     
-    console.log('💳 Enviando pago a create-plan-checkout');
+    console.log('💳 Enviando pago a create-checkout');
     console.log('💰 Datos:', paymentData);
     
     // ✅ Usar postDataAPI para el pago
-    const response = await postDataAPI('create-plan-checkout', paymentData, token);
+    const response = await postDataAPI('create-checkout', paymentData, token);
     
     console.log('📦 Respuesta:', response.data);
     

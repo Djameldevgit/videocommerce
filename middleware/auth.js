@@ -6,7 +6,8 @@ const auth = async (req, res, next) => {
   try {
     // 1. Obtener token del header Authorization
     const authHeader = req.header('Authorization');
-    
+    console.log('🔐 [AUTH] Authorization header RAW:', authHeader);
+    console.log('🔐 [AUTH] ¿Empieza con Bearer?', authHeader.startsWith('Bearer '));
     if (!authHeader) {
       console.log('❌ No Authorization header');
       return res.status(401).json({ error: 'Accès non autorisé' });
