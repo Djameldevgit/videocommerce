@@ -182,93 +182,87 @@ const Planes = () => {
     }
   };
 
-  // ✅ FUNCIÓN CORREGIDA PARA LIVE
-  const handleProceedToPayment = async () => {
-    try {
-      setLoading(true);
-      
-      const token = auth?.token || localStorage.getItem('token');
-      
-      if (!token) {
-        alert('Vous devez être connecté');
-        history.push('/login');
-        return;
-      }
-      
-      // Si es plan gratuito, activar directamente
-      if (selectedOffer?.id === 'free') {
-        console.log('🎁 Plan gratuito - activando directamente');
-        
-        const response = await fetch(`${API_URL}/activate-free-plan`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            plan_id: 'free',
-            category: selectedCategory
-          })
-        });
-        
-        const data = await response.json();
-        
-        if (response.ok && data.success) {
-          alert('Plan gratuit activé avec succès !');
-          history.push('/dashboard');
-        } else {
-          alert(data.error || 'Erreur lors de l\'activation du plan gratuit');
-        }
-        return;
-      }
-      
-      // Para planes de pago
-      const totalPrice = calculateTotalPrice();
-      const discount = getDiscount(selectedDuration, selectedOffer?.id);
-      const freeMonths = getFreeMonths(selectedDuration);
-      
-      const paymentData = {
-        plan_id: selectedOffer?.id,
-        plan_name: selectedOffer?.name,
-        amount: totalPrice,
-        currency: 'dzd',
-        duration_months: selectedDuration,
-        discount_percent: discount,
-        free_months: freeMonths,
-        category: selectedCategory
-      };
-      
-      console.log('💳 Enviando pago a:', `${API_URL}/create-plan-checkout`);
-      console.log('💰 Datos:', paymentData);
-      
-      // ✅ CORREGIDO: Usar el endpoint correcto 'create-plan-checkout'
-      const response = await postDataAPI('create-plan-checkout', paymentData, token);
-      
-      console.log('📦 Respuesta completa:', response);
-      console.log('📦 response.data:', response.data);
-      
-      // ✅ CORREGIDO: Extraer checkout_url de la respuesta correcta
-      const checkoutUrl = response.data?.checkout_url || response.data?.data?.checkout_url;
-      
-      console.log('🔗 Checkout URL:', checkoutUrl);
-      
-      if (checkoutUrl) {
-        // Redirigir a la pasarela de pago de Chargily
-        window.location.href = checkoutUrl;
-      } else {
-        console.error('❌ Respuesta sin checkout_url:', response.data);
-        alert('Erreur: impossible de créer le paiement. Vérifiez la console.');
-      }
-      
-    } catch (error) {
-      console.error('❌ Error detallado:', error);
-      console.error('❌ Response error:', error.response?.data);
-      const errorMsg = error.response?.data?.error || error.message || 'Erreur inconnue';
-      alert(`Erreur: ${errorMsg}`);
-    } finally {
-      setLoading(false);
+// planes.js - handleProceedToPayment CORREGIDO (sin fetch directo)
+const handleProceedToPayment = async () => {
+  try {
+    setLoading(true);
+    
+    // ✅ Obtener token correctamente
+    const token = auth?.token || localStorage.getItem('token');
+    
+    if (!token) {
+      alert('Vous devez être connecté');
+      history.push('/login');
+      return;
     }
-  };
+    
+    console.log('🔑 Token usado:', token.substring(0, 30) + '...');
+    
+    // 🎁 PLAN GRATUITO - Usando postDataAPI también
+    if (selectedOffer?.id === 'free') {
+      console.log('🎁 Plan gratuito - activando directamente con postDataAPI');
+      
+      const response = await postDataAPI('activate-free-plan', {
+        plan_id: 'free',
+        category: selectedCategory
+      }, token);
+      
+      console.log('📦 Respuesta plan gratuito:', response.data);
+      
+      if (response.data?.success) {
+        alert('Plan gratuit activé avec succès !');
+        history.push('/dashboard');
+      } else {
+        alert(response.data?.error || 'Erreur lors de l\'activation du plan gratuit');
+      }
+      return;
+    }
+    
+    // 💰 PLANES DE PAGO
+    const totalPrice = calculateTotalPrice();
+    const discount = getDiscount(selectedDuration, selectedOffer?.id);
+    const freeMonths = getFreeMonths(selectedDuration);
+    
+    const paymentData = {
+      plan_id: selectedOffer?.id,
+      plan_name: selectedOffer?.name,
+      amount: totalPrice,
+      currency: 'dzd',
+      duration_months: selectedDuration,
+      discount_percent: discount,
+      free_months: freeMonths,
+      category: selectedCategory
+    };
+    
+    console.log('💳 Enviando pago a create-plan-checkout');
+    console.log('💰 Datos:', paymentData);
+    
+    // ✅ Usar postDataAPI para el pago
+    const response = await postDataAPI('create-plan-checkout', paymentData, token);
+    
+    console.log('📦 Respuesta:', response.data);
+    
+    // Extraer checkout_url
+    const checkoutUrl = response.data?.checkout_url || response.data?.data?.checkout_url;
+    
+    console.log('🔗 Checkout URL:', checkoutUrl);
+    
+    if (checkoutUrl) {
+      window.location.href = checkoutUrl;
+    } else {
+      console.error('❌ Respuesta sin checkout_url:', response.data);
+      alert('Erreur: impossible de créer le paiement. URL manquante.');
+    }
+    
+  } catch (error) {
+    console.error('❌ Error detallado:', error);
+    console.error('❌ Response error:', error.response?.data);
+    const errorMsg = error.response?.data?.error || error.message || 'Erreur inconnue';
+    alert(`Erreur: ${errorMsg}`);
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Step 1
   const Step1 = () => (
