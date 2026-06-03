@@ -1,4 +1,5 @@
-// components/Navbar2.jsx
+// components/Navbar2.jsx - VERSIÓN CORREGIDA
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { logout } from '../../redux/actions/authAction';
@@ -18,9 +19,6 @@ import {
   FaSignInAlt,
   FaUserPlus,
   FaShareAlt,
-  FaGlobe,
-  FaLanguage,
-  FaRobot,
   FaBars,
   FaPlus,
   FaSearch,
@@ -31,16 +29,17 @@ import {
   FaInnosoft
 } from 'react-icons/fa';
 
-import { Navbar, Container, NavDropdown, Badge } from 'react-bootstrap';
+import { Navbar, Container, NavDropdown, Badge, Button, Modal } from 'react-bootstrap';
 import VerifyModal from '../authAndVerify/VerifyModal';
 import DesactivateModal from '../authAndVerify/DesactivateModal';
 import MultiCheckboxModal from './MultiCheckboxModal.';
 import ShareAppModal from '../shareAppModal';
 import Drawer from './Drawer';
-import useComponentDirection from '../../pages/google/LanguageManager';
+import { getMyChannels } from '../../redux/actions/channelAction';
 
 const Navbar2 = () => {
   const { auth, cart, notify, settings } = useSelector((state) => state);
+  const { userChannels = [] } = useSelector((state) => state.channel || {});
   const dispatch = useDispatch();
 
   const { t } = useTranslation('navbar2');
@@ -56,26 +55,61 @@ const Navbar2 = () => {
   const [showDrawer, setShowDrawer] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [hasChannel, setHasChannel] = useState(false);
+  const [hasApprovedChannel, setHasApprovedChannel] = useState(false);
+  const [hasPendingChannel, setHasPendingChannel] = useState(false);
+  const [checkingChannel, setCheckingChannel] = useState(true);
 
   const [isNavbarVisible, setIsNavbarVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
-
   const notifyDropdownRef = useRef(null);
-  const dropdownRef = useRef(null);
-  const { dir, textAlign, isRTL, shouldIgnoreRTL } = useComponentDirection('Navbar2');
+
+  // Estados para el modal
+  const [showChannelModal, setShowChannelModal] = useState(false);
+  const [modalMessage, setModalMessage] = useState('');
+  const [modalTitle, setModalTitle] = useState('');
+  const [modalAction, setModalAction] = useState(null);
 
   const handleDrawerOpen = () => setShowDrawer(true);
   const handleDrawerClose = () => setShowDrawer(false);
 
+  // Cargar canales del usuario
+  useEffect(() => {
+    const loadUserChannels = async () => {
+      if (auth.token && !userChannels.length) {
+        setCheckingChannel(true);
+        await dispatch(getMyChannels(auth.token));
+        setCheckingChannel(false);
+      } else if (!auth.token) {
+        setCheckingChannel(false);
+      } else {
+        setCheckingChannel(false);
+      }
+    };
+    loadUserChannels();
+  }, [auth.token, dispatch, userChannels.length]);
+
+  // Verificar estado de los canales
+  useEffect(() => {
+    if (userChannels && userChannels.length > 0) {
+      setHasChannel(true);
+      const approved = userChannels.some(ch => ch.pending === false);
+      const pending = userChannels.some(ch => ch.pending === true);
+      setHasApprovedChannel(approved);
+      setHasPendingChannel(pending);
+    } else {
+      setHasChannel(false);
+      setHasApprovedChannel(false);
+      setHasPendingChannel(false);
+    }
+  }, [userChannels]);
+
+  // Handle resize
   useEffect(() => {
     let timeoutId;
     const handleResize = () => {
       clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
-        setIsMobile(window.innerWidth < 700);
-      }, 100);
+      timeoutId = setTimeout(() => setIsMobile(window.innerWidth < 700), 100);
     };
-
     window.addEventListener('resize', handleResize);
     return () => {
       window.removeEventListener('resize', handleResize);
@@ -83,6 +117,7 @@ const Navbar2 = () => {
     };
   }, []);
 
+  // Handle scroll navbar
   useEffect(() => {
     const controlNavbar = () => {
       const currentScrollY = window.scrollY;
@@ -97,29 +132,18 @@ const Navbar2 = () => {
     return () => window.removeEventListener('scroll', controlNavbar);
   }, [lastScrollY]);
 
-  // ✅ Verificar si el usuario tiene canal
-  useEffect(() => {
-    if (auth.user && auth.user.channels) {
-      setHasChannel(auth.user.channels.length > 0);
-    } else if (auth.user) {
-      setHasChannel(false);
-    }
-  }, [auth.user]);
-
+  // PWA installation
   useEffect(() => {
     if (window.matchMedia('(display-mode: standalone)').matches) {
       setIsPWAInstalled(true);
     }
-
     const handleInstallAvailable = () => setShowInstallButton(true);
     const handleInstalled = () => {
       setIsPWAInstalled(true);
       setShowInstallButton(false);
     };
-
     window.addEventListener('pwaInstallAvailable', handleInstallAvailable);
     window.addEventListener('pwaInstalled', handleInstalled);
-
     return () => {
       window.removeEventListener('pwaInstallAvailable', handleInstallAvailable);
       window.removeEventListener('pwaInstalled', handleInstalled);
@@ -129,9 +153,7 @@ const Navbar2 = () => {
   useEffect(() => {
     if (process.env.NODE_ENV === 'development') {
       const timer = setTimeout(() => {
-        if (!showInstallButton && !isPWAInstalled) {
-          setShowInstallButton(true);
-        }
+        if (!showInstallButton && !isPWAInstalled) setShowInstallButton(true);
       }, 3000);
       return () => clearTimeout(timer);
     }
@@ -139,35 +161,25 @@ const Navbar2 = () => {
 
   useEffect(() => {
     const checkPWAInstallation = () => {
-      const isInstalled =
-        window.matchMedia('(display-mode: standalone)').matches ||
+      const isInstalled = window.matchMedia('(display-mode: standalone)').matches ||
         window.navigator.standalone ||
         localStorage.getItem('pwaInstalled') === 'true';
-
       setIsPWAInstalled(isInstalled);
       return isInstalled;
     };
-
     const installed = checkPWAInstallation();
-
     if (!installed) {
       const handleInstallAvailable = () => setShowInstallButton(true);
       const handleInstalled = () => {
         setIsPWAInstalled(true);
         setShowInstallButton(false);
       };
-
       window.addEventListener('pwaInstallAvailable', handleInstallAvailable);
       window.addEventListener('pwaInstalled', handleInstalled);
-
       const installCheckInterval = setInterval(() => {
-        if (checkPWAInstallation()) {
-          clearInterval(installCheckInterval);
-        } else if (window.deferredPrompt && !showInstallButton) {
-          setShowInstallButton(true);
-        }
+        if (checkPWAInstallation()) clearInterval(installCheckInterval);
+        else if (window.deferredPrompt && !showInstallButton) setShowInstallButton(true);
       }, 2000);
-
       return () => {
         window.removeEventListener('pwaInstallAvailable', handleInstallAvailable);
         window.removeEventListener('pwaInstalled', handleInstalled);
@@ -195,9 +207,7 @@ const Navbar2 = () => {
   const handleLogout = () => {
     setDropdownOpen(false);
     dispatch(logout());
-    setTimeout(() => {
-      window.location.href = '/login';
-    }, 100);
+    setTimeout(() => (window.location.href = '/login'), 100);
   };
 
   const handleLogin = () => {
@@ -210,45 +220,76 @@ const Navbar2 = () => {
     history.push('/register');
   };
 
-  // ✅ Manejador para crear video
+  // ✅ Manejador para crear video con MODAL en FRANCÉS
   const handleCreateVideoClick = () => {
-    if (hasChannel) {
-      history.push('/create-video-page');
-    } else {
-      const confirmCreate = window.confirm(
-        "⚠️ Vous n'avez pas encore de chaîne.\n\nPour publier des vidéos, vous devez d'abord créer une chaîne.\n\nCliquez sur OK pour créer votre chaîne."
+    if (checkingChannel) return;
+
+    // Caso 1: No tiene ningún canal
+    if (!hasChannel) {
+      setModalTitle('📢 Création de chaîne requise');
+      setModalMessage(
+        "⚠️ VOUS N'AVEZ PAS ENCORE DE CHAÎNE\n\n" +
+        "Pour publier des vidéos sur la plateforme, vous devez d'abord créer une chaîne.\n\n" +
+        "La création d'une chaîne est gratuite et rapide.\n\n" +
+        "Souhaitez-vous créer votre chaîne maintenant ?"
       );
-      if (confirmCreate) {
-        history.push('/channel/new');
-      }
+      setModalAction(() => () => history.push('/channel/new'));
+      setShowChannelModal(true);
+      return;
+    }
+
+    // Caso 2: Tiene canales pero todos están pendientes
+    if (hasPendingChannel && !hasApprovedChannel) {
+      setModalTitle('⏳ Chaîne en cours de vérification');
+      setModalMessage(
+        "🔍 VOTRE CHAÎNE EST EN COURS DE VÉRIFICATION\n\n" +
+        "Merci d'avoir créé votre chaîne ! Elle est actuellement examinée par notre équipe administrative.\n\n" +
+        "📌 Pendant cette période, vous ne pouvez pas encore publier de vidéos.\n\n" +
+        "✅ Dès que votre chaîne sera approuvée, vous recevrez une notification et pourrez commencer à publier.\n\n" +
+        "⏱️ Le délai d'approbation est généralement de 24 à 48 heures.\n\n" +
+        "Merci pour votre patience ! 🙏"
+      );
+      setModalAction(null);
+      setShowChannelModal(true);
+      return;
+    }
+
+    // Caso 3: Tiene al menos un canal aprobado
+    if (hasApprovedChannel) {
+      history.push('/create-video-page');
     }
   };
 
   if (!settings || Object.keys(settings).length === 0) {
     return (
       <nav className="navbar navbar-light bg-light nb2-fallback" style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1030 }}>
-        <span className="navbar-brand">{t('loading') || 'Cargando...'}</span>
+        <span className="navbar-brand">Chargement...</span>
       </nav>
     );
   }
 
-  const totalItems = (cart?.items && Array.isArray(cart.items))
-    ? cart.items.reduce((acc, item) => acc + (item?.quantity || 0), 0)
-    : 0;
-
   const unreadNotifications = notify?.data?.filter(n => n && !n.isRead).length || 0;
+
+  const getButtonTooltip = () => {
+    if (checkingChannel) return 'Vérification en cours...';
+    if (!hasChannel) return 'Créer une chaîne d\'abord';
+    if (hasPendingChannel && !hasApprovedChannel) return 'Chaîne en attente de validation';
+    return 'Créer une vidéo';
+  };
+
+  const isButtonEnabled = () => {
+    if (checkingChannel) return false;
+    if (!hasChannel) return true;
+    if (hasApprovedChannel) return true;
+    return false;
+  };
 
   const MenuItem = ({ icon: Icon, iconColor, to, onClick, children, danger = false }) => {
     const handleClick = (e) => {
-      if (onClick) {
-        onClick(e);
-      }
+      if (onClick) onClick(e);
       setDropdownOpen(false);
-      if (to) {
-        history.push(to);
-      }
+      if (to) history.push(to);
     };
-
     return (
       <NavDropdown.Item
         as="button"
@@ -263,10 +304,6 @@ const Navbar2 = () => {
           alignItems: 'center',
           fontWeight: '500',
           width: 'calc(100% - 16px)',
-          boxSizing: 'border-box',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
           background: 'transparent',
           border: 'none',
           cursor: 'pointer'
@@ -296,95 +333,16 @@ const Navbar2 = () => {
         fixed="top"
         expand="lg"
       >
-        <Container
-          fluid
-          className="align-items-center justify-content-between"
-          style={{
-            padding: isMobile ? '0 12px' : '0 20px',
-            maxWidth: '100%'
-          }}
-        >
+        <Container fluid className="align-items-center justify-content-between" style={{ padding: isMobile ? '0 12px' : '0 20px' }}>
+          {/* Logo y marca */}
           <div className="d-flex align-items-center" style={{ minWidth: 0, flex: '0 1 auto' }}>
-            <Link
-              to="/"
-              onDoubleClick={(e) => {
-                e.preventDefault();
-                window.location.reload();
-              }}
-              className="btn p-0"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: isMobile ? '32px' : '40px',
-                height: isMobile ? '32px' : '40px',
-                marginRight: isMobile ? '6px' : '10px',
-                background: 'transparent',
-                border: 'none',
-                borderRadius: '8px',
-                overflow: 'hidden',
-                flexShrink: 0
-              }}
-              title="Click para ir al inicio - Doble click para recargar"
-            >
-              <img
-                src="/images/logo.png"
-                alt="Logo"
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'contain',
-                  borderRadius: '6px'
-                }}
-                onError={(e) => {
-                  e.target.style.display = 'none';
-                }}
-              />
+            <Link to="/" className="btn p-0" style={{ width: isMobile ? '32px' : '40px', height: isMobile ? '32px' : '40px', marginRight: isMobile ? '6px' : '10px' }}>
+              <img src="/images/logo.png" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
             </Link>
-
             {!isMobile && (
-              <Link
-                to="/"
-                onDoubleClick={(e) => {
-                  e.preventDefault();
-                  window.location.reload();
-                }}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  padding: 0,
-                  textDecoration: 'none',
-                  display: 'flex',
-                  alignItems: 'center'
-                }}
-                title="Click para ir al inicio - Doble click para recargar"
-              >
-                <Navbar.Brand
-                  className="py-0 mb-0"
-                  style={{
-                    flexShrink: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                    height: '100%'
-                  }}
-                >
-                  <Card.Title
-                    className="mb-0"
-                    style={{
-                      fontFamily: "'Playfair Display', serif",
-                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                      WebkitBackgroundClip: 'text',
-                      WebkitTextFillColor: 'transparent',
-                      fontWeight: 'bold',
-                      fontSize: '1.2rem',
-                      letterSpacing: '0.3px',
-                      margin: 0,
-                      padding: 0,
-                      lineHeight: '1.2',
-                      display: 'flex',
-                      alignItems: 'center'
-                    }}
-                  >
+              <Link to="/" style={{ textDecoration: 'none' }}>
+                <Navbar.Brand className="py-0 mb-0">
+                  <Card.Title className="mb-0" style={{ fontFamily: "'Playfair Display', serif", background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontWeight: 'bold', fontSize: '1.2rem' }}>
                     {t('appName') || 'MarketPlace'}
                   </Card.Title>
                 </Navbar.Brand>
@@ -392,63 +350,19 @@ const Navbar2 = () => {
             )}
           </div>
 
-          <div
-            className="d-flex align-items-center"
-            style={{
-              gap: isMobile ? '6px' : '10px',
-              flexShrink: 0,
-              marginLeft: 'auto'
-            }}
-          >
-            <Link
-              to="/search"
-              className="icon-button"
-              style={{
-                width: isMobile ? '38px' : '42px',
-                height: isMobile ? '38px' : '42px',
-                borderRadius: '10px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'all 0.3s ease',
-                backgroundColor: settings.style ? 'rgba(255,255,255,0.1)' : 'rgba(102, 126, 234, 0.1)',
-                textDecoration: 'none'
-              }}
-            >
-              <FaSearch
-                size={isMobile ? 16 : 18}
-                style={{ color: '#667eea' }}
-                title={t('search') || 'Buscar'}
-              />
+          {/* Iconos de acción */}
+          <div className="d-flex align-items-center" style={{ gap: isMobile ? '6px' : '10px', flexShrink: 0 }}>
+            <Link to="/search" className="icon-button" style={{ width: isMobile ? '38px' : '42px', height: isMobile ? '38px' : '42px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: settings.style ? 'rgba(255,255,255,0.1)' : 'rgba(102, 126, 234, 0.1)' }}>
+              <FaSearch size={isMobile ? 16 : 18} style={{ color: '#667eea' }} />
             </Link>
 
             {showInstallButton && !isPWAInstalled && (
-              <button
-                className="icon-button nb2-btn--install"
-                onClick={handleInstallPWA}
-                style={{
-                  width: isMobile ? '38px' : '42px',
-                  height: isMobile ? '38px' : '42px',
-                  borderRadius: '10px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: settings.style ? 'rgba(255,255,255,0.1)' : 'rgba(40, 167, 69, 0.1)',
-                  border: '2px solid #28a745',
-                  transition: 'all 0.3s ease',
-                  animation: 'pulse 2s infinite',
-                  cursor: 'pointer'
-                }}
-                title={t('installPWA') || 'Instalar App'}
-              >
-                <FaDownload
-                  size={isMobile ? 16 : 18}
-                  style={{ color: '#28a745' }}
-                />
+              <button onClick={handleInstallPWA} className="icon-button" style={{ width: isMobile ? '38px' : '42px', height: isMobile ? '38px' : '42px', borderRadius: '10px', backgroundColor: settings.style ? 'rgba(255,255,255,0.1)' : 'rgba(40, 167, 69, 0.1)', border: '2px solid #28a745', animation: 'pulse 2s infinite' }}>
+                <FaDownload size={isMobile ? 16 : 18} style={{ color: '#28a745' }} />
               </button>
             )}
 
-            {/* ✅ BOTÓN CREAR VIDEO (PLUS) */}
+            {/* BOTÓN PLUS PARA CREAR VIDEO */}
             {auth.user && (
               <button
                 onClick={handleCreateVideoClick}
@@ -460,138 +374,51 @@ const Navbar2 = () => {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  background: 'linear-gradient(135deg, #28a745 0%, #20c997 100%)',
-                  transition: 'all 0.3s ease',
-                  boxShadow: '0 4px 12px rgba(40, 167, 69, 0.25)',
+                  background: hasApprovedChannel 
+                    ? 'linear-gradient(135deg, #28a745 0%, #20c997 100%)'
+                    : 'linear-gradient(135deg, #6c757d 0%, #495057 100%)',
                   border: 'none',
-                  cursor: 'pointer'
+                  cursor: isButtonEnabled() ? 'pointer' : 'not-allowed',
+                  opacity: checkingChannel ? 0.7 : 1
                 }}
-                title={t('createVideo') || 'Créer une vidéo'}
+                title={getButtonTooltip()}
+                disabled={!isButtonEnabled()}
               >
-                <FaPlus size={isMobile ? 14 : 16} style={{ color: 'white' }} />
+                {checkingChannel ? (
+                  <div className="spinner-border spinner-border-sm" style={{ color: 'white' }} />
+                ) : (
+                  <FaPlus size={isMobile ? 14 : 16} style={{ color: 'white' }} />
+                )}
               </button>
             )}
 
-            {auth.user && (auth.user.role === "Super-utilisateur" || auth.user.role === "admin" || auth.user.role === "user") && (
-              <Link
-                to="/creer-annonce"
-                className="icon-button"
-                style={{
-                  width: isMobile ? '38px' : '42px',
-                  height: isMobile ? '38px' : '42px',
-                  borderRadius: '10px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  transition: 'all 0.3s ease',
-                  boxShadow: '0 4px 12px rgba(102, 126, 234, 0.25)',
-                  textDecoration: 'none'
-                }}
-                title={t('addPost') || 'Créer une annonce'}
-              >
-                <FaPlusCircle size={isMobile ? 14 : 16} style={{ color: 'white' }} />
-              </Link>
-            )}
-
+            {/* Notificaciones */}
             {auth.user && (
-              <div
-                className="position-relative icon-button"
-                ref={notifyDropdownRef}
-                style={{
-                  width: isMobile ? '38px' : '42px',
-                  height: isMobile ? '38px' : '42px',
-                  borderRadius: '10px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: settings.style ? 'rgba(255,255,255,0.1)' : 'rgba(102, 126, 234, 0.1)',
-                  transition: 'all 0.3s ease'
-                }}
-              >
-                <Link to={'/notify'} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <FaBell
-                    size={isMobile ? 18 : 20}
-                    style={{ color: unreadNotifications > 0 ? '#f5576c' : '#667eea' }}
-                  />
+              <div className="position-relative icon-button" ref={notifyDropdownRef} style={{ width: isMobile ? '38px' : '42px', height: isMobile ? '38px' : '42px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: settings.style ? 'rgba(255,255,255,0.1)' : 'rgba(102, 126, 234, 0.1)' }}>
+                <Link to="/notify" style={{ display: 'flex' }}>
+                  <FaBell size={isMobile ? 18 : 20} style={{ color: unreadNotifications > 0 ? '#f5576c' : '#667eea' }} />
                 </Link>
-
                 {unreadNotifications > 0 && (
-                  <Badge
-                    pill
-                    style={{
-                      fontSize: isMobile ? '0.6rem' : '0.65rem',
-                      position: 'absolute',
-                      top: '-4px',
-                      right: '-4px',
-                      padding: isMobile ? '3px 6px' : '4px 7px',
-                      background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-                      border: '2px solid white',
-                      boxShadow: '0 2px 8px rgba(245, 87, 108, 0.4)',
-                      minWidth: isMobile ? '18px' : '20px',
-                      height: isMobile ? '18px' : '20px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}
-                  >
+                  <Badge pill style={{ fontSize: '0.6rem', position: 'absolute', top: '-4px', right: '-4px', padding: '3px 6px', background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' }}>
                     {unreadNotifications > 9 ? '9+' : unreadNotifications}
                   </Badge>
                 )}
               </div>
             )}
 
+            {/* Dropdown usuario */}
             <NavDropdown
               align="end"
               show={dropdownOpen}
               onToggle={(isOpen) => setDropdownOpen(isOpen)}
               title={
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    position: 'relative',
-                    cursor: 'pointer'
-                  }}
-                  onClick={() => setDropdownOpen(!dropdownOpen)}
-                >
+                <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => setDropdownOpen(!dropdownOpen)}>
                   {auth.user ? (
-                    <div
-                      style={{
-                        width: isMobile ? '38px' : '42px',
-                        height: isMobile ? '38px' : '42px',
-                        borderRadius: '10px',
-                        padding: '2px',
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                        boxShadow: '0 4px 12px rgba(102, 126, 234, 0.25)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                    >
-                      <Avatar
-                        src={auth.user.avatar}
-                        size="medium-avatar"
-                        style={{
-                          borderRadius: '8px',
-                          objectFit: 'cover',
-                          width: '100%',
-                          height: '100%'
-                        }}
-                      />
+                    <div style={{ width: isMobile ? '38px' : '42px', height: isMobile ? '38px' : '42px', borderRadius: '10px', padding: '2px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                      <Avatar src={auth.user.avatar} size="medium-avatar" style={{ borderRadius: '8px', width: '100%', height: '100%' }} />
                     </div>
                   ) : (
-                    <div
-                      style={{
-                        width: isMobile ? '38px' : '42px',
-                        height: isMobile ? '38px' : '42px',
-                        borderRadius: '10px',
-                        backgroundColor: settings.style ? 'rgba(255,255,255,0.1)' : 'rgba(102, 126, 234, 0.1)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                    >
+                    <div style={{ width: isMobile ? '38px' : '42px', height: isMobile ? '38px' : '42px', borderRadius: '10px', backgroundColor: settings.style ? 'rgba(255,255,255,0.1)' : 'rgba(102, 126, 234, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <FaUserCircle size={isMobile ? 22 : 26} style={{ color: '#667eea' }} />
                     </div>
                   )}
@@ -605,412 +432,87 @@ const Navbar2 = () => {
                   <>
                     <div className="user-header">
                       <div className="d-flex align-items-center gap-3">
-                        <div className="user-avatar-wrapper">
-                          <Avatar src={auth.user.avatar} size="medium-avatar" />
-                        </div>
+                        <div className="user-avatar-wrapper"><Avatar src={auth.user.avatar} size="medium-avatar" /></div>
                         <div className="flex-grow-1">
-                          <div className="fw-bold text-white user-name">
-                            {auth.user.username || auth.user.name || 'Usuario'}
-                          </div>
+                          <div className="fw-bold text-white user-name">{auth.user.username || auth.user.name}</div>
                           <div className="user-role-badge">
-                            {auth.user.role === 'admin' ? `👑 ${t('admin') || 'Admin'}` :
-                              auth.user.role === 'Moderateur' ? `🛡️ ${t('moderator') || 'Moderador'}` :
-                                auth.user.role === 'Super-utilisateur' ? `⭐ ${t('superUser') || 'Super Usuario'}` :
-                                  `👤 ${t('user') || 'Usuario'}`}
+                            {auth.user.role === 'admin' ? `👑 Admin` : auth.user.role === 'Moderateur' ? `🛡️ Modérateur` : auth.user.role === 'Super-utilisateur' ? `⭐ Super Utilisateur` : `👤 Utilisateur`}
                           </div>
+                          {hasApprovedChannel && <div className="has-channel-badge mt-1"><Badge bg="success" style={{ fontSize: '0.6rem' }}><FaStore size={8} className="me-1" /> Chaîne active</Badge></div>}
+                          {hasPendingChannel && !hasApprovedChannel && <div className="has-channel-badge mt-1"><Badge bg="warning" text="dark" style={{ fontSize: '0.6rem' }}><FaStore size={8} className="me-1" /> Chaîne en attente</Badge></div>}
                         </div>
                       </div>
                     </div>
-
                     <NavDropdown.Divider />
-
-                    {auth.user.role !== 'admin' && auth.user.role !== 'Moderateur' && (
-                      <MenuItem
-                        icon={FaUserPlus}
-                        iconColor="#28a745"
-                        onClick={() => history.push('/planes')}
-                      >
-                        🚀 Devenir Utilisateur Pro
-                      </MenuItem>
-                    )}
-                    
-                    <MenuItem icon={FaInfoCircle} iconColor="#6c757d" to="/donation">
-                      {t('donation') || 'donation'}
+                    <MenuItem icon={FaPlus} iconColor={hasApprovedChannel ? "#28a745" : (hasPendingChannel ? "#ffc107" : "#6c757d")} onClick={handleCreateVideoClick}>
+                      {!hasChannel ? 'Créer une chaîne' : (hasPendingChannel && !hasApprovedChannel) ? 'Chaîne en attente' : 'Créer une vidéo'}
                     </MenuItem>
-
-                    {auth.user.role !== 'admin' && auth.user.role !== 'Moderateur' && (
-                      <MenuItem
-                        icon={FaInnosoft}
-                        iconColor="#28a745"
-                        onClick={() => history.push('/userproinfoplans')}
-                      >
-                        🚀 Info Utilisateur Pro
-                      </MenuItem>
-                    )}
-                    
-                    {auth.user.role === 'userPro' && (
-                      <div className="current-plan-badge" style={{ padding: '8px 16px', margin: '4px 8px', background: 'linear-gradient(135deg, #28a74520, #20c99720)', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
-                        <FaStar style={{ color: '#ffc107' }} />
-                        Plan actuel: {auth.user.plan || 'basic'}
-                      </div>
-                    )}
-
-                    {/* ✅ MENU ITEM CREAR VIDEO */}
-                    <MenuItem 
-                      icon={FaPlus} 
-                      iconColor="#28a745" 
-                      onClick={handleCreateVideoClick}
-                    >
-                      Créer une vidéo
-                    </MenuItem>
-
-                    {auth.user.role === "admin" && (
-                      <>
-                        <MenuItem icon={FaShieldAlt} iconColor="#ffc107" to='/admin/posts'>
-                          Approbation
-                        </MenuItem>
-                        <MenuItem icon={FaUsers} iconColor="#28a745" to='/admindashboard'>
-                          Admin dashboard
-                        </MenuItem>
-                      </>
-                    )}
-
-                    <MenuItem icon={FaUserCircle} iconColor="#667eea" to={`/profile/${auth.user._id}`}>
-                      {t('profile') || 'Mi Perfil'}
-                    </MenuItem>
-
-                    <MenuItem icon={FaInfoCircle} iconColor="#6c757d" to="/infoaplicacionn">
-                      {t('appInfo') || 'Información'}
-                    </MenuItem>
-
-                    {auth.user.role === "admin" && (
-                      <MenuItem icon={FaTools} iconColor="#6c757d" to="/users/roles">
-                        {t('roles') || 'Roles'}
-                      </MenuItem>
-                    )}
-
-                    <MenuItem icon={FaShareAlt} iconColor="#ffc107" onClick={() => setShowShareModal(true)}>
-                      {t('shareApp') || 'Compartir App'}
-                    </MenuItem>
-
-                    {auth.user.role === "admin" && (
-                      <>
-                        <NavDropdown.Divider />
-                        <div className="admin-panel-header">
-                          <FaStore className="me-2" size={14} />
-                          {t('storeManagement') || 'Gestión de Tiendas'}
-                        </div>
-                       
-                        <MenuItem icon={FaPlusCircle} iconColor="#28a745" to="/create-boutique">
-                          {t('createStore') || 'Crear tienda'}
-                        </MenuItem>
-
-                        <MenuItem icon={FaStore} iconColor="#667eea" to={`/boutique/${auth.user._id}`}>
-                          {t('myStore') || 'Mi tienda'}
-                        </MenuItem>
-
-                        <MenuItem icon={FaStore} iconColor="#ffc107" to="/boutiques">
-                          {t('allStores') || 'Todas las tiendas'}
-                        </MenuItem>
-
-                        <MenuItem icon={FaStore} iconColor="#28a745" to="/mes-boutiques">
-                          {t('myStoresList') || 'Mis tiendas'}
-                        </MenuItem>
-
-                        <MenuItem icon={FaUsers} iconColor="#28a745" to="/users">
-                          {t('users') || 'Usuarios'}
-                        </MenuItem>
-
-                        <MenuItem icon={FaUserCog} iconColor="#667eea" to="/usersactionn">
-                          {t('userActions') || 'Acciones de usuario'}
-                        </MenuItem>
-                      </>
-                    )}
-
+                    <MenuItem icon={FaUserCircle} iconColor="#667eea" to={`/profile/${auth.user._id}`}>Mon Profil</MenuItem>
+                    <MenuItem icon={FaInfoCircle} iconColor="#6c757d" to="/donation">Donation</MenuItem>
+                    <MenuItem icon={FaShareAlt} iconColor="#ffc107" onClick={() => setShowShareModal(true)}>Partager l'App</MenuItem>
                     <NavDropdown.Divider />
-
-                    <MenuItem
-                      icon={FaSignOutAlt}
-                      iconColor="#dc3545"
-                      onClick={handleLogout}
-                      danger
-                    >
-                      <span className="fw-bold">{t('logout') || 'Cerrar Sesión'}</span>
-                    </MenuItem>
+                    <MenuItem icon={FaSignOutAlt} iconColor="#dc3545" onClick={handleLogout} danger>Se déconnecter</MenuItem>
                   </>
                 ) : (
                   <>
-                    <MenuItem icon={FaSignInAlt} iconColor="#28a745" onClick={handleLogin}>
-                      {t('login') || 'Iniciar Sesión'}
-                    </MenuItem>
-
-                    <MenuItem icon={FaUserPlus} iconColor="#667eea" onClick={handleRegister}>
-                      {t('register') || 'Registrarse'}
-                    </MenuItem>
-                    <MenuItem icon={FaInfoCircle} iconColor="#6c757d" to="/donation">
-                      {t('donation') || 'donation'}
-                    </MenuItem>
-                    <MenuItem icon={FaInfoCircle} iconColor="#6c757d" to="/infoaplicacionn">
-                      {t('appInfo') || 'Información'}
-                    </MenuItem>
-
-                    <MenuItem icon={FaShareAlt} iconColor="#ffc107" onClick={() => setShowShareModal(true)}>
-                      {t('shareApp') || 'Compartir App'}
-                    </MenuItem>
+                    <MenuItem icon={FaSignInAlt} iconColor="#28a745" onClick={handleLogin}>Se connecter</MenuItem>
+                    <MenuItem icon={FaUserPlus} iconColor="#667eea" onClick={handleRegister}>S'inscrire</MenuItem>
                   </>
                 )}
               </div>
             </NavDropdown>
 
-            <button
-              onClick={handleDrawerOpen}
-              className="icon-button"
-              style={{
-                width: isMobile ? '38px' : '42px',
-                height: isMobile ? '38px' : '42px',
-                borderRadius: '10px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: settings.style ? 'rgba(255,255,255,0.1)' : 'rgba(102, 126, 234, 0.1)',
-                border: 'none',
-                transition: 'all 0.3s ease',
-                cursor: 'pointer',
-                marginLeft: isMobile ? '4px' : '6px'
-              }}
-              title={t('menu') || "Menú"}
-            >
-              <FaBars
-                size={isMobile ? 18 : 20}
-                style={{
-                  color: settings.style ? '#ffffff' : '#667eea'
-                }}
-              />
+            <button onClick={handleDrawerOpen} className="icon-button" style={{ width: isMobile ? '38px' : '42px', height: isMobile ? '38px' : '42px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: settings.style ? 'rgba(255,255,255,0.1)' : 'rgba(102, 126, 234, 0.1)', border: 'none', cursor: 'pointer' }}>
+              <FaBars size={isMobile ? 18 : 20} style={{ color: settings.style ? '#ffffff' : '#667eea' }} />
             </button>
           </div>
         </Container>
       </Navbar>
 
-      <div style={{
-        height: isMobile ? '56px' : '64px',
-        minHeight: isMobile ? '56px' : '64px'
-      }} />
+      <div style={{ height: isMobile ? '56px' : '64px' }} />
 
-      <style>{`
-        .nb2-hidden {
-          transform: translateY(-100%);
-        }
-        
-        @keyframes pulse {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.05); }
-        }
-        
-        .icon-button {
-          cursor: pointer;
-          transition: all 0.3s ease;
-          -webkit-tap-highlight-color: transparent;
-        }
+      {/* ✅ MODAL EN FRANCÉS - DENTRO DEL COMPONENTE */}
+      <Modal show={showChannelModal} onHide={() => setShowChannelModal(false)} centered backdrop="static">
+        <Modal.Header closeButton style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', borderBottom: 'none' }}>
+          <Modal.Title style={{ fontSize: '1.1rem' }}>{modalTitle}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body style={{ padding: '24px', fontSize: '0.95rem', whiteSpace: 'pre-line' }}>
+          {modalMessage}
+        </Modal.Body>
+        <Modal.Footer style={{ borderTop: 'none', justifyContent: 'center', gap: '12px' }}>
+          {modalAction ? (
+            <>
+              <Button variant="outline-secondary" onClick={() => setShowChannelModal(false)} style={{ borderRadius: '25px', padding: '8px 20px' }}>Annuler</Button>
+              <Button variant="primary" onClick={() => { setShowChannelModal(false); modalAction(); }} style={{ borderRadius: '25px', padding: '8px 25px', background: 'linear-gradient(135deg, #28a745, #20c997)', border: 'none' }}>Créer une chaîne</Button>
+            </>
+          ) : (
+            <Button variant="primary" onClick={() => setShowChannelModal(false)} style={{ borderRadius: '25px', padding: '8px 30px', background: 'linear-gradient(135deg, #667eea, #764ba2)', border: 'none' }}>J'ai compris</Button>
+          )}
+        </Modal.Footer>
+      </Modal>
 
-        .icon-button:hover,
-        .icon-button:active {
-          transform: translateY(-2px);
-          box-shadow: 0 6px 16px rgba(102, 126, 234, 0.25) !important;
-        }
-
-        .custom-menu-item {
-          color: ${settings.style ? '#ffffff' : '#333333'} !important;
-          cursor: pointer;
-          -webkit-tap-highlight-color: transparent;
-          background: transparent !important;
-        }
-
-        .custom-menu-item:hover,
-        .custom-menu-item:focus {
-          background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%) !important;
-          transform: translateX(4px);
-        }
-
-        .custom-menu-item.text-danger:hover,
-        .custom-menu-item.text-danger:focus {
-          background: linear-gradient(135deg, rgba(220, 53, 69, 0.1) 0%, rgba(245, 87, 108, 0.1) 100%) !important;
-        }
-
-        .dropdown-scroll-wrapper {
-          max-height: 70vh;
-          overflow-y: auto;
-          overflow-x: hidden;
-          padding: 8px 0;
-          width: 100%;
-          -webkit-overflow-scrolling: touch;
-        }
-
-        .dropdown-scroll-wrapper::-webkit-scrollbar {
-          width: 4px;
-        }
-
-        .dropdown-scroll-wrapper::-webkit-scrollbar-track {
-          background: ${settings.style ? 'rgba(255,255,255,0.05)' : '#f1f1f1'};
-          border-radius: 10px;
-        }
-
-        .dropdown-scroll-wrapper::-webkit-scrollbar-thumb {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          border-radius: 10px;
-        }
-
-        .user-header {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          padding: 16px;
-          margin: 0 0 8px 0;
-          border-radius: 12px 12px 0 0;
-        }
-
-        .user-avatar-wrapper {
-          width: 50px;
-          height: 50px;
-          border-radius: 50%;
-          border: 3px solid white;
-          padding: 2px;
-          background: white;
-          flex-shrink: 0;
-        }
-
-        .user-name {
-          font-size: 1rem;
-          word-break: break-word;
-        }
-
-        .user-role-badge {
-          font-size: 0.8rem;
-          background-color: rgba(255,255,255,0.2);
-          padding: 4px 10px;
-          border-radius: 20px;
-          display: inline-block;
-          margin-top: 4px;
-          color: white;
-          font-weight: 600;
-        }
-
-        .admin-panel-header {
-          background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
-          padding: 10px 16px;
-          margin: 4px 12px 8px 12px;
-          border-radius: 8px;
-          color: white;
-          font-weight: 700;
-          font-size: 0.85rem;
-          display: flex;
-          align-items: center;
-          box-shadow: 0 4px 12px rgba(255, 107, 107, 0.25);
-        }
-
-        #nav-user-dropdown + .dropdown-menu {
-          position: absolute !important;
-          right: 0 !important;
-          left: auto !important;
-          top: 100% !important;
-          margin-top: 8px !important;
-          width: 290px !important;
-          min-width: 290px !important;
-          max-width: 290px !important;
-          transform: none !important;
-          border: none !important;
-          border-radius: 12px !important;
-          box-shadow: 0 10px 30px rgba(0,0,0,0.15) !important;
-          background: ${settings.style ? '#2d3748' : '#ffffff'} !important;
-          padding: 0 !important;
-          overflow: hidden !important;
-          z-index: 1050 !important;
-        }
-
-        .dropdown-divider {
-          border-color: ${settings.style ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'} !important;
-          margin: 8px 12px !important;
-        }
-
-        @media (max-width: 700px) {
-          #nav-user-dropdown + .dropdown-menu {
-            right: 8px !important;
-            width: 280px !important;
-            min-width: 280px !important;
-            max-width: 280px !important;
-          }
-
-          .user-header {
-            padding: 14px;
-          }
-
-          .user-avatar-wrapper {
-            width: 45px;
-            height: 45px;
-          }
-
-          .user-name {
-            font-size: 0.95rem;
-          }
-
-          .user-role-badge {
-            font-size: 0.75rem;
-            padding: 3px 8px;
-          }
-
-          .custom-menu-item {
-            padding: 10px 14px !important;
-            margin: 3px 6px !important;
-            width: calc(100% - 12px) !important;
-          }
-
-          .admin-panel-header {
-            padding: 8px 14px;
-            margin: 4px 10px 6px 10px;
-            font-size: 0.8rem;
-          }
-        }
-
-        @media (min-width: 701px) {
-          .custom-menu-item:hover {
-            transform: translateX(4px);
-          }
-          
-          .icon-button:hover {
-            transform: translateY(-2px);
-          }
-        }
-
-        @media (hover: none) and (pointer: coarse) {
-          .icon-button:hover {
-            transform: none;
-          }
-
-          .icon-button:active {
-            transform: scale(0.95);
-            opacity: 0.8;
-          }
-
-          .custom-menu-item:hover {
-            transform: none;
-          }
-
-          .custom-menu-item:active {
-            background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%) !important;
-          }
-        }
-
-        * {
-          touch-action: manipulation;
-        }
-
-        .navbar2 {
-          transition: transform 0.3s ease-in-out !important;
-        }
-      `}</style>
-
+      {/* Otros modales */}
       <VerifyModal show={showVerifyModal} onClose={() => setShowVerifyModal(false)} />
       <DesactivateModal show={showDeactivatedModal} onClose={() => setShowDeactivatedModal(false)} />
       <MultiCheckboxModal show={showFeaturesModal} onClose={() => setShowFeaturesModal(false)} />
       <ShareAppModal show={showShareModal} onClose={() => setShowShareModal(false)} />
       <Drawer show={showDrawer} onHide={handleDrawerClose} position="start" title={t('menu') || "Menú"} user={auth.user} />
+
+      <style>{`
+        .nb2-hidden { transform: translateY(-100%); }
+        @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+        .icon-button { cursor: pointer; transition: all 0.3s ease; }
+        .custom-menu-item { color: ${settings.style ? '#ffffff' : '#333333'} !important; cursor: pointer; background: transparent !important; }
+        .custom-menu-item:hover { background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%) !important; transform: translateX(4px); }
+        .dropdown-scroll-wrapper { max-height: 70vh; overflow-y: auto; padding: 8px 0; }
+        .user-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 16px; margin: 0 0 8px 0; border-radius: 12px 12px 0 0; }
+        .user-avatar-wrapper { width: 50px; height: 50px; border-radius: 50%; border: 3px solid white; padding: 2px; background: white; }
+        .user-name { font-size: 1rem; }
+        .user-role-badge { font-size: 0.8rem; background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 20px; display: inline-block; margin-top: 4px; color: white; }
+        .has-channel-badge { margin-top: 4px; }
+        #nav-user-dropdown + .dropdown-menu { position: absolute !important; right: 0 !important; left: auto !important; width: 290px !important; border-radius: 12px !important; background: ${settings.style ? '#2d3748' : '#ffffff'} !important; }
+        @media (max-width: 700px) { #nav-user-dropdown + .dropdown-menu { width: 280px !important; } .custom-menu-item { padding: 10px 14px !important; } }
+      `}</style>
     </>
   );
 };

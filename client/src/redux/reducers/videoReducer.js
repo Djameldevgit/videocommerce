@@ -32,7 +32,25 @@ const initialState = {
   nearbyVideos: [],
   myCommercialVideos: [],
   myCommercialStats: null,
-  myCommercialPagination: null
+  myCommercialPagination: null,
+
+
+  userVideos: {
+    videos: [],
+    total: 0,
+    pendingCount: 0,
+    approvedCount: 0,
+    page: 1,
+    totalPages: 1,
+    hasMore: false,
+    loading: false,
+    error: null
+  }
+
+
+
+
+
 };
 
 // Función auxiliar para concatenar arrays sin duplicados
@@ -275,7 +293,57 @@ const videoReducer = (state = initialState, action) => {
             ? [...state.featuredVideos, state.currentVideo]
             : state.featuredVideos.filter(v => v?._id !== action.payload.id)
         };
-        
+        case VIDEO_TYPES.GET_USER_VIDEOS_REQUEST:
+      return {
+        ...state,
+        userVideos: {
+          ...state.userVideos,
+          loading: true,
+          error: null
+        }
+      };
+      
+    case VIDEO_TYPES.GET_USER_VIDEOS_SUCCESS:
+      return {
+        ...state,
+        userVideos: {
+          videos: action.payload.videos,
+          total: action.payload.total,
+          pendingCount: action.payload.pendingCount,
+          approvedCount: action.payload.approvedCount,
+          page: action.payload.page,
+          totalPages: action.payload.totalPages,
+          hasMore: action.payload.hasMore,
+          loading: false,
+          error: null
+        }
+      };
+      
+    case VIDEO_TYPES.GET_USER_VIDEOS_FAIL:
+      return {
+        ...state,
+        userVideos: {
+          ...state.userVideos,
+          loading: false,
+          error: action.payload
+        }
+      };
+      
+    case VIDEO_TYPES.CLEAR_USER_VIDEOS:
+      return {
+        ...state,
+        userVideos: {
+          videos: [],
+          total: 0,
+          pendingCount: 0,
+          approvedCount: 0,
+          page: 1,
+          totalPages: 1,
+          hasMore: false,
+          loading: false,
+          error: null
+        }
+      };
 
     default:
       return state;

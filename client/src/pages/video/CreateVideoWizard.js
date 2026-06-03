@@ -1,15 +1,17 @@
-// CreateVideoWizard.jsx - VERSIÓN SIMPLIFICADA (sin actualización de canal)
+// CreateVideoWizard.jsx - VERSIÓN FINAL
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useHistory } from 'react-router-dom';
-import { Button, Alert, Spinner, Card, ProgressBar, Badge, Form, Row, Col } from 'react-bootstrap';
-import { ArrowLeft, ArrowRight, CloudUpload, Image, Camera, X, Tag, ChevronDown, ChevronUp } from 'react-bootstrap-icons';
+import { Button, Alert, Spinner, Card, ProgressBar, Badge } from 'react-bootstrap';
+import { 
+  ArrowLeft, ArrowRight, CloudUpload, Image, Camera, X, Tag, 
+  ChevronDown, ChevronUp, Building, Folder2, MusicNoteBeamed 
+} from 'react-bootstrap-icons';
 import StepIndicator from './StepIndicator';
 import StepMusicSelection from './StepMusicSelection';
 import { createVideo } from '../../redux/actions/videoAction';
 import { getSliderCategories } from '../../redux/actions/categoryAction';
 import { getMyChannels } from '../../redux/actions/channelAction';
- 
 import { videoUpload } from '../../utils/imageUpload';
 import { GLOBALTYPES } from '../../redux/actions/globalTypes';
 import './CreateVideoWizard.css';
@@ -32,7 +34,8 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
   const isMountedRef = useRef(true);
   const [showCommercial, setShowCommercial] = useState(false);
   const [selectedChannelId, setSelectedChannelId] = useState('');
-
+  const selectedChannel = userChannels.find(ch => ch._id === selectedChannelId);
+  
   // Refs para evitar bucles
   const hasLoadedChannelsRef = useRef(false);
   const hasLoadedCategoriesRef = useRef(false);
@@ -60,7 +63,6 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
 
-  const isProActive = user?.isPro && (!user?.proExpiryDate || new Date(user.proExpiryDate) > new Date());
   const maxDuration = 60;
 
   // Cargar categorías (SOLO UNA VEZ)
@@ -78,6 +80,22 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
       dispatch(getMyChannels(auth.token));
     }
   }, [auth.token, dispatch, userChannels.length, channelsLoading]);
+
+  // Auto-seleccionar categoría cuando cambia el canal seleccionado
+  useEffect(() => {
+    if (selectedChannelId && selectedChannel?.activity) {
+      const matchedCategory = sliderCategories.find(cat => 
+        cat.name.toLowerCase() === selectedChannel.activity.toLowerCase() ||
+        cat.slug === selectedChannel.activity.toLowerCase()
+      );
+      
+      if (matchedCategory) {
+        setWizardData(prev => ({ ...prev, category: matchedCategory._id }));
+      } else {
+        setWizardData(prev => ({ ...prev, category: selectedChannel.activity }));
+      }
+    }
+  }, [selectedChannelId, selectedChannel, sliderCategories]);
 
   // Seleccionar primer canal por defecto cuando se carguen
   useEffect(() => {
@@ -121,24 +139,21 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
   const isStep1Valid = wizardData.videoSource && wizardData.videoUrl && wizardData.videoDuration <= maxDuration;
   const isStep3Valid = selectedChannelId && wizardData.titre.trim().length > 0 && wizardData.category.length > 0;
 
-  // Obtener el canal seleccionado
-  const selectedChannel = userChannels.find(ch => ch._id === selectedChannelId);
-
-  // ✅ Función simplificada - solo validar, sin sugerir actualización
+  // Validar canal para comercial
   const validateChannelForCommercial = () => {
     const hasCommercialData = !!wizardData.saleType;
     if (!hasCommercialData) return true;
 
     if (!selectedChannel?.wilaya || !selectedChannel?.commune) {
       setError(
-        '❌ Ce canal ne possède pas de wilaya et commune. ' +
+        '❌ Ce canal ne possède pas de wilaya et commune.\n\n' +
         'Veuillez compléter ces informations avant de publier une vidéo commerciale.'
       );
       return false;
     }
     if (!selectedChannel?.phone && !selectedChannel?.email) {
       setError(
-        '❌ Ce canal ne possède pas de téléphone ou email. ' +
+        '❌ Ce canal ne possède pas de téléphone ou email.\n\n' +
         'Veuillez ajouter un moyen de contact.'
       );
       return false;
@@ -244,8 +259,8 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
 
     setSubmitting(true);
 
-    const isCommercial = !!wizardData.saleType;
-
+    const hasCommercialData = !!wizardData.saleType;
+    
     const payload = {
       channelId: selectedChannelId,
       titre: wizardData.titre,
@@ -263,18 +278,26 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
         audioPublicId: wizardData.selectedMusic.audioPublicId || wizardData.selectedMusic.publicId,
         volume: wizardData.musicVolume
       } : null,
-      isCommercial,
-      saleType: wizardData.saleType || null,
-      address: wizardData.address || '',
-      mapUrl: wizardData.mapUrl || '',
       tags: []
     };
+
+    if (hasCommercialData) {
+      payload.isCommercial = true;
+      payload.saleType = wizardData.saleType;
+      payload.address = wizardData.address || '';
+      payload.mapUrl = wizardData.mapUrl || '';
+    } else {
+      payload.isCommercial = false;
+    }
 
     try {
       const res = await dispatch(createVideo(payload, auth.token));
       if (res?.success) {
         const isAdmin = auth.user?.role === 'admin';
-        dispatch({ type: GLOBALTYPES.ALERT, payload: { success: isAdmin ? '✅ Vidéo publiée !' : '📹 Vidéo envoyée, en attente d\'approbation.' } });
+        dispatch({ 
+          type: GLOBALTYPES.ALERT, 
+          payload: { success: isAdmin ? '✅ Vidéo publiée !' : '📹 Vidéo envoyée, en attente d\'approbation.' } 
+        });
         history.push('/');
       } else {
         setError(res?.message || 'Erreur lors de la création');
@@ -287,42 +310,109 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
     }
   };
 
-  // ✅ Render paso 1 - SIN CAMBIOS
+  // Render paso 1
   const renderStep1 = () => (
     <div className="step1-container" style={{ padding: '0 8px', minHeight: '60vh', display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '40px', marginBottom: '20px', padding: '10px 0' }}>
         <div style={{ textAlign: 'center' }}>
-          <button type="button" onClick={handleGallerySelect} style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)', border: 'none', borderRadius: '60px', width: '70px', height: '70px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+          <button 
+            type="button" 
+            onClick={handleGallerySelect} 
+            style={{ 
+              background: 'linear-gradient(135deg, #667eea, #764ba2)', 
+              border: 'none', 
+              borderRadius: '60px', 
+              width: '70px', 
+              height: '70px', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              cursor: 'pointer' 
+            }}
+          >
             <Image size={36} color="white" />
           </button>
           <div style={{ fontSize: '12px', marginTop: '8px', color: '#fff' }}>Galerie</div>
         </div>
         <div style={{ textAlign: 'center' }}>
-          <button type="button" onClick={handleCameraSelect} style={{ background: 'linear-gradient(135deg, #f093fb, #f5576c)', border: 'none', borderRadius: '60px', width: '70px', height: '70px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+          <button 
+            type="button" 
+            onClick={handleCameraSelect} 
+            style={{ 
+              background: 'linear-gradient(135deg, #f093fb, #f5576c)', 
+              border: 'none', 
+              borderRadius: '60px', 
+              width: '70px', 
+              height: '70px', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              cursor: 'pointer' 
+            }}
+          >
             <Camera size={36} color="white" />
           </button>
           <div style={{ fontSize: '12px', marginTop: '8px', color: '#fff' }}>Caméra</div>
         </div>
       </div>
-      <input type="file" ref={fileInputRef} accept="video/mp4,video/quicktime,video/webm" style={{ display: 'none' }} onChange={(e) => handleFileChange(e, false)} />
-      <input type="file" ref={cameraInputRef} accept="video/mp4,video/quicktime/video/webm" capture="environment" style={{ display: 'none' }} onChange={(e) => handleFileChange(e, true)} />
+      
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        accept="video/mp4,video/quicktime,video/webm" 
+        style={{ display: 'none' }} 
+        onChange={(e) => handleFileChange(e, false)} 
+      />
+      <input 
+        type="file" 
+        ref={cameraInputRef} 
+        accept="video/mp4,video/quicktime/video/webm" 
+        capture="environment" 
+        style={{ display: 'none' }} 
+        onChange={(e) => handleFileChange(e, true)} 
+      />
       
       {loading && uploadProgress > 0 && (
-        <ProgressBar now={uploadProgress} label={`${uploadProgress}%`} striped animated className="mt-3" style={{ borderRadius: '20px', height: '6px' }} />
+        <ProgressBar 
+          now={uploadProgress} 
+          label={`${uploadProgress}%`} 
+          striped 
+          animated 
+          className="mt-3" 
+          style={{ borderRadius: '20px', height: '6px' }} 
+        />
       )}
       
       {wizardData.videoPreview && (
         <div className="video-preview-full" style={{ marginTop: '15px', position: 'relative', borderRadius: '16px', overflow: 'hidden', background: '#000' }}>
           <video src={wizardData.videoPreview} controls style={{ width: '100%', maxHeight: '50vh', objectFit: 'contain' }} />
-          <Badge bg="dark" style={{ position: 'absolute', bottom: '8px', right: '8px', opacity: 0.8 }}>⏱️ {Math.floor(wizardData.videoDuration)}s</Badge>
-          <Button variant="danger" size="sm" style={{ position: 'absolute', top: '8px', right: '8px', borderRadius: '60px' }} onClick={clearVideo}>
+          <Badge bg="dark" style={{ position: 'absolute', bottom: '8px', right: '8px', opacity: 0.8 }}>
+            ⏱️ {Math.floor(wizardData.videoDuration)}s
+          </Badge>
+          <Button 
+            variant="danger" 
+            size="sm" 
+            style={{ position: 'absolute', top: '8px', right: '8px', borderRadius: '60px' }} 
+            onClick={clearVideo}
+          >
             <X size={14} className="me-1" /> Changer
           </Button>
         </div>
       )}
       
       {!wizardData.videoPreview && !loading && (
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.05)', borderRadius: '16px', marginTop: '15px', minHeight: '250px', color: '#fff', textAlign: 'center' }}>
+        <div style={{ 
+          flex: 1, 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          background: 'rgba(255,255,255,0.05)', 
+          borderRadius: '16px', 
+          marginTop: '15px', 
+          minHeight: '250px', 
+          color: '#fff', 
+          textAlign: 'center' 
+        }}>
           <div>
             <Camera size={48} style={{ opacity: 0.5, marginBottom: '10px' }} />
             <p>Sélectionnez une vidéo depuis<br />votre galerie ou votre caméra</p>
@@ -333,52 +423,79 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
     </div>
   );
 
-  // ✅ Render paso 3 - SIMPLIFICADO (sin botón de actualizar canal)
+  // Render paso 3 - Canal (solo nombre) → Categoría bloqueada
   const renderStep3 = () => {
     const channelMissingWilaya = selectedChannel && (!selectedChannel.wilaya || !selectedChannel.commune);
     const channelMissingContact = selectedChannel && (!selectedChannel.phone && !selectedChannel.email);
     const showChannelWarning = showCommercial && (channelMissingWilaya || channelMissingContact);
 
+    const categoryName = sliderCategories.find(cat => cat._id === wizardData.category)?.name || selectedChannel?.activity || '';
+
     return (
       <div className="step3-container" style={{ padding: '0' }}>
         <h5 className="mb-4" style={{ color: 'white', fontWeight: 'bold' }}>📝 Détails de la vidéo</h5>
 
-        {/* ✅ Canal - Mostrar nombre y actividad */}
-        <div className="mb-3">
-          <label className="form-label fw-bold" style={{ color: 'white' }}>Canal *</label>
+        {/* PASO 1: Sélectionner le canal (solo el nombre) */}
+        <div className="mb-4">
+          <label className="form-label fw-bold" style={{ color: 'white' }}>
+            <Building className="me-2" /> Canal *
+          </label>
           <select
             className="form-select"
             value={selectedChannelId}
             onChange={(e) => setSelectedChannelId(e.target.value)}
-            style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', borderRadius: '12px' }}
+            style={{ 
+              background: 'rgba(255,255,255,0.1)', 
+              border: 'none', 
+              color: 'white', 
+              borderRadius: '12px', 
+              padding: '12px' 
+            }}
             disabled={channelsLoading}
           >
+            <option value="">-- Choisissez un canal --</option>
             {userChannels.map(ch => (
               <option key={ch._id} value={ch._id}>
-                {ch.name} {ch.activity && `(${ch.activity})`}
+                🏪 {ch.name}
               </option>
             ))}
           </select>
-          <small className="text-muted">Sélectionnez le canal qui publie cette vidéo</small>
+          <small className="text-muted d-block mt-2">
+            ℹ️ Sélectionnez le canal qui publiera cette vidéo
+          </small>
         </div>
 
-        {/* ✅ Categoría */}
-        <div className="mb-3">
-          <label className="form-label fw-bold" style={{ color: 'white' }}>Catégorie *</label>
-          <select
-            className="form-select"
-            value={wizardData.category}
-            onChange={(e) => updateWizardData({ category: e.target.value })}
-            style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', borderRadius: '12px' }}
-          >
-            <option value="">Sélectionnez une catégorie</option>
-            {sliderCategories.map(cat => (
-              <option key={cat._id} value={cat._id}>{cat.icon} {cat.name}</option>
-            ))}
-          </select>
-        </div>
+        {/* PASO 2: Catégorie (bloquée, se remplit automatiquement) */}
+        {selectedChannel && (
+          <div className="mb-4 p-3" style={{ background: 'rgba(102, 126, 234, 0.1)', borderRadius: '16px', borderLeft: '4px solid #667eea' }}>
+            <label className="form-label fw-bold" style={{ color: '#667eea' }}>
+              <Folder2 className="me-2" /> Catégorie du canal
+            </label>
+            <div style={{ 
+              background: 'rgba(255,255,255,0.05)', 
+              padding: '12px', 
+              borderRadius: '12px',
+              border: '1px solid rgba(255,255,255,0.1)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '24px' }}>
+                  {sliderCategories.find(cat => cat._id === wizardData.category)?.icon || '📁'}
+                </span>
+                <div>
+                  <div style={{ color: 'white', fontWeight: 'bold', fontSize: '1.1rem' }}>
+                    {categoryName || 'Chargement...'}
+                  </div>
+                  <small className="text-muted">
+                    Cette catégorie est définie par le canal et ne peut pas être modifiée
+                  </small>
+                </div>
+              </div>
+            </div>
+            <input type="hidden" name="category" value={wizardData.category} />
+          </div>
+        )}
 
-        {/* ✅ Título */}
+        {/* Título */}
         <div className="mb-3">
           <label className="form-label fw-bold" style={{ color: 'white' }}>Titre *</label>
           <input
@@ -393,7 +510,7 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
           <small className="text-muted">{wizardData.titre.length}/100</small>
         </div>
 
-        {/* ✅ Descripción */}
+        {/* Descripción */}
         <div className="mb-3">
           <label className="form-label" style={{ color: 'white' }}>Description (optionnelle)</label>
           <textarea
@@ -402,17 +519,28 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
             placeholder="Décrivez votre vidéo..."
             value={wizardData.description}
             onChange={(e) => updateWizardData({ description: e.target.value })}
-            style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', borderRadius: '12px', resize: 'vertical' }}
+            style={{ 
+              background: 'rgba(255,255,255,0.1)', 
+              border: 'none', 
+              color: 'white', 
+              borderRadius: '12px', 
+              resize: 'vertical' 
+            }}
           />
         </div>
 
-        {/* ✅ Sección comercial (opcional) - SIN BOTÓN DE ACTUALIZAR */}
+        {/* Sección commerciale (optionnel) */}
         <div className="mt-4">
           <Button
             variant="outline-light"
             onClick={() => setShowCommercial(!showCommercial)}
             className="w-100 d-flex justify-content-between align-items-center"
-            style={{ borderRadius: '40px', padding: '8px 16px', background: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.2)' }}
+            style={{ 
+              borderRadius: '40px', 
+              padding: '8px 16px', 
+              background: 'rgba(255,255,255,0.05)', 
+              borderColor: 'rgba(255,255,255,0.2)' 
+            }}
           >
             <span><Tag className="me-2" /> Informations commerciales (optionnel)</span>
             {showCommercial ? <ChevronUp /> : <ChevronDown />}
@@ -420,7 +548,6 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
 
           {showCommercial && (
             <div className="mt-3 p-3" style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '16px', animation: 'fadeIn 0.3s ease' }}>
-              {/* ⚠️ ADVERTENCIA - solo informativa, sin botón de actualizar */}
               {showChannelWarning && (
                 <Alert variant="warning" className="mb-3">
                   <div>⚠️ Ce canal ne possède pas toutes les informations nécessaires pour les vidéos commerciales :</div>
@@ -464,12 +591,14 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
           )}
         </div>
 
-        {/* Preview video */}
+        {/* Preview vidéo */}
         {wizardData.videoPreview && (
           <div className="mt-4 p-3" style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '12px' }}>
             <label className="form-label" style={{ color: 'white', fontWeight: 500 }}>Aperçu vidéo</label>
             <video src={wizardData.videoPreview} controls style={{ width: '100%', maxHeight: '180px', borderRadius: '8px' }} />
-            <div className="mt-2 text-muted small">Durée: {Math.floor(wizardData.videoDuration / 60)}:{Math.floor(wizardData.videoDuration % 60).toString().padStart(2, '0')}</div>
+            <div className="mt-2 text-muted small">
+              Durée: {Math.floor(wizardData.videoDuration / 60)}:{Math.floor(wizardData.videoDuration % 60).toString().padStart(2, '0')}
+            </div>
           </div>
         )}
       </div>
@@ -512,22 +641,41 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
           </div>
 
           <div className="cw-step-content px-2 mt-3">
-            {error && <Alert variant="danger" className="mt-2" onClose={() => setError(null)} dismissible style={{ borderRadius: '12px' }}>{error}</Alert>}
+            {error && (
+              <Alert variant="danger" className="mt-2" onClose={() => setError(null)} dismissible style={{ borderRadius: '12px', whiteSpace: 'pre-line' }}>
+                {error}
+              </Alert>
+            )}
             {currentStep === 1 && renderStep1()}
             {currentStep === 2 && <StepMusicSelection wizardData={wizardData} updateData={updateWizardData} />}
             {currentStep === 3 && renderStep3()}
           </div>
 
           <div className="cw-footer mt-3 p-3 d-flex justify-content-between">
-            <Button variant="outline-secondary" onClick={prevStep} disabled={loading || submitting || currentStep === 1} style={{ borderRadius: '40px', padding: '8px 20px', borderColor: 'rgba(255,255,255,0.2)', color: 'white' }}>
+            <Button 
+              variant="outline-secondary" 
+              onClick={prevStep} 
+              disabled={loading || submitting || currentStep === 1} 
+              style={{ borderRadius: '40px', padding: '8px 20px', borderColor: 'rgba(255,255,255,0.2)', color: 'white' }}
+            >
               <ArrowLeft className="me-2" /> Retour
             </Button>
             {currentStep < 3 ? (
-              <Button variant="primary" onClick={nextStep} disabled={loading || (currentStep === 1 && !isStep1Valid)} style={{ borderRadius: '40px', padding: '8px 20px', background: 'linear-gradient(135deg, #667eea, #764ba2)', border: 'none', fontWeight: 'bold' }}>
+              <Button 
+                variant="primary" 
+                onClick={nextStep} 
+                disabled={loading || (currentStep === 1 && !isStep1Valid)} 
+                style={{ borderRadius: '40px', padding: '8px 20px', background: 'linear-gradient(135deg, #667eea, #764ba2)', border: 'none', fontWeight: 'bold' }}
+              >
                 Suivant <ArrowRight className="ms-2" />
               </Button>
             ) : (
-              <Button variant="success" onClick={handleSubmit} disabled={submitting || !isStep3Valid} style={{ borderRadius: '40px', padding: '8px 20px', background: 'linear-gradient(135deg, #28a745, #20c997)', border: 'none', fontWeight: 'bold' }}>
+              <Button 
+                variant="success" 
+                onClick={handleSubmit} 
+                disabled={submitting || !isStep3Valid} 
+                style={{ borderRadius: '40px', padding: '8px 20px', background: 'linear-gradient(135deg, #28a745, #20c997)', border: 'none', fontWeight: 'bold' }}
+              >
                 {submitting ? <><Spinner size="sm" className="me-2" /> Publication...</> : <><CloudUpload className="me-2" /> Publier</>}
               </Button>
             )}

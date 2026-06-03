@@ -74,9 +74,11 @@ export const CHANNEL_TYPES = {
     BLOCK_CHANNEL_FAIL: 'BLOCK_CHANNEL_FAIL',
     
     REGISTER_CHANNEL_SHARE: 'REGISTER_CHANNEL_SHARE',
-    GET_CHANNEL_CONTACT: 'GET_CHANNEL_CONTACT'
+    GET_CHANNEL_CONTACT: 'GET_CHANNEL_CONTACT',
 
-
+    GET_PENDING_CHANNEL_REQUEST: 'GET_PENDING_CHANNEL_REQUEST',
+  GET_PENDING_CHANNEL_SUCCESS: 'GET_PENDING_CHANNEL_SUCCESS',
+  GET_PENDING_CHANNEL_ERROR: 'GET_PENDING_CHANNEL_ERROR',
 
 
 };
@@ -741,5 +743,77 @@ export const getChannelContact = (channelId, auth) => async (dispatch) => {
     } catch (err) {
         console.error('❌ Error getChannelContact:', err);
         return { success: false };
+    }
+};
+
+// channelAction.js - Versión que obtiene el token del store
+export const getPendingChannelOwner = (channelId) => async (dispatch) => {
+    try {
+        dispatch({ type: CHANNEL_TYPES.GET_PENDING_CHANNEL_REQUEST });
+        
+        console.log('📺 getPendingChannelOwner llamado:', channelId);
+        
+        // ✅ USAR getDataAPI - NO necesitas pasar token manualmente
+        const res = await getDataAPI(`pending/${channelId}`);
+        
+        console.log('✅ Canal pendiente recibido:', res.data);
+        
+        if (res.data.success) {
+            dispatch({ 
+                type: CHANNEL_TYPES.GET_PENDING_CHANNEL_SUCCESS, 
+                payload: res.data.profile || res.data.channel 
+            });
+        }
+        
+        return res.data;
+        
+    } catch (err) {
+        console.error('❌ Error getPendingChannelOwner:', err.response?.data || err);
+        dispatch({ 
+            type: CHANNEL_TYPES.GET_PENDING_CHANNEL_ERROR, 
+            payload: err.response?.data?.message || 'Error al cargar el canal pendiente'
+        });
+        throw err;
+    }
+};
+// frontend/src/redux/actions/channelAction.js
+
+// Añadir esta nueva acción
+// frontend/src/redux/actions/channelAction.js
+
+// ✅ CORREGIR esta acción - está mal implementada
+export const getPendingChannelById = (token, channelId) => async (dispatch) => {
+    try {
+        dispatch({ type: CHANNEL_TYPES.GET_PENDING_CHANNEL_REQUEST });
+        
+        console.log('📺 getPendingChannelById - channelId:', channelId);
+        console.log('📺 Token recibido:', token ? `Token presente (${token.substring(0, 30)}...)` : 'NO TOKEN');
+        
+        // ✅ CORRECCIÓN: getDataAPI(url, token) - el segundo parámetro es el token string
+        // NO pasar un objeto config
+        const res = await getDataAPI(`pending/${channelId}`, token);
+        
+        console.log('✅ Respuesta:', res.data);
+        
+        if (res.data.success) {
+            dispatch({
+                type: CHANNEL_TYPES.GET_PENDING_CHANNEL_SUCCESS,
+                payload: res.data.profile
+            });
+        }
+        
+        return { success: true, channel: res.data.profile };
+        
+    } catch (error) {
+        console.error('❌ Error getPendingChannelById:', error);
+        dispatch({
+            type: CHANNEL_TYPES.GET_PENDING_CHANNEL_ERROR,
+            payload: error.response?.data?.message || error.message
+        });
+        
+        return { 
+            success: false, 
+            error: error.response?.data?.message || error.message 
+        };
     }
 };

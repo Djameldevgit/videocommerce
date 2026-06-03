@@ -56,7 +56,10 @@ const initialState = {
   contactInfo: null,
   isBlocked: false,
   // Errores
-  error: null
+  error: null,
+  pendingChannel: null,  // ✅ NUEVO: para canal pendiente
+  pendingLoading: false,  // ✅ NUEVO: loading específico
+
 };
 
 // ✅ FUNCIÓN HELPER PARA EXTRAER URL DE IMAGEN
@@ -460,7 +463,28 @@ case CHANNEL_TYPES.DELETE_CHANNEL_SUCCESS:
                 shareCount: action.payload.shareCount
             } : null
         };
-    // ==================== DEFAULT ====================
+        case CHANNEL_TYPES.GET_PENDING_CHANNEL_REQUEST:
+          return {
+            ...state,
+            pendingLoading: true,
+            error: null
+          };
+          
+        case CHANNEL_TYPES.GET_PENDING_CHANNEL_SUCCESS:
+          return {
+            ...state,
+            pendingChannel: action.payload,
+            channel: action.payload,  // También actualizar channel principal
+            pendingLoading: false,
+            error: null
+          };
+          
+        case CHANNEL_TYPES.GET_PENDING_CHANNEL_ERROR:
+          return {
+            ...state,
+            pendingLoading: false,
+            error: action.payload
+          };
     default:
       return state;
   }

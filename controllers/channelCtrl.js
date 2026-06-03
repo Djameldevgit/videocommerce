@@ -193,12 +193,97 @@ const createChannel = async (req, res) => {
 
 // backend/controllers/channelCtrl.js
 
+// backend/controllers/channelCtrl.js
+
+// ==================== OBTENER MIS CANALES (CORREGIDO) ====================
+const getMyChannels = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const userRole = req.user.role;
+        
+        // ✅ IMPORTANTE: El dueño debe ver TODOS sus canales (activos, pendientes, etc.)
+        // Solo filtramos isActive=false para canales ELIMINADOS (soft delete)
+        let query = { owner: userId };
+        
+        // Si NO es admin, mostramos todos sus canales excepto los eliminados
+        // Si es admin, mostramos todos los canales que posee
+        if (userRole !== 'admin') {
+            // El dueño ve canales activos (pending puede ser true o false)
+            // Solo ocultamos canales marcados como isActive=false (eliminados)
+            query.isActive = { $ne: false };
+        }
+        
+        const channels = await Channel.find(query)
+            .populate('owner', 'username avatar fullname')
+            .sort({ createdAt: -1 })
+            .lean();
+        
+        // Formatear canales para el frontend
+        const formattedChannels = channels.map(channel => ({
+            ...channel,
+            _id: channel._id.toString(),
+            // Extraer URL del avatar si es array
+            avatar: channel.avatar && channel.avatar.length > 0 ? channel.avatar[0].url : (channel.avatar || ''),
+            cover: channel.cover && channel.cover.length > 0 ? channel.cover[0].url : (channel.cover || ''),
+            // Asegurar que pending existe
+            pending: channel.pending === true,
+            isActive: channel.isActive !== false,
+            // Datos del owner
+            owner: channel.owner ? {
+                _id: channel.owner._id.toString(),
+                username: channel.owner.username,
+                avatar: channel.owner.avatar,
+                fullname: channel.owner.fullname
+            } : null
+        }));
+        
+        console.log(`📋 Usuario ${userId} (${userRole}) tiene ${formattedChannels.length} canales`);
+        console.log(`   - Pendientes: ${formattedChannels.filter(c => c.pending).length}`);
+        console.log(`   - Aprobados: ${formattedChannels.filter(c => !c.pending).length}`);
+        
+        res.json({ 
+            success: true, 
+            channels: formattedChannels 
+        });
+        
+    } catch (error) {
+        console.error('❌ Error getMyChannels:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: error.message,
+            channels: [] 
+        });
+    }
+};
+
+// Backend: Permitir al dueño ver/editar su canal pendiente
+// Solo restringir a otros usuarios
+
+const getChannelById = async (req, res) => {
+    const isOwner = channel.owner.toString() === userId;
+    const isAdmin = userRole === 'admin';
+    
+    // ✅ El dueño SIEMPRE puede ver su canal (pendiente o no)
+    if (isOwner || isAdmin) {
+      return res.json({ success: true, channel });
+    }
+    
+    // ❌ Otros usuarios solo ven canales aprobados
+    if (channel.pending) {
+      return res.status(404).json({ 
+        message: 'Canal en revisión, pronto estará disponible' 
+      });
+    }
+    
+    return res.json({ success: true, channel });
+  };
+
+// ==================== ACTUALIZAR CANAL (CORREGIDO) ====================
 const updateChannel = async (req, res) => {
     try {
-        // ✅ IMPORTANTE: Usar el mismo nombre que en la ruta
         const channelId = req.params.channelId || req.params.id;
         
-        console.log('🔍 Actualizando canal con ID:', channelId);
+        console.log('🔍 Actualizando canal ID:', channelId);
         
         const { 
             name, 
@@ -225,83 +310,49 @@ const updateChannel = async (req, res) => {
         }
 
         console.log('📺 Canal encontrado:', existingChannel.name);
+        console.log('   - Pending:', existingChannel.pending);
+        console.log('   - Owner:', existingChannel.owner.toString());
+        console.log('   - User:', req.user._id.toString());
 
         // Verificar que el usuario es el dueño o admin
         const isOwner = existingChannel.owner.toString() === req.user._id.toString();
         const isAdmin = req.user.role === 'admin';
         
+        // ✅ IMPORTANTE: El dueño puede actualizar incluso si está pendiente
         if (!isOwner && !isAdmin) {
             return res.status(403).json({
                 success: false,
-                msg: "No autorizado"
+                msg: "No autorizado para modificar este canal"
             });
         }
 
-        // ============================================
-        // ✅ NORMALIZAR AVATAR
-        // ============================================
+        console.log(`✅ Permiso concedido: ${isOwner ? 'Dueño' : 'Admin'}`);
+
+        // Normalizar avatar
         let normalizedAvatar = existingChannel.avatar || [];
-        
         if (avatar !== undefined) {
             if (Array.isArray(avatar)) {
-                normalizedAvatar = avatar.map(item => {
-                    if (typeof item === 'string') {
-                        return { 
-                            url: item, 
-                            public_id: `avatar_${Date.now()}_${Math.random()}` 
-                        };
-                    } else if (item && item.url) {
-                        return { 
-                            url: item.url, 
-                            public_id: item.public_id || `avatar_${Date.now()}_${Math.random()}`
-                        };
-                    }
-                    return item;
-                });
+                normalizedAvatar = avatar;
             } else if (typeof avatar === 'string' && avatar) {
-                normalizedAvatar = [{
-                    url: avatar,
-                    public_id: `avatar_${Date.now()}_${Math.random()}`
-                }];
+                normalizedAvatar = [{ url: avatar, public_id: `avatar_${Date.now()}` }];
             } else if (avatar === null || avatar === '') {
                 normalizedAvatar = [];
             }
         }
 
-        // ============================================
-        // ✅ NORMALIZAR COVER
-        // ============================================
+        // Normalizar cover
         let normalizedCover = existingChannel.cover || [];
-        
         if (cover !== undefined) {
             if (Array.isArray(cover)) {
-                normalizedCover = cover.map(item => {
-                    if (typeof item === 'string') {
-                        return { 
-                            url: item, 
-                            public_id: `cover_${Date.now()}_${Math.random()}` 
-                        };
-                    } else if (item && item.url) {
-                        return { 
-                            url: item.url, 
-                            public_id: item.public_id || `cover_${Date.now()}_${Math.random()}`
-                        };
-                    }
-                    return item;
-                });
+                normalizedCover = cover;
             } else if (typeof cover === 'string' && cover) {
-                normalizedCover = [{
-                    url: cover,
-                    public_id: `cover_${Date.now()}_${Math.random()}`
-                }];
+                normalizedCover = [{ url: cover, public_id: `cover_${Date.now()}` }];
             } else if (cover === null || cover === '') {
                 normalizedCover = [];
             }
         }
 
-        // ============================================
-        // ✅ ACTUALIZAR CANAL
-        // ============================================
+        // Actualizar canal
         const updatedChannel = await Channel.findByIdAndUpdate(
             channelId,
             { 
@@ -315,6 +366,7 @@ const updateChannel = async (req, res) => {
                 website: website !== undefined ? website : existingChannel.website,
                 wilaya: wilaya || existingChannel.wilaya,
                 commune: commune || existingChannel.commune
+                // ⚠️ NO actualizamos 'pending' aquí - eso solo lo hace el admin
             },
             { new: true }
         ).populate('owner', 'username avatar fullname')
@@ -327,21 +379,22 @@ const updateChannel = async (req, res) => {
             });
         }
 
-        // ============================================
-        // ✅ FORMATEAR RESPUESTA
-        // ============================================
+        // Formatear respuesta
         const formattedChannel = {
             ...updatedChannel,
             _id: updatedChannel._id.toString(),
-            avatar: updatedChannel.avatar || [],
-            cover: updatedChannel.cover || [],
-            owner: {
+            avatar: updatedChannel.avatar && updatedChannel.avatar.length > 0 ? updatedChannel.avatar[0].url : (updatedChannel.avatar || ''),
+            cover: updatedChannel.cover && updatedChannel.cover.length > 0 ? updatedChannel.cover[0].url : (updatedChannel.cover || ''),
+            pending: updatedChannel.pending === true,
+            isActive: updatedChannel.isActive !== false,
+            owner: updatedChannel.owner ? {
                 ...updatedChannel.owner,
                 _id: updatedChannel.owner._id.toString()
-            }
+            } : null
         };
 
         console.log('✅ Canal actualizado:', formattedChannel.name);
+        console.log('   - Pending se mantiene:', formattedChannel.pending);
 
         res.json({
             success: true,
@@ -358,43 +411,11 @@ const updateChannel = async (req, res) => {
     }
 };
 
- // backend/controllers/channelCtrl.js
-
-const getChannelById = async (req, res) => {
-    try {
-        const { channelId } = req.params;
-
-        if (!mongoose.Types.ObjectId.isValid(channelId)) {
-            return res.status(400).json({ success: false, message: 'ID inválido' });
-        }
-
-        const channel = await Channel.findById(channelId)
-            .populate('owner', 'username avatar fullname')
-            .lean();
-
-        if (!channel) {
-            return res.status(404).json({ success: false, message: 'Canal no encontrado' });
-        }
-
-        // ✅ Devolver como arrays (sin extraer URLs)
-        res.json({ 
-            success: true, 
-            channel: {
-                ...channel,
-                _id: channel._id.toString(),
-                avatar: channel.avatar || [],
-                cover: channel.cover || []
-            }
-        });
-
-    } catch (error) {
-        console.error('❌ Error getChannelById:', error);
-        res.status(500).json({ success: false, message: error.message });
-    }
-};
+// backend/controllers/channelCtrl.js
 
 // backend/controllers/channelCtrl.js
 
+// ==================== OBTENER PERFIL DEL CANAL (CORREGIDO) ====================
 const getChannelProfile = async (req, res) => {
     try {
         const { channelId } = req.params;
@@ -413,16 +434,27 @@ const getChannelProfile = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Canal no encontrado' });
         }
 
-        // ✅ PRIMERO: Verificar si es el DUEÑO (independientemente de si es admin)
+        // ✅ Verificar si el usuario actual es el DUEÑO del canal
         const isOwner = currentUserId && channel.owner._id.toString() === currentUserId.toString();
 
-        // ✅ SI ES DUEÑO (incluyendo admins que son dueños del canal)
+        console.log('📺 Canal encontrado:', {
+            id: channel._id,
+            name: channel.name,
+            pending: channel.pending,
+            isActive: channel.isActive,
+            isOwner: isOwner,
+            isAdmin: isAdmin,
+            currentUserId: currentUserId,
+            ownerId: channel.owner._id.toString()
+        });
+
+        // ✅ REGLA NÚMERO 1: El DUEÑO siempre puede ver su canal (pendiente o no)
         if (isOwner) {
-            console.log(`👑 Dueño (admin o no) viendo su canal: ${channel.name} (pending: ${channel.pending}, active: ${channel.isActive})`);
+            console.log(`👑 Dueño viendo su canal: ${channel.name} (pending: ${channel.pending})`);
             
-            // Obtener estadísticas de videos
+            // Obtener estadísticas de videos para el dueño (incluye pendientes? No, solo publicados)
             const stats = await Video.aggregate([
-                { $match: { channel: new mongoose.Types.ObjectId(channelId), pendiente: false, isActive: true } },
+                { $match: { channel: new mongoose.Types.ObjectId(channelId), isActive: true, pendiente: false } },
                 { $group: {
                     _id: null,
                     totalVideos: { $sum: 1 },
@@ -462,9 +494,9 @@ const getChannelProfile = async (req, res) => {
             return res.json({ success: true, profile: profileData });
         }
 
-        // ✅ ADMIN (pero NO dueño) puede ver TODO (incluyendo inactivos y pendientes)
+        // ✅ REGLA NÚMERO 2: ADMIN puede ver cualquier canal
         if (isAdmin) {
-            console.log(`👑 Admin (no dueño) viendo canal: ${channel.name} (pending: ${channel.pending}, active: ${channel.isActive})`);
+            console.log(`👑 Admin viendo canal: ${channel.name} (pending: ${channel.pending})`);
             
             const profileData = {
                 _id: channel._id.toString(),
@@ -495,16 +527,23 @@ const getChannelProfile = async (req, res) => {
             return res.json({ success: true, profile: profileData });
         }
 
-        // ✅ USUARIO NORMAL (no dueño, no admin) solo puede ver canales activos y NO pendientes
+        // ✅ REGLA NÚMERO 3: Usuarios NORMALES solo ven canales aprobados y activos
         if (channel.pending) {
-            return res.status(404).json({ success: false, message: 'Canal pendiente de aprobación' });
+            console.log(`❌ Canal pendiente bloqueado para usuario normal: ${channel.name}`);
+            return res.status(404).json({ 
+                success: false, 
+                message: 'Canal en cours de vérification, disponible prochainement' 
+            });
         }
 
         if (!channel.isActive) {
-            return res.status(404).json({ success: false, message: 'Canal no disponible' });
+            return res.status(404).json({ 
+                success: false, 
+                message: 'Canal non disponible' 
+            });
         }
 
-        // Verificar follow
+        // Verificar follow para usuarios normales
         let isFollowing = false;
         if (currentUserId) {
             const currentUser = await User.findById(currentUserId).select('followingChannels');
@@ -542,22 +581,15 @@ const getChannelProfile = async (req, res) => {
             totalViews: statsData.totalViews,
             totalLikes: statsData.totalLikes,
             owner: channel.owner,
-            isFollowing: isFollowing || false,
-            pending: channel.pending || false,
-            isActive: channel.isActive !== false,
+            isFollowing: isFollowing,
+            pending: false,
+            isActive: true,
             email: channel.email || '',
             phone: channel.phone || '',
             website: channel.website || '',
             createdAt: channel.createdAt,
             updatedAt: channel.updatedAt
         };
-
-        console.log('✅ Perfil enviado:', {
-            id: profileData._id,
-            nombre: profileData.name,
-            pending: profileData.pending,
-            isActive: profileData.isActive
-        });
 
         res.json({ success: true, profile: profileData });
         
@@ -566,73 +598,7 @@ const getChannelProfile = async (req, res) => {
         res.status(500).json({ success: false, message: err.message });
     }
 };
-const getMyChannels = async (req, res) => {
-    try {
-        const userId = req.user._id;
-        
-        // ✅ SOLO DEVOLVER CANALES ACTIVOS (isActive: true)
-        // El dueño debe ver sus canales activos, los inactivos (eliminados) no
-        const channels = await Channel.find({ 
-            owner: userId,
-            isActive: true  // ← FILTRO CLAVE: solo canales activos
-        })
-            .populate('owner', 'username avatar fullname')
-            .sort({ createdAt: -1 })
-            .lean();
-        
-        // ✅ Extraer URLs como strings
-        const formattedChannels = channels.map(channel => {
-            let avatarUrl = '';
-            let coverUrl = '';
-
-            if (channel.avatar) {
-                if (Array.isArray(channel.avatar) && channel.avatar.length > 0) {
-                    avatarUrl = channel.avatar[0].url || '';
-                } else if (typeof channel.avatar === 'string') {
-                    avatarUrl = channel.avatar;
-                } else if (channel.avatar.url) {
-                    avatarUrl = channel.avatar.url;
-                }
-            }
-
-            if (channel.cover) {
-                if (Array.isArray(channel.cover) && channel.cover.length > 0) {
-                    coverUrl = channel.cover[0].url || '';
-                } else if (typeof channel.cover === 'string') {
-                    coverUrl = channel.cover;
-                } else if (channel.cover.url) {
-                    coverUrl = channel.cover.url;
-                }
-            }
-
-            return {
-                ...channel,
-                avatar: avatarUrl,
-                cover: coverUrl,
-                pending: channel.pending !== undefined ? channel.pending : false
-            };
-        });
-        
-        console.log(`📋 Usuario ${userId} tiene ${formattedChannels.length} canales activos`);
-        
-        res.json({ 
-            success: true, 
-            channels: formattedChannels 
-        });
-        
-    } catch (error) {
-        console.error('❌ Error getMyChannels:', error);
-        res.status(500).json({ 
-            success: false, 
-            message: error.message,
-            channels: [] 
-        });
-    }
-};
-// ==================== OBTENER PERFIL (con la primera imagen) ====================
-// ==================== OBTENER PERFIL DEL CANAL (CORREGIDO) ====================
  
-// backend/controllers/channelCtrl.js
 
 const getChannelVideos = async (req, res) => {
     try {
@@ -844,7 +810,87 @@ const rejectChannel = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+// backend/controllers/channelCtrl.js
 
+const getPendingChannel = async (req, res) => {
+    try {
+        const { channelId } = req.params;
+        
+        console.log('📺 getPendingChannel - Inicio');
+        console.log('📺 channelId:', channelId);
+        console.log('👤 req.user:', req.user._id);
+        console.log('👤 req.user role:', req.user.role);
+        
+        if (!req.user) {
+            console.log('❌ No hay usuario autenticado');
+            return res.status(401).json({ success: false, message: "Accès non autorisé" });
+        }
+        
+        if (!mongoose.Types.ObjectId.isValid(channelId)) {
+            return res.status(400).json({ success: false, message: 'ID inválido' });
+        }
+
+        const channel = await Channel.findById(channelId)
+            .populate('owner', 'username avatar fullname')
+            .lean();
+
+        if (!channel) {
+            return res.status(404).json({ success: false, message: 'Canal no encontrado' });
+        }
+
+        const isOwner = channel.owner._id.toString() === req.user._id.toString();
+        const isAdmin = req.user.role === 'admin';
+
+        console.log('📺 Verificación de permisos:');
+        console.log('  - isOwner:', isOwner);
+        console.log('  - isAdmin:', isAdmin);
+        console.log('  - channel.owner:', channel.owner._id.toString());
+        console.log('  - req.user._id:', req.user._id.toString());
+
+        // ✅ Solo dueño o admin pueden ver canales pendientes
+        if (!isOwner && !isAdmin) {
+            console.log('❌ Acceso denegado - No es dueño ni admin');
+            return res.status(403).json({ 
+                success: false, 
+                message: "Accès non autorisé. Seul le propriétaire peut voir ce canal en attente." 
+            });
+        }
+
+        console.log('✅ Acceso concedido para canal pendiente');
+
+        const profileData = {
+            _id: channel._id.toString(),
+            name: channel.name,
+            slug: channel.slug,
+            description: channel.description || '',
+            avatar: channel.avatar || [],
+            cover: channel.cover || [],
+            wilaya: channel.wilaya || '',
+            commune: channel.commune || '',
+            activity: channel.activity || '',
+            isVerified: channel.isVerified || false,
+            followersCount: channel.followersCount || 0,
+            totalVideos: channel.totalVideos || 0,
+            totalViews: channel.totalViews || 0,
+            totalLikes: channel.totalLikes || 0,
+            owner: channel.owner,
+            isFollowing: false,
+            pending: channel.pending === true,
+            isActive: channel.isActive !== false,
+            email: channel.email || '',
+            phone: channel.phone || '',
+            website: channel.website || '',
+            createdAt: channel.createdAt,
+            updatedAt: channel.updatedAt
+        };
+
+        res.json({ success: true, profile: profileData });
+        
+    } catch (err) {
+        console.error('❌ Error getPendingChannel:', err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
 // ============================================
 // 📋 OBTENER CANALES PENDIENTES (solo ADMIN)
 // ============================================
@@ -1140,7 +1186,7 @@ module.exports = {
     getMyChannels,
     getChannelVideos,
     toggleFollowChannel,
-    
+    getPendingChannel ,
     approveChannel ,
     rejectChannel,
     getPendingChannels ,

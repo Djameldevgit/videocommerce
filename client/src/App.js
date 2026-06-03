@@ -42,6 +42,8 @@ import PaymentSuccess from './pages/userProo/PaymentSuccess';
 import DonationPage from './pages/donationPage'
 import { getDataAPI } from './utils/fetchData';
 import CreateChannelWizard from './pages/channel/createChannelWizard';
+import ChannelOwnerView from './pages/channel/ChannelOwnerView';
+import AdminChannelPreview from './pages/channel/AdminChannelPreview';
 
 let audioElement = null;
 let audioUnlocked = false;
@@ -346,7 +348,12 @@ function AppContent() {
 
         <Route exact path="/channel/:channelId/edit" component={EditChannel} />
         <Route exact path="/channel/:channelId" component={ChannelProfile} />
-        <Route exact path="/my-channels" component={MisChannel} />
+ <Route exact path="/my-channels" component={MisChannel} />
+ 
+ 
+  <Route exact path="/channel/:channelId/owner" component={ChannelOwnerView} />
+  <Route 
+  path="/admin/channel-preview/:id"  component={AdminChannelPreview} />
         <Route path="/video/channelFeed/:channelId" component={ChannelFeed} />
         <Route exact path="/map" component={Map} />
         <Route path="/create-image-page" component={CreateImageWizard} />

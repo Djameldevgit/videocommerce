@@ -17,11 +17,14 @@ const {
   reportChannel,
   blockChannel,
   registerShare,
-  getContactInfo
+  getContactInfo,
+  getPendingChannel
 } = require('../controllers/channelCtrl');
 
 // ========== RUTAS PÚBLICAS (sin auth) ==========
 router.get('/channels/:channelId', getChannelProfile);
+router.get('/pending/:channelId', auth ,getPendingChannel);  
+
 router.get('/channels/:channelId/videos', getChannelVideos); 
 
 // ========== RUTAS CON AUTENTICACIÓN ==========

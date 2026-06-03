@@ -38,7 +38,16 @@ export const VIDEO_TYPES = {
   UPDATE_VIDEO_WHOLESALE: 'UPDATE_VIDEO_WHOLESALE',
   UPDATE_VIDEO_LOCATION: 'UPDATE_VIDEO_LOCATION',
   GET_MY_COMMERCIAL_VIDEOS: 'GET_MY_COMMERCIAL_VIDEOS',
-  FEATURE_VIDEO: 'FEATURE_VIDEO'
+  FEATURE_VIDEO: 'FEATURE_VIDEO',
+
+
+  GET_USER_VIDEOS_REQUEST: 'GET_USER_VIDEOS_REQUEST',
+  GET_USER_VIDEOS_SUCCESS: 'GET_USER_VIDEOS_SUCCESS',
+  GET_USER_VIDEOS_FAIL: 'GET_USER_VIDEOS_FAIL',
+  CLEAR_USER_VIDEOS: 'CLEAR_USER_VIDEOS',
+
+
+
 };
 
 // redux/actions/categoryAction.js - AÑADIR ESTAS ACCIONES
@@ -796,7 +805,63 @@ export const getUserVideoStats = (token) => async (dispatch) => {
   }
 };
 
-   
+// src/redux/actions/videoAction.js
+
+// ✅ VERSIÓN CORRECTA USANDO getDataAPI
+export const getUserVideos = (userId, filter = 'all', page = 1, limit = 12) => async (dispatch, getState) => {
+  try {
+    dispatch({ type: VIDEO_TYPES.GET_USER_VIDEOS_REQUEST });
+    
+    const { auth } = getState();
+    const token = auth?.token;
+    
+    if (!token) {
+      throw new Error('Token no encontrado');
+    }
+    
+    // ✅ getDataAPI ya agrega el prefijo /api/ y el token en headers
+    const url = `user/${userId}/videos?page=${page}&limit=${limit}${filter !== 'all' ? `&filter=${filter}` : ''}`;
+    
+    console.log('📡 getUserVideos - URL:', url);
+    
+    // ✅ getDataAPI(url, token) - el segundo parámetro es el token string
+    const res = await getDataAPI(url, token);
+    
+    console.log('✅ Respuesta recibida:', res.data);
+    
+    dispatch({
+      type: VIDEO_TYPES.GET_USER_VIDEOS_SUCCESS,
+      payload: {
+        videos: res.data.videos || [],
+        total: res.data.total || 0,
+        pendingCount: res.data.pendingCount || 0,
+        approvedCount: res.data.approvedCount || 0,
+        page: res.data.page || page,
+        totalPages: res.data.totalPages || 1,
+        hasMore: res.data.hasMore || false
+      }
+    });
+    
+    return { success: true, data: res.data };
+    
+  } catch (error) {
+    console.error('❌ Error getUserVideos:', error);
+    console.error('❌ Detalles:', error.response?.data);
+    
+    dispatch({
+      type: VIDEO_TYPES.GET_USER_VIDEOS_FAIL,
+      payload: error.response?.data?.msg || error.message
+    });
+    
+    return { success: false, error: error.message };
+  }
+};
+// ============================================
+// 🗑️ LIMPIAR VIDEOS DEL USUARIO
+// ============================================
+export const clearUserVideos = () => ({
+  type: VIDEO_TYPES.CLEAR_USER_VIDEOS
+});
 
   
  

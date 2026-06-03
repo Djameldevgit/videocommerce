@@ -4,14 +4,14 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useHistory } from 'react-router-dom';
 import { Table, Button, Badge, Card, Pagination, Image, Alert, Spinner } from 'react-bootstrap';
 import { FaCheck, FaTrash, FaEye, FaUsers, FaStore, FaClock, FaTimes } from 'react-icons/fa';
-import { getPendingChannels, approveChannel  } from '../../../redux/actions/channelAction';
+import { getPendingChannels, approveChannel } from '../../../redux/actions/channelAction';
 
 const ChannelsTable = ({ onLoadingChange, onPaginationUpdate }) => {
   const dispatch = useDispatch();
   const history = useHistory();
   const { auth, socket } = useSelector(state => state);
   const { pendingChannels = { channels: [], total: 0, page: 1, totalPages: 1, loading: false } } = useSelector(state => state.channel || {});
-  
+
   const [selectedItems, setSelectedItems] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
   const [message, setMessage] = useState({ show: false, text: '', type: '' });
@@ -42,10 +42,10 @@ const ChannelsTable = ({ onLoadingChange, onPaginationUpdate }) => {
   // Notificar paginación
   useEffect(() => {
     if (onPaginationUpdateRef.current && pendingChannels.total > 0) {
-      onPaginationUpdateRef.current({ 
-        total: pendingChannels.total, 
-        page: pendingChannels.page, 
-        totalPages: pendingChannels.totalPages 
+      onPaginationUpdateRef.current({
+        total: pendingChannels.total,
+        page: pendingChannels.page,
+        totalPages: pendingChannels.totalPages
       });
     }
   }, [pendingChannels.total, pendingChannels.page, pendingChannels.totalPages]);
@@ -105,7 +105,7 @@ const ChannelsTable = ({ onLoadingChange, onPaginationUpdate }) => {
     }
   };
 
- 
+
 
   const openRejectModal = (channel) => {
     setSelectedChannel(channel);
@@ -121,10 +121,16 @@ const ChannelsTable = ({ onLoadingChange, onPaginationUpdate }) => {
       setRejectReason('');
     }
   };
+  // frontend/src/components/adminitration/adminApove/ChannelsTable.jsx
 
   const handleViewChannel = (channelId) => {
-    history.push(`/channel/${channelId}`);
+    // ✅ Navegar a la ruta de ADMIN (no a la pública)
+    history.push(`/admin/channel-preview/${channelId}`);
   };
+
+  // En el JSX, mantener el onClick:
+
+
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= pendingChannels.totalPages && newPage !== currentPage) {
@@ -290,10 +296,11 @@ const ChannelsTable = ({ onLoadingChange, onPaginationUpdate }) => {
                         />
                       </td>
                       <td>
-                        <div 
+                        <div
                           onClick={() => handleViewChannel(channel._id)}
                           style={{ cursor: 'pointer' }}
                         >
+
                           {channel.avatar ? (
                             <Image
                               src={channel.avatar}

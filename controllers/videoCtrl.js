@@ -2120,7 +2120,87 @@ const getAdminVideoStats = async (req, res) => {
 };
 
 // controllers/categoryController.js
+// backend/controllers/videoController.js
+// Agrega esta función antes del module.exports
 
+// ============================================
+// 📹 OBTENER VIDEOS DEL USUARIO (CON FILTROS)
+// ============================================
+const getUserVideos = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { filter = 'all', page = 1, limit = 20 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    // Verificar autenticación
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Non authentifié' });
+    }
+    
+    const currentUserId = req.user._id;
+    const isAdmin = req.user.role === 'admin';
+    const isOwner = currentUserId.toString() === userId;
+    
+    // Construir query base
+    let query = { user: new mongoose.Types.ObjectId(userId) };
+    
+    // Solo dueño o admin pueden ver videos pendientes
+    if (!isOwner && !isAdmin) {
+      query.pendiente = false;
+    }
+    
+    // Aplicar filtro de estado
+    if (filter === 'pending') {
+      query.pendiente = true;
+    } else if (filter === 'approved') {
+      query.pendiente = false;
+    }
+    // 'all' no añade filtro adicional
+    
+    console.log('🔍 getUserVideos:', { userId, filter, isOwner, isAdmin });
+    console.log('📊 Query:', JSON.stringify(query));
+    
+    // Obtener videos con paginación
+    const videos = await Video.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .populate('channel', 'name avatar isVerified _id')
+      .populate('user', 'username avatar')
+      .lean();
+    
+    // Contar totales para estadísticas
+    const total = await Video.countDocuments(query);
+    const pendingCount = await Video.countDocuments({ 
+      user: new mongoose.Types.ObjectId(userId), 
+      pendiente: true 
+    });
+    const approvedCount = await Video.countDocuments({ 
+      user: new mongoose.Types.ObjectId(userId), 
+      pendiente: false 
+    });
+    
+    console.log(`📹 Encontrados: ${videos.length} videos (Total: ${total}, Pendientes: ${pendingCount}, Aprobados: ${approvedCount})`);
+    
+    res.json({
+      success: true,
+      videos,
+      total,
+      pendingCount,
+      approvedCount,
+      page: parseInt(page),
+      totalPages: Math.ceil(total / parseInt(limit)),
+      hasMore: skip + videos.length < total
+    });
+    
+  } catch (error) {
+    console.error('❌ Error getUserVideos:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: error.message 
+    });
+  }
+};
  
 // ============================================
 // 📤 EXPORTACIÓN CORREGIDA
@@ -2172,6 +2252,8 @@ module.exports = {
   getUserSavedVideos,
   getUserLikedVideos,
   toggleFollowUser,
-  toggleSaveVideo
+  toggleSaveVideo,
+
+  getUserVideos
 };
  

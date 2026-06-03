@@ -1,6 +1,6 @@
 // frontend/src/pages/channel/ChannelProfile.jsx
 // 🔥 VERSIÓN PROFESIONAL - ESTILO YOUTUBE/DEEPSEEK
-
+ 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useParams, useHistory } from 'react-router-dom';
@@ -276,25 +276,50 @@ const ChannelProfile = () => {
   const token = getAuthToken(auth);
 
   // ==================== EFECTOS ====================
-  useEffect(() => {
-    if (!channelId) return;
+ // En ChannelProfile.jsx - useEffect que carga el canal
 
-    const loadChannelData = async () => {
+// En ChannelProfile.jsx - reemplaza el useEffect principal
+
+useEffect(() => {
+  if (!channelId) return;
+
+  const loadChannelData = async () => {
       try {
-        await dispatch(getChannelProfile(channelId, token));
-        await dispatch(getChannelVideos(channelId, 1, 12, token));
+          // ✅ Obtener token de manera más confiable
+          let authToken = null;
+          
+          // Intentar obtener token de diferentes fuentes
+          if (auth?.token) {
+              authToken = typeof auth.token === 'string' ? auth.token : auth.token.token;
+          }
+          
+          if (!authToken && localStorage.getItem('access_token')) {
+              authToken = localStorage.getItem('access_token');
+          }
+          
+          if (!authToken && localStorage.getItem('token')) {
+              authToken = localStorage.getItem('token');
+          }
+          
+          console.log('🔐 Token para la petición:', authToken ? `${authToken.substring(0, 20)}...` : 'NO HAY TOKEN');
+          console.log('👤 Usuario actual:', auth.user?._id);
+          console.log('📺 Canal a cargar:', channelId);
+          
+          if (!authToken) {
+              console.warn('⚠️ No hay token, el dueño no podrá ver su canal pendiente');
+          }
+          
+          // ✅ Pasar el token a las acciones
+          await dispatch(getChannelProfile(channelId, authToken));
+          await dispatch(getChannelVideos(channelId, 1, 12, authToken));
+          
       } catch (err) {
-        console.error('Error loading channel:', err);
+          console.error('Error loading channel:', err);
       }
-    };
+  };
 
-    loadChannelData();
-
-    return () => {
-      if (clearChannelState) dispatch(clearChannelState());
-      dispatch({ type: CLEAR_CHANNEL });
-    };
-  }, [dispatch, channelId, token]);
+  loadChannelData();
+}, [dispatch, channelId, auth]); // ✅ Dependencia en auth
 
   useEffect(() => {
     if (error) {
