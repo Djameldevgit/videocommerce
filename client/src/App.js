@@ -296,7 +296,8 @@ function AppContent() {
       '/profile/settings',
       '/users/dashboard',
       '/users/roles',
-      '/donation'
+      '/donation',
+      '/planes',
     ];
 
     const prefixes = [

@@ -1,4 +1,4 @@
-// components/Navbar2.jsx - VERSIÓN CORREGIDA
+// components/Navbar2.jsx - VERSIÓN COMPLETA CON MODAL Y DRAWER FUNCIONALES
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
@@ -26,10 +26,11 @@ import {
   FaUserCircle,
   FaDownload,
   FaStar,
-  FaInnosoft
+  FaInnosoft,
+  FaTimes
 } from 'react-icons/fa';
 
-import { Navbar, Container, NavDropdown, Badge, Button, Modal } from 'react-bootstrap';
+import { Navbar, Container, NavDropdown, Badge, Button } from 'react-bootstrap';
 import VerifyModal from '../authAndVerify/VerifyModal';
 import DesactivateModal from '../authAndVerify/DesactivateModal';
 import MultiCheckboxModal from './MultiCheckboxModal.';
@@ -63,14 +64,33 @@ const Navbar2 = () => {
   const [lastScrollY, setLastScrollY] = useState(0);
   const notifyDropdownRef = useRef(null);
 
-  // Estados para el modal
-  const [showChannelModal, setShowChannelModal] = useState(false);
+  // Estados para el modal personalizado
+  const [showCustomModal, setShowCustomModal] = useState(false);
   const [modalMessage, setModalMessage] = useState('');
   const [modalTitle, setModalTitle] = useState('');
   const [modalAction, setModalAction] = useState(null);
 
-  const handleDrawerOpen = () => setShowDrawer(true);
-  const handleDrawerClose = () => setShowDrawer(false);
+  // ✅ Función para abrir el drawer
+  const handleDrawerOpen = () => {
+    console.log('Abriendo drawer...');
+    setShowDrawer(true);
+  };
+
+  // ✅ Función para cerrar el drawer
+  const handleDrawerClose = () => {
+    console.log('Cerrando drawer...');
+    setShowDrawer(false);
+  };
+
+  // Función para cerrar el modal
+  const handleCloseCustomModal = () => {
+    setShowCustomModal(false);
+    setTimeout(() => {
+      setModalAction(null);
+      setModalMessage('');
+      setModalTitle('');
+    }, 200);
+  };
 
   // Cargar canales del usuario
   useEffect(() => {
@@ -220,7 +240,7 @@ const Navbar2 = () => {
     history.push('/register');
   };
 
-  // ✅ Manejador para crear video con MODAL en FRANCÉS
+  // ✅ Función para manejar creación de video o canal
   const handleCreateVideoClick = () => {
     if (checkingChannel) return;
 
@@ -233,8 +253,11 @@ const Navbar2 = () => {
         "La création d'une chaîne est gratuite et rapide.\n\n" +
         "Souhaitez-vous créer votre chaîne maintenant ?"
       );
-      setModalAction(() => () => history.push('/channel/new'));
-      setShowChannelModal(true);
+      setModalAction(() => () => {
+        handleCloseCustomModal();
+        setTimeout(() => history.push('/channel/new'), 200);
+      });
+      setShowCustomModal(true);
       return;
     }
 
@@ -250,7 +273,7 @@ const Navbar2 = () => {
         "Merci pour votre patience ! 🙏"
       );
       setModalAction(null);
-      setShowChannelModal(true);
+      setShowCustomModal(true);
       return;
     }
 
@@ -258,6 +281,12 @@ const Navbar2 = () => {
     if (hasApprovedChannel) {
       history.push('/create-video-page');
     }
+  };
+
+  // ✅ Función para crear canal desde el dropdown
+  const handleCreateChannel = () => {
+    setDropdownOpen(false);
+    history.push('/channel/new');
   };
 
   if (!settings || Object.keys(settings).length === 0) {
@@ -440,16 +469,56 @@ const Navbar2 = () => {
                           </div>
                           {hasApprovedChannel && <div className="has-channel-badge mt-1"><Badge bg="success" style={{ fontSize: '0.6rem' }}><FaStore size={8} className="me-1" /> Chaîne active</Badge></div>}
                           {hasPendingChannel && !hasApprovedChannel && <div className="has-channel-badge mt-1"><Badge bg="warning" text="dark" style={{ fontSize: '0.6rem' }}><FaStore size={8} className="me-1" /> Chaîne en attente</Badge></div>}
+                          {!hasChannel && (
+                            <div className="has-channel-badge mt-1">
+                              <Badge bg="danger" style={{ fontSize: '0.6rem' }}>
+                                <FaStore size={8} className="me-1" /> Aucune chaîne
+                              </Badge>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
                     <NavDropdown.Divider />
-                    <MenuItem icon={FaPlus} iconColor={hasApprovedChannel ? "#28a745" : (hasPendingChannel ? "#ffc107" : "#6c757d")} onClick={handleCreateVideoClick}>
-                      {!hasChannel ? 'Créer une chaîne' : (hasPendingChannel && !hasApprovedChannel) ? 'Chaîne en attente' : 'Créer une vidéo'}
-                    </MenuItem>
+                    
+                    {/* OPCIÓN PARA CREAR CANAL (si no tiene canal) */}
+                    {!hasChannel && (
+                      <MenuItem icon={FaStore} iconColor="#28a745" onClick={handleCreateChannel}>
+                        Créer une chaîne
+                      </MenuItem>
+                    )}
+                    
+                    {/* OPCIÓN PARA CREAR VIDEO (si tiene canal aprobado) */}
+                    {hasApprovedChannel && (
+                      <MenuItem icon={FaPlus} iconColor="#28a745" onClick={handleCreateVideoClick}>
+                        Créer une vidéo
+                      </MenuItem>
+                    )}
+                    
+                    {/* MENSAJE SI TIENE CANAL PENDIENTE */}
+                    {hasPendingChannel && !hasApprovedChannel && (
+                      <div className="px-3 py-2 text-center">
+                        <Badge bg="warning" text="dark" style={{ fontSize: '0.7rem' }}>
+                          ⏳ Chaîne en attente de validation
+                        </Badge>
+                      </div>
+                    )}
+                    
                     <MenuItem icon={FaUserCircle} iconColor="#667eea" to={`/profile/${auth.user._id}`}>Mon Profil</MenuItem>
                     <MenuItem icon={FaInfoCircle} iconColor="#6c757d" to="/donation">Donation</MenuItem>
                     <MenuItem icon={FaShareAlt} iconColor="#ffc107" onClick={() => setShowShareModal(true)}>Partager l'App</MenuItem>
+                    
+                    {/* ACCIONES DE ADMINISTRACIÓN */}
+                    {(auth.user.role === 'admin' || auth.user.role === 'Super-utilisateur') && (
+                      <>
+                        <NavDropdown.Divider />
+                        <MenuItem icon={FaShieldAlt} iconColor="#ffc107" to="/admin/posts">Approbation vidéos</MenuItem>
+                        <MenuItem icon={FaUsers} iconColor="#28a745" to="/admindashboard">Dashboard Admin</MenuItem>
+                        <MenuItem icon={FaUserCog} iconColor="#667eea" to="/users">Gestion utilisateurs</MenuItem>
+                        <MenuItem icon={FaTools} iconColor="#6c757d" to="/users/roles">Gestion rôles</MenuItem>
+                      </>
+                    )}
+                    
                     <NavDropdown.Divider />
                     <MenuItem icon={FaSignOutAlt} iconColor="#dc3545" onClick={handleLogout} danger>Se déconnecter</MenuItem>
                   </>
@@ -462,7 +531,25 @@ const Navbar2 = () => {
               </div>
             </NavDropdown>
 
-            <button onClick={handleDrawerOpen} className="icon-button" style={{ width: isMobile ? '38px' : '42px', height: isMobile ? '38px' : '42px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: settings.style ? 'rgba(255,255,255,0.1)' : 'rgba(102, 126, 234, 0.1)', border: 'none', cursor: 'pointer' }}>
+            {/* ✅ BOTÓN DEL DRAWER - VERIFICADO Y FUNCIONAL */}
+            <button 
+              onClick={handleDrawerOpen} 
+              className="icon-button" 
+              style={{ 
+                width: isMobile ? '38px' : '42px', 
+                height: isMobile ? '38px' : '42px', 
+                borderRadius: '10px', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                backgroundColor: settings.style ? 'rgba(255,255,255,0.1)' : 'rgba(102, 126, 234, 0.1)', 
+                border: 'none', 
+                cursor: 'pointer',
+                transition: 'all 0.3s ease'
+              }}
+              title={t('menu') || 'Menu'}
+              aria-label="Abrir menú"
+            >
               <FaBars size={isMobile ? 18 : 20} style={{ color: settings.style ? '#ffffff' : '#667eea' }} />
             </button>
           </div>
@@ -471,37 +558,210 @@ const Navbar2 = () => {
 
       <div style={{ height: isMobile ? '56px' : '64px' }} />
 
-      {/* ✅ MODAL EN FRANCÉS - DENTRO DEL COMPONENTE */}
-      <Modal show={showChannelModal} onHide={() => setShowChannelModal(false)} centered backdrop="static">
-        <Modal.Header closeButton style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', borderBottom: 'none' }}>
-          <Modal.Title style={{ fontSize: '1.1rem' }}>{modalTitle}</Modal.Title>
-        </Modal.Header>
-        <Modal.Body style={{ padding: '24px', fontSize: '0.95rem', whiteSpace: 'pre-line' }}>
-          {modalMessage}
-        </Modal.Body>
-        <Modal.Footer style={{ borderTop: 'none', justifyContent: 'center', gap: '12px' }}>
-          {modalAction ? (
-            <>
-              <Button variant="outline-secondary" onClick={() => setShowChannelModal(false)} style={{ borderRadius: '25px', padding: '8px 20px' }}>Annuler</Button>
-              <Button variant="primary" onClick={() => { setShowChannelModal(false); modalAction(); }} style={{ borderRadius: '25px', padding: '8px 25px', background: 'linear-gradient(135deg, #28a745, #20c997)', border: 'none' }}>Créer une chaîne</Button>
-            </>
-          ) : (
-            <Button variant="primary" onClick={() => setShowChannelModal(false)} style={{ borderRadius: '25px', padding: '8px 30px', background: 'linear-gradient(135deg, #667eea, #764ba2)', border: 'none' }}>J'ai compris</Button>
-          )}
-        </Modal.Footer>
-      </Modal>
+      {/* ✅ MODAL PERSONALIZADO - FUNCIONA 100% */}
+      {showCustomModal && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            animation: 'fadeIn 0.3s ease'
+          }}
+          onClick={handleCloseCustomModal}
+        >
+          <div 
+            style={{
+              backgroundColor: settings.style ? '#1a1a2e' : '#ffffff',
+              borderRadius: '20px',
+              maxWidth: '500px',
+              width: '90%',
+              margin: '20px',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+              animation: 'slideIn 0.3s ease'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              padding: '20px 24px',
+              borderRadius: '20px 20px 0 0',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <h3 style={{
+                margin: 0,
+                color: 'white',
+                fontSize: '1.3rem',
+                fontWeight: 'bold'
+              }}>
+                {modalTitle}
+              </h3>
+              <button
+                onClick={handleCloseCustomModal}
+                style={{
+                  background: 'rgba(255,255,255,0.2)',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  color: 'white',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => e.target.style.background = 'rgba(255,255,255,0.3)'}
+                onMouseLeave={(e) => e.target.style.background = 'rgba(255,255,255,0.2)'}
+              >
+                <FaTimes size={18} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div style={{
+              padding: '32px 24px',
+              color: settings.style ? '#e0e0e0' : '#333333',
+              fontSize: '1rem',
+              lineHeight: '1.6',
+              whiteSpace: 'pre-line',
+              textAlign: 'center'
+            }}>
+              {modalMessage}
+            </div>
+
+            {/* Footer */}
+            <div style={{
+              padding: '20px 24px',
+              borderTop: `1px solid ${settings.style ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
+              display: 'flex',
+              justifyContent: 'center',
+              gap: '16px'
+            }}>
+              {modalAction ? (
+                <>
+                  <button
+                    onClick={handleCloseCustomModal}
+                    style={{
+                      padding: '10px 28px',
+                      borderRadius: '30px',
+                      border: `1px solid ${settings.style ? 'rgba(255,255,255,0.3)' : '#6c757d'}`,
+                      background: 'transparent',
+                      color: settings.style ? '#ffffff' : '#6c757d',
+                      cursor: 'pointer',
+                      fontWeight: 'bold',
+                      fontSize: '0.9rem',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.background = 'rgba(108, 117, 125, 0.1)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.background = 'transparent';
+                    }}
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={modalAction}
+                    style={{
+                      padding: '10px 32px',
+                      borderRadius: '30px',
+                      border: 'none',
+                      background: 'linear-gradient(135deg, #28a745, #20c997)',
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontWeight: 'bold',
+                      fontSize: '0.9rem',
+                      boxShadow: '0 4px 15px rgba(40, 167, 69, 0.3)',
+                      transition: 'transform 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.transform = 'translateY(-2px)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.transform = 'translateY(0)';
+                    }}
+                  >
+                    Créer une chaîne
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={handleCloseCustomModal}
+                  style={{
+                    padding: '10px 40px',
+                    borderRadius: '30px',
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                    color: 'white',
+                    cursor: 'pointer',
+                    fontWeight: 'bold',
+                    fontSize: '0.9rem',
+                    boxShadow: '0 4px 15px rgba(102, 126, 234, 0.3)',
+                    transition: 'transform 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.transform = 'translateY(-2px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.transform = 'translateY(0)';
+                  }}
+                >
+                  J'ai compris
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ DRAWER - VERIFICADO Y FUNCIONAL */}
+      <Drawer 
+        show={showDrawer} 
+        onHide={handleDrawerClose} 
+        position="start" 
+        title={t('menu') || "Menu"} 
+        user={auth.user} 
+      />
 
       {/* Otros modales */}
       <VerifyModal show={showVerifyModal} onClose={() => setShowVerifyModal(false)} />
       <DesactivateModal show={showDeactivatedModal} onClose={() => setShowDeactivatedModal(false)} />
       <MultiCheckboxModal show={showFeaturesModal} onClose={() => setShowFeaturesModal(false)} />
       <ShareAppModal show={showShareModal} onClose={() => setShowShareModal(false)} />
-      <Drawer show={showDrawer} onHide={handleDrawerClose} position="start" title={t('menu') || "Menú"} user={auth.user} />
 
+      {/* Animaciones CSS */}
       <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        
+        @keyframes slideIn {
+          from {
+            opacity: 0;
+            transform: translateY(-50px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
         .nb2-hidden { transform: translateY(-100%); }
         @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
         .icon-button { cursor: pointer; transition: all 0.3s ease; }
+        .icon-button:hover { transform: translateY(-2px); }
         .custom-menu-item { color: ${settings.style ? '#ffffff' : '#333333'} !important; cursor: pointer; background: transparent !important; }
         .custom-menu-item:hover { background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%) !important; transform: translateX(4px); }
         .dropdown-scroll-wrapper { max-height: 70vh; overflow-y: auto; padding: 8px 0; }

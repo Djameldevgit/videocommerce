@@ -634,16 +634,15 @@ const Profile = () => {
   const handleEditProfile = () => history.push('/profile/settings');
   const handleDeleteProfile = () => {
     if (window.confirm('Êtes-vous sûr de vouloir supprimer votre compte ? Cette action est irréversible.')) {
-      // TODO: Implementar eliminación de cuenta
+      
       dispatch({ 
         type: GLOBALTYPES.ALERT, 
         payload: { info: "Fonctionnalité à venir" } 
       });
     }
   };
-  const handleUpgradeToPro = () => history.push('/userproinfoplans');
-  const handleViewPlan = () => history.push('/userproinfoplans');
-  
+  const handleUpgradeToPro = () => history.push('/planes');
+ 
   const ownChannels = userChannels.map(ch => ({
     ...ch,
     isOwner: ch.owner?._id === id || ch.userId === id || ch.owner === id,
