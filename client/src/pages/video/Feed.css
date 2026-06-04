@@ -1,5 +1,5 @@
 /* ============================================
-   Feed.css — VideoReelItem styles (Fixed & Clean)
+   Feed.css — VideoReelItem styles (Layout Pro)
    ============================================ */
 
 /* ─────────────────────────────────────────────
@@ -88,10 +88,10 @@
     pointer-events: none;
     background: linear-gradient(
       180deg,
-      rgba(0, 0, 0, 0.5) 0%,
-      transparent 22%,
-      transparent 52%,
-      rgba(0, 0, 0, 0.75) 100%
+      rgba(0, 0, 0, 0.52) 0%,
+      transparent 20%,
+      transparent 50%,
+      rgba(0, 0, 0, 0.82) 100%
     );
   }
   
@@ -118,11 +118,12 @@
   
   /* ─────────────────────────────────────────────
      ACTIONS SIDEBAR
+     — Anclado bottom: 110px para no solapar info
      ───────────────────────────────────────────── */
   .vr-actions-sidebar {
     position: absolute;
     right: 10px;
-    bottom: 90px;
+    bottom: 110px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -134,7 +135,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    margin-bottom: 14px;
+    margin-bottom: 16px;
   }
   
   .vr-action-btn {
@@ -193,6 +194,7 @@
   
   /* ─────────────────────────────────────────────
      AVATAR EN SIDEBAR
+     — margin-bottom: 18px para separar del primer icono
      ───────────────────────────────────────────── */
   .vr-avatar-group {
     margin-bottom: 18px;
@@ -291,10 +293,12 @@
   
   /* ─────────────────────────────────────────────
      BOTÓN VOLUMEN
+     — bottom: 100px alineado con base de sidebar
+     — left: 14px siempre anclado a la izquierda
      ───────────────────────────────────────────── */
   .vr-volume-btn {
     position: absolute;
-    bottom: 88px;
+    bottom: 100px;
     left: 14px;
     z-index: 20;
     background: rgba(0, 0, 0, 0.45);
@@ -322,12 +326,14 @@
   
   /* ─────────────────────────────────────────────
      INFO DEL VIDEO (parte inferior izquierda)
+     — bottom: 28px (espacio limpio sobre progress bar)
+     — right: 80px (no solapa nunca la sidebar de 50px + margen)
      ───────────────────────────────────────────── */
   .vr-video-info {
     position: absolute;
     left: 14px;
-    right: 76px;
-    bottom: 20px;
+    right: 80px;
+    bottom: 28px;
     z-index: 20;
   }
   
@@ -348,7 +354,7 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
   }
   
   .vr-user-avatar {
@@ -489,7 +495,7 @@
   
   @keyframes vr-pulse {
     0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
+    50%       { opacity: 0.4; }
   }
   
   .vr-admin-text {
@@ -535,13 +541,8 @@
     flex-shrink: 0;
   }
   
-  .vr-dropdown-item.approve {
-    color: #4caf50;
-  }
-  
-  .vr-dropdown-item.reject {
-    color: #f44336;
-  }
+  .vr-dropdown-item.approve { color: #4caf50; }
+  .vr-dropdown-item.reject  { color: #f44336; }
   
   .vr-dropdown-divider {
     height: 1px !important;
@@ -555,7 +556,7 @@
   }
   
   /* ─────────────────────────────────────────────
-     COMMENTS DRAWER — ESTILO BLANCO TIKTOK (SIN DUPLICADOS)
+     COMMENTS DRAWER
      ───────────────────────────────────────────── */
   .vr-comments-drawer {
     position: fixed;
@@ -653,20 +654,9 @@
     background: #ffffff;
   }
   
-  /* Scrollbar para fondo blanco */
-  .vr-comments-content::-webkit-scrollbar {
-    width: 3px;
-  }
-  
-  .vr-comments-content::-webkit-scrollbar-track {
-    background: #f0f0f0;
-    border-radius: 3px;
-  }
-  
-  .vr-comments-content::-webkit-scrollbar-thumb {
-    background: #fe2c55;
-    border-radius: 3px;
-  }
+  .vr-comments-content::-webkit-scrollbar       { width: 3px; }
+  .vr-comments-content::-webkit-scrollbar-track { background: #f0f0f0; border-radius: 3px; }
+  .vr-comments-content::-webkit-scrollbar-thumb { background: #fe2c55; border-radius: 3px; }
   
   /* ─────────────────────────────────────────────
      ANIMACIONES
@@ -678,14 +668,8 @@
   }
   
   @keyframes vr-float-up {
-    0% {
-      opacity: 1;
-      transform: translate(-50%, -50%) scale(0.5);
-    }
-    100% {
-      opacity: 0;
-      transform: translate(-50%, -180%) scale(1.5);
-    }
+    0%   { opacity: 1; transform: translate(-50%, -50%) scale(0.5); }
+    100% { opacity: 0; transform: translate(-50%, -180%) scale(1.5); }
   }
   
   .vr-floating-heart {
@@ -704,12 +688,12 @@
   }
   
   /* ─────────────────────────────────────────────
-     RESPONSIVE — MÓVIL
+     RESPONSIVE — MÓVIL  (≤ 480px)
      ───────────────────────────────────────────── */
   @media (max-width: 480px) {
     .vr-actions-sidebar {
       right: 8px;
-      bottom: 80px;
+      bottom: 100px;
     }
   
     .vr-action-btn {
@@ -730,6 +714,10 @@
       margin-bottom: 12px;
     }
   
+    .vr-avatar-group {
+      margin-bottom: 16px;
+    }
+  
     .vr-avatar-wrapper,
     .vr-sidebar-avatar {
       width: 44px;
@@ -746,7 +734,8 @@
       width: 34px;
       height: 34px;
       font-size: 13px;
-      bottom: 80px;
+      bottom: 92px;
+      left: 12px;
     }
   
     .vr-header-btn {
@@ -762,12 +751,12 @@
   
     .vr-video-info {
       left: 12px;
-      right: 70px;
-      bottom: 16px;
+      right: 72px;
+      bottom: 22px;
     }
   
-    .vr-username { font-size: 13px; }
-    .vr-title    { font-size: 12px; }
+    .vr-username    { font-size: 13px; }
+    .vr-title       { font-size: 12px; }
     .vr-description { font-size: 11px; }
   
     .vr-follow-btn {
@@ -789,7 +778,7 @@
   }
   
   /* ─────────────────────────────────────────────
-     RESPONSIVE — PANTALLA MUY PEQUEÑA
+     RESPONSIVE — PANTALLA MUY PEQUEÑA  (≤ 360px)
      ───────────────────────────────────────────── */
   @media (max-width: 360px) {
     .vr-action-btn {
@@ -825,10 +814,21 @@
       height: 34px;
       font-size: 12px;
     }
+  
+    .vr-volume-btn {
+      bottom: 88px;
+      left: 10px;
+    }
+  
+    .vr-video-info {
+      left: 10px;
+      right: 68px;
+      bottom: 18px;
+    }
   }
   
   /* ─────────────────────────────────────────────
-     PC / TABLET (HOVER)
+     PC / TABLET  (hover)
      ───────────────────────────────────────────── */
   @media (hover: hover) {
     .vr-header-btn:hover {
@@ -850,13 +850,8 @@
       border-color: rgba(255, 59, 92, 0.4);
     }
   
-    .vr-nav-btn:hover .fa-chevron-up {
-      transform: translateY(-2px);
-    }
-  
-    .vr-nav-btn:hover .fa-chevron-down {
-      transform: translateY(2px);
-    }
+    .vr-nav-btn:hover .fa-chevron-up   { transform: translateY(-2px); }
+    .vr-nav-btn:hover .fa-chevron-down { transform: translateY(2px); }
   
     .vr-volume-btn:hover {
       background: rgba(0, 0, 0, 0.65);

@@ -437,48 +437,60 @@ const Navbar2 = () => {
 
             {/* Dropdown usuario */}
             <NavDropdown
-              align="end"
-              show={dropdownOpen}
-              onToggle={(isOpen) => setDropdownOpen(isOpen)}
-              title={
-                <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => setDropdownOpen(!dropdownOpen)}>
-                  {auth.user ? (
-                    <div style={{ width: isMobile ? '38px' : '42px', height: isMobile ? '38px' : '42px', borderRadius: '10px', padding: '2px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-                      <Avatar src={auth.user.avatar} size="medium-avatar" style={{ borderRadius: '8px', width: '100%', height: '100%' }} />
-                    </div>
-                  ) : (
-                    <div style={{ width: isMobile ? '38px' : '42px', height: isMobile ? '38px' : '42px', borderRadius: '10px', backgroundColor: settings.style ? 'rgba(255,255,255,0.1)' : 'rgba(102, 126, 234, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <FaUserCircle size={isMobile ? 22 : 26} style={{ color: '#667eea' }} />
-                    </div>
-                  )}
-                </div>
-              }
-              id="nav-user-dropdown"
-              className="custom-dropdown"
-            >
-              <div className="dropdown-scroll-wrapper">
+  align="end"
+  show={dropdownOpen}
+  onToggle={(isOpen) => setDropdownOpen(isOpen)}
+  title={
+    <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={() => setDropdownOpen(!dropdownOpen)}>
+      {auth.user ? (
+        <div style={{ width: isMobile ? '38px' : '42px', height: isMobile ? '38px' : '42px', borderRadius: '10px', padding: '2px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+          {/* ✅ Misma lógica que en Profile: si tiene avatar lo muestra, si no la imagen por defecto */}
+          <img 
+            src={auth.user.avatar || 'https://res.cloudinary.com/dzd58nm3l/image/upload/v1780538635/defalut-avatar_tfvwxr.png'}
+            alt="avatar"
+            style={{ borderRadius: '8px', width: '100%', height: '100%', objectFit: 'cover' }}
+            onError={(e) => {
+              console.error('❌ Error cargando avatar:', auth.user.avatar);
+              e.target.src = 'https://res.cloudinary.com/dzd58nm3l/image/upload/v1780538635/defalut-avatar_tfvwxr.png';
+            }}
+          />
+        </div>
+      ) : (
+        <div style={{ width: isMobile ? '38px' : '42px', height: isMobile ? '38px' : '42px', borderRadius: '10px', backgroundColor: settings.style ? 'rgba(255,255,255,0.1)' : 'rgba(102, 126, 234, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <FaUserCircle size={isMobile ? 22 : 26} style={{ color: '#667eea' }} />
+        </div>
+      )}
+    </div>
+  }
+  id="nav-user-dropdown"
+  className="custom-dropdown"
+>            <div className="dropdown-scroll-wrapper">
                 {auth.user ? (
                   <>
-                    <div className="user-header">
-                      <div className="d-flex align-items-center gap-3">
-                        <div className="user-avatar-wrapper"><Avatar src={auth.user.avatar} size="medium-avatar" /></div>
-                        <div className="flex-grow-1">
-                          <div className="fw-bold text-white user-name">{auth.user.username || auth.user.name}</div>
-                          <div className="user-role-badge">
-                            {auth.user.role === 'admin' ? `👑 Admin` : auth.user.role === 'Moderateur' ? `🛡️ Modérateur` : auth.user.role === 'Super-utilisateur' ? `⭐ Super Utilisateur` : `👤 Utilisateur`}
-                          </div>
-                          {hasApprovedChannel && <div className="has-channel-badge mt-1"><Badge bg="success" style={{ fontSize: '0.6rem' }}><FaStore size={8} className="me-1" /> Chaîne active</Badge></div>}
-                          {hasPendingChannel && !hasApprovedChannel && <div className="has-channel-badge mt-1"><Badge bg="warning" text="dark" style={{ fontSize: '0.6rem' }}><FaStore size={8} className="me-1" /> Chaîne en attente</Badge></div>}
-                          {!hasChannel && (
-                            <div className="has-channel-badge mt-1">
-                              <Badge bg="danger" style={{ fontSize: '0.6rem' }}>
-                                <FaStore size={8} className="me-1" /> Aucune chaîne
-                              </Badge>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+ 
+ <div className="user-header">
+  <div className="d-flex align-items-center gap-3">
+    
+    <div className="flex-grow-1">
+      <div className="fw-bold text-white user-name">{auth.user.username} -
+      <div className="user-role-badge">
+        {auth.user.role === 'admin' ? `👑 Admin` : 
+         auth.user.role === 'Moderateur' ? `🛡️ Modérateur` : 
+         auth.user.role === 'Super-utilisateur' ? `⭐ Super Utilisateur` : `👤 Utilisateur`}
+      </div></div>
+      {hasApprovedChannel && <div className="has-channel-badge mt-1"><Badge bg="success" style={{ fontSize: '0.6rem' }}><FaStore size={8} className="me-1" /> Chaîne active</Badge></div>}
+      {hasPendingChannel && !hasApprovedChannel && <div className="has-channel-badge mt-1"><Badge bg="warning" text="dark" style={{ fontSize: '0.6rem' }}><FaStore size={8} className="me-1" /> Chaîne en attente</Badge></div>}
+      {!hasChannel && (
+        <div className="has-channel-badge mt-1">
+          <Badge bg="danger" style={{ fontSize: '0.6rem' }}>
+            <FaStore size={8} className="me-1" /> Aucune chaîne
+          </Badge>
+        </div>
+      )}
+    </div>
+  </div>
+</div>
+<NavDropdown.Divider />
                     <NavDropdown.Divider />
                     
                     {/* OPCIÓN PARA CREAR CANAL (si no tiene canal) */}

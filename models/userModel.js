@@ -28,7 +28,7 @@ const userSchema = new mongoose.Schema({
     // ============ PERFIL PERSONAL ============
     avatar: {
         type: String,
-        default: 'https://res.cloudinary.com/dfjipgj2o/image/upload/v1777859039/avatar_cvr2e3.jpg'
+        default: 'https://res.cloudinary.com/dzd58nm3l/image/upload/v1780538635/defalut-avatar_tfvwxr.png'
     },
     language: { type: String, enum: ['fr', 'ar', 'en'], default: 'fr' },
     mobile: { type: String, default: '' },

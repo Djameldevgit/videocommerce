@@ -1,4 +1,5 @@
-// src/pages/Profile.jsx
+// src/pages/Profile.jsx - VERSIÓN CORREGIDA CON AVATAR
+
 import React, { useEffect, useState, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useParams, useHistory } from 'react-router-dom';
@@ -216,21 +217,20 @@ const ChannelsTab = ({ channels = [], loading, onViewChannel, onEditChannel, onD
       </div>
       
       <div className="cards-grid">
-      <Row xs={2} sm={2} md={3} lg={4} className="g-2">
-  {filteredChannels.map(channel => (
-    <Col key={channel._id}>
-      <ChannelCard 
-        channel={channel}
-        onView={onViewChannel}
-        onEdit={onEditChannel}
-        onDelete={onDeleteChannel}
-        userRole={userRole}
-        isOwner={channel.isOwner}
-      />
-    </Col>
-  ))}
-</Row>
-
+        <Row xs={2} sm={2} md={3} lg={4} className="g-2">
+          {filteredChannels.map(channel => (
+            <Col key={channel._id}>
+              <ChannelCard 
+                channel={channel}
+                onView={onViewChannel}
+                onEdit={onEditChannel}
+                onDelete={onDeleteChannel}
+                userRole={userRole}
+                isOwner={channel.isOwner}
+              />
+            </Col>
+          ))}
+        </Row>
       </div>
     </div>
   );
@@ -257,7 +257,6 @@ const VideosTab = ({ userId, isOwner, userRole }) => {
     }
   };
   
-  // Filtrar localmente si el backend no soporta el filtro
   const getFilteredVideos = () => {
     if (filter === 'pending') return videos.filter(v => v.pendiente === true);
     if (filter === 'approved') return videos.filter(v => v.pendiente === false);
@@ -297,7 +296,6 @@ const VideosTab = ({ userId, isOwner, userRole }) => {
   
   return (
     <div className="videos-tab">
-      {/* Filtros */}
       <div className="filter-buttons mb-4">
         <Button 
           variant={filter === 'all' ? 'primary' : 'outline-secondary'}
@@ -332,7 +330,6 @@ const VideosTab = ({ userId, isOwner, userRole }) => {
         </Button>
       </div>
       
-      {/* Grid de videos */}
       {filteredVideos.length === 0 ? (
         <div className="text-center py-5">
           <p className="text-muted">
@@ -343,26 +340,26 @@ const VideosTab = ({ userId, isOwner, userRole }) => {
         </div>
       ) : (
         <>
-         <Row xs={2} sm={2} md={3} lg={4} className="g-2">
-  {filteredVideos.map(video => (
-    <Col key={video._id}>
-      <div className="video-card-wrapper">
-        <VideoCardVertical video={video} />
-        <div className="video-status-badge-bottom">
-          {video.pendiente ? (
-            <Badge bg="warning" text="dark" className="rounded-pill">
-              <Clock size={8} className="me-1" /> En attente
-            </Badge>
-          ) : (
-            <Badge bg="success" className="rounded-pill">
-              <CheckCircle size={8} className="me-1" /> Publiée
-            </Badge>
-          )}
-        </div>
-      </div>
-    </Col>
-  ))}
-</Row>
+          <Row xs={2} sm={2} md={3} lg={4} className="g-2">
+            {filteredVideos.map(video => (
+              <Col key={video._id}>
+                <div className="video-card-wrapper">
+                  <VideoCardVertical video={video} />
+                  <div className="video-status-badge-bottom">
+                    {video.pendiente ? (
+                      <Badge bg="warning" text="dark" className="rounded-pill">
+                        <Clock size={8} className="me-1" /> En attente
+                      </Badge>
+                    ) : (
+                      <Badge bg="success" className="rounded-pill">
+                        <CheckCircle size={8} className="me-1" /> Publiée
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </Col>
+            ))}
+          </Row>
           {hasMore && (
             <div className="text-center mt-4">
               <Button 
@@ -384,27 +381,35 @@ const VideosTab = ({ userId, isOwner, userRole }) => {
 
 // ==================== TAB INFO ====================
 const UserInfoTab = ({ user }) => {
-  const infoItems = [
-    { icon: <Envelope />, label: 'Email', value: user?.email },
-    { icon: <Telephone />, label: 'Téléphone', value: user?.mobile },
-    { icon: <GeoAlt />, label: 'Adresse', value: user?.address },
-    { icon: <Globe />, label: 'Site web', value: user?.website, isLink: true }
-  ];
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Date non disponible';
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'Date invalide';
+    return date.toLocaleDateString('fr-FR', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
   
   return (
     <div className="user-info-tab">
-      {user?.story && (
-        <Card className="mb-4 border-0 shadow-sm">
-          <Card.Body>
-            <h6 className="section-subtitle">
-              <PersonBadge size={16} className="me-2" />
-              À propos
-            </h6>
+      {/* À propos */}
+      <Card className="mb-4 border-0 shadow-sm">
+        <Card.Body>
+          <h6 className="section-subtitle">
+            <PersonBadge size={16} className="me-2" />
+            À propos
+          </h6>
+          {user?.story ? (
             <p className="mb-0 text-muted">{user.story}</p>
-          </Card.Body>
-        </Card>
-      )}
+          ) : (
+            <p className="mb-0 text-muted fst-italic">Aucune description</p>
+          )}
+        </Card.Body>
+      </Card>
       
+      {/* Informations de contact */}
       <Card className="border-0 shadow-sm">
         <Card.Body>
           <h6 className="section-subtitle mb-3">
@@ -413,27 +418,49 @@ const UserInfoTab = ({ user }) => {
           </h6>
           
           <div className="info-grid">
-            {infoItems.map((item, idx) => item.value && (
-              <div className="info-item" key={idx}>
-                <span className="info-icon">{item.icon}</span>
-                <div className="info-content">
-                  <small className="text-muted">{item.label}</small>
-                  {item.isLink ? (
-                    <a href={item.value} target="_blank" rel="noopener noreferrer">{item.value}</a>
-                  ) : (
-                    <p className="mb-0">{item.value}</p>
-                  )}
-                </div>
+            <div className="info-item">
+              <span className="info-icon"><Envelope /></span>
+              <div className="info-content">
+                <small className="text-muted">Email</small>
+                <p className="mb-0">{user?.email || 'Non renseigné'}</p>
               </div>
-            ))}
+            </div>
+            
+            <div className="info-item">
+              <span className="info-icon"><Telephone /></span>
+              <div className="info-content">
+                <small className="text-muted">Téléphone</small>
+                <p className="mb-0">{user?.mobile || 'Non renseigné'}</p>
+              </div>
+            </div>
+            
+            <div className="info-item">
+              <span className="info-icon"><GeoAlt /></span>
+              <div className="info-content">
+                <small className="text-muted">Adresse</small>
+                <p className="mb-0">{user?.address || 'Non renseignée'}</p>
+              </div>
+            </div>
+            
+            <div className="info-item">
+              <span className="info-icon"><Globe /></span>
+              <div className="info-content">
+                <small className="text-muted">Site web</small>
+                {user?.website ? (
+                  <a href={user.website.startsWith('http') ? user.website : `https://${user.website}`} target="_blank" rel="noopener noreferrer">
+                    {user.website}
+                  </a>
+                ) : (
+                  <p className="mb-0">Non renseigné</p>
+                )}
+              </div>
+            </div>
           </div>
           
           <div className="member-since mt-3 pt-2 border-top">
             <Calendar3 size={14} className="me-2 text-muted" />
             <small className="text-muted">
-              Membre depuis le {new Date(user?.createdAt).toLocaleDateString('fr-FR', {
-                year: 'numeric', month: 'long', day: 'numeric'
-              })}
+              Membre depuis le {formatDate(user?.createdAt)}
             </small>
           </div>
         </Card.Body>
@@ -525,6 +552,15 @@ const Profile = () => {
   const hasLoadedChannelsRef = useRef(false);
   const userRole = auth.user?.role;
   
+  // ✅ Determinar si es el propio perfil
+  const isOwnProfile = auth.user?._id === id;
+  
+  // ✅ Usar auth.user para el propio perfil, o buscar en profile.users
+  const currentUser = isOwnProfile ? auth.user : profile.users?.find(u => u._id === id);
+  
+  console.log('📦 currentUser:', currentUser);
+  console.log('📷 avatar URL:', currentUser?.avatar);
+  
   useEffect(() => {
     if (!auth.token || !id) return;
     
@@ -533,7 +569,7 @@ const Profile = () => {
         setLoading(true);
         
         const isAlreadyLoaded = profile.ids?.includes(id);
-        if (!isAlreadyLoaded) {
+        if (!isOwnProfile && !isAlreadyLoaded) {
           await dispatch(getProfileUsers({ id, auth }));
         }
         
@@ -552,7 +588,7 @@ const Profile = () => {
     };
     
     loadData();
-  }, [id, auth, dispatch, profile.ids]);
+  }, [id, auth, dispatch, profile.ids, isOwnProfile]);
   
   const handleViewChannel = (channelId, isPending) => {
     if (isPending) {
@@ -630,11 +666,9 @@ const Profile = () => {
     }
   };
   
-  // ==================== HANDLERS PERFIL ====================
   const handleEditProfile = () => history.push('/profile/settings');
   const handleDeleteProfile = () => {
     if (window.confirm('Êtes-vous sûr de vouloir supprimer votre compte ? Cette action est irréversible.')) {
-      
       dispatch({ 
         type: GLOBALTYPES.ALERT, 
         payload: { info: "Fonctionnalité à venir" } 
@@ -673,9 +707,6 @@ const Profile = () => {
     );
   }
   
-  const currentUser = profile.users?.find(u => u._id === id);
-  const isOwnProfile = auth.user?._id === id;
-  
   if (!currentUser) {
     return (
       <div className="profile-page">
@@ -693,13 +724,17 @@ const Profile = () => {
     <div className="profile-page">
       <Container className="py-4">
         
-        {/* ========== PRIMERA FILA: Avatar + Dropdown ========== */}
+        {/* Avatar + Dropdown */}
         <div className="profile-header">
           <div className="avatar-section">
             <div className="avatar-container">
               <img 
                 src={currentUser.avatar || '/default-avatar.png'} 
                 alt={currentUser.fullname || currentUser.username}
+                onError={(e) => {
+                  console.error('❌ Error cargando avatar:', currentUser.avatar);
+                  e.target.src = '/default-avatar.png';
+                }}
               />
             </div>
           </div>
@@ -711,7 +746,6 @@ const Profile = () => {
               </Dropdown.Toggle>
               
               <Dropdown.Menu align="end">
-                {/* ✅ ORDEN CORRECTO DE ACCIONES */}
                 <Dropdown.Item onClick={handleUpgradeToPro} className="text-primary">
                   <Star size={14} className="me-2" /> Devenir UserPro
                 </Dropdown.Item>
@@ -732,7 +766,7 @@ const Profile = () => {
           )}
         </div>
         
-        {/* ========== SEGUNDA FILA ========== */}
+        {/* Información básica */}
         <div className="profile-identity text-center">
           <h2 className="profile-name">
             {currentUser.fullname || currentUser.username}
@@ -748,7 +782,7 @@ const Profile = () => {
           )}
         </div>
         
-        {/* ========== TERCERA FILA: Tabs ========== */}
+        {/* Tabs */}
         <div className="profile-tabs mt-4">
           <Tabs
             activeKey={activeTab}

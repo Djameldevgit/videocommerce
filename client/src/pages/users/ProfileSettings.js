@@ -1,4 +1,4 @@
-// src/pages/ProfileSettings.jsx - Version française complète
+// src/pages/ProfileSettings.jsx - VERSIÓN CON AVATAR POR DEFECTO
 
 import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
@@ -10,8 +10,7 @@ import {
   Button, 
   Spinner, 
   Alert,
-  Card,
-  Modal
+  Card
 } from 'react-bootstrap';
 import { useHistory } from 'react-router-dom';
 import { 
@@ -23,14 +22,13 @@ import {
   CheckCircle,
   ExclamationTriangle,
   Calendar,
-  People,
-  PersonBadge,
   Camera
 } from 'react-bootstrap-icons';
 import { updateProfileUser } from '../../redux/actions/profileAction';
 import { GLOBALTYPES } from '../../redux/actions/globalTypes';
- 
-import { imageUpload } from '../../utils/imageUpload';
+
+// ✅ URL del avatar por defecto (misma que en Profile y Navbar)
+const DEFAULT_AVATAR_URL = 'https://res.cloudinary.com/dzd58nm3l/image/upload/v1780538635/defalut-avatar_tfvwxr.png';
  
 const ProfileSettings = () => {
   const dispatch = useDispatch();
@@ -40,9 +38,7 @@ const ProfileSettings = () => {
   const { alert } = useSelector(state => state);
   
   const [loading, setLoading] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   
-  // État du formulaire
   const [userData, setUserData] = useState({
     fullname: '',
     mobile: '',
@@ -51,10 +47,9 @@ const ProfileSettings = () => {
     story: ''
   });
   
-  const [avatar, setAvatar] = useState(null);
+  const [avatarFile, setAvatarFile] = useState(null);
   const [previewAvatar, setPreviewAvatar] = useState(null);
 
-  // Charger les données utilisateur
   useEffect(() => {
     if (auth.user) {
       setUserData({
@@ -65,23 +60,24 @@ const ProfileSettings = () => {
         story: auth.user.story || ''
       });
       
+      // ✅ Usar avatar del usuario o el por defecto
       if (auth.user.avatar) {
         setPreviewAvatar(auth.user.avatar);
+      } else {
+        setPreviewAvatar(DEFAULT_AVATAR_URL);
       }
     }
   }, [auth.user]);
 
-  // Gérer les alertes globales
   useEffect(() => {
     if (alert.success) {
-      setAvatar(null);
+      setAvatarFile(null);
       setTimeout(() => {
         dispatch({ type: GLOBALTYPES.ALERT, payload: {} });
       }, 3000);
     }
   }, [alert.success, dispatch]);
 
-  // Changer l'avatar
   const changeAvatar = (e) => {
     const file = e.target.files[0];
     
@@ -101,7 +97,7 @@ const ProfileSettings = () => {
       });
     }
 
-    setAvatar(file);
+    setAvatarFile(file);
     
     const reader = new FileReader();
     reader.onloadend = () => {
@@ -110,7 +106,6 @@ const ProfileSettings = () => {
     reader.readAsDataURL(file);
   };
 
-  // Gérer les champs de formulaire
   const handleInput = (e) => {
     const { name, value } = e.target;
     
@@ -120,11 +115,15 @@ const ProfileSettings = () => {
     setUserData(prev => ({ ...prev, [name]: value }));
   };
 
-  // SOUMETTRE LE FORMULAIRE (version française)
+  const cancelAvatarChange = () => {
+    setAvatarFile(null);
+    // ✅ Volver al avatar original o al por defecto
+    setPreviewAvatar(auth.user?.avatar || DEFAULT_AVATAR_URL);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validations
     if (userData.fullname && userData.fullname.length > 25) {
       return dispatch({
         type: GLOBALTYPES.ALERT, 
@@ -142,70 +141,28 @@ const ProfileSettings = () => {
     setLoading(true);
     
     try {
-      let avatarUrl = auth.user.avatar;
-      
-      if (avatar) {
-        console.log('📤 Préparation de l\'avatar:', avatar.name);
-        
-        const blobUrl = URL.createObjectURL(avatar);
-        
-        const avatarObject = {
-          url: blobUrl,
-          isExisting: false,
-          name: avatar.name,
-          type: avatar.type
-        };
-        
-        const media = await imageUpload([avatarObject]);
-        
-        if (media && media[0] && media[0].url) {
-          avatarUrl = media[0].url;
-        } else {
-          throw new Error("Erreur lors de l'upload de l'image");
-        }
-        
-        URL.revokeObjectURL(blobUrl);
-      }
-      
-      const updatedData = {
-        fullname: userData.fullname || auth.user.fullname,
-        mobile: userData.mobile || auth.user.mobile || '',
-        address: userData.address || auth.user.address || '',
-        story: userData.story || auth.user.story || '',
-        website: userData.website || auth.user.website || '',
-        avatar: avatarUrl
-      };
-      
-      await dispatch(updateProfileUser({ 
-        userData: updatedData,
-        avatar: null,
+      const result = await dispatch(updateProfileUser({ 
+        userData: userData,
+        avatar: avatarFile,
         auth 
       }));
       
-      setAvatar(null);
+      if (result && result.success) {
+        setAvatarFile(null);
+        
+        setTimeout(() => {
+          history.push(`/profile/${auth.user._id}`);
+        }, 1500);
+      }
       
     } catch (error) {
       console.error('❌ Erreur:', error);
-      dispatch({
-        type: GLOBALTYPES.ALERT,
-        payload: {error: error.message || 'Erreur lors de la mise à jour'}
-      });
     } finally {
       setLoading(false);
     }
   };
 
-  // Annuler les changements d'avatar
-  const cancelAvatarChange = () => {
-    setAvatar(null);
-    setPreviewAvatar(auth.user?.avatar || null);
-  };
-
-  // Statistiques utilisateur
   const userStats = {
-    posts: auth.user?.posts?.length || auth.user?.postCount || 0,
-    followers: auth.user?.followers?.length || 0,
-    following: auth.user?.following?.length || 0,
     memberSince: auth.user?.createdAt ? new Date(auth.user.createdAt).toLocaleDateString('fr-FR', {
       year: 'numeric',
       month: 'long',
@@ -213,7 +170,6 @@ const ProfileSettings = () => {
     }) : 'N/A'
   };
 
-  // Vérifier l'authentification
   if (!auth.token || !auth.user) {
     return (
       <Container className="py-5">
@@ -231,7 +187,6 @@ const ProfileSettings = () => {
   return (
     <div className={`profile-settings ${theme === 'dark' ? 'bg-dark text-light' : 'bg-light'}`}>
       <Container className="py-4">
-        {/* Header */}
         <div className="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
           <div>
             <h2 className="h3 fw-bold mb-1">Paramètres du profil</h2>
@@ -250,7 +205,6 @@ const ProfileSettings = () => {
           </Button>
         </div>
 
-        {/* Alertes */}
         {alert.success && (
           <Alert variant="success" className="d-flex align-items-center mb-4" dismissible>
             <CheckCircle className="me-2" size={20} />
@@ -265,50 +219,7 @@ const ProfileSettings = () => {
           </Alert>
         )}
 
-        {/* Cartes de statistiques */}
         <Row className="g-3 mb-4">
-          <Col xs={6} md={3}>
-            <Card className="border-0 shadow-sm">
-              <Card.Body className="d-flex align-items-center">
-                <div className="bg-primary bg-opacity-10 rounded-circle p-3 me-3">
-                  <Person className="text-primary" size={20} />
-                </div>
-                <div>
-                  <small className="text-muted d-block">Publications</small>
-                  <h5 className="mb-0 fw-bold">{userStats.posts}</h5>
-                </div>
-              </Card.Body>
-            </Card>
-          </Col>
-          
-          <Col xs={6} md={3}>
-            <Card className="border-0 shadow-sm">
-              <Card.Body className="d-flex align-items-center">
-                <div className="bg-success bg-opacity-10 rounded-circle p-3 me-3">
-                  <People className="text-success" size={20} />
-                </div>
-                <div>
-                  <small className="text-muted d-block">Abonnés</small>
-                  <h5 className="mb-0 fw-bold">{userStats.followers}</h5>
-                </div>
-              </Card.Body>
-            </Card>
-          </Col>
-          
-          <Col xs={6} md={3}>
-            <Card className="border-0 shadow-sm">
-              <Card.Body className="d-flex align-items-center">
-                <div className="bg-info bg-opacity-10 rounded-circle p-3 me-3">
-                  <PersonBadge className="text-info" size={20} />
-                </div>
-                <div>
-                  <small className="text-muted d-block">Abonnements</small>
-                  <h5 className="mb-0 fw-bold">{userStats.following}</h5>
-                </div>
-              </Card.Body>
-            </Card>
-          </Col>
-          
           <Col xs={6} md={3}>
             <Card className="border-0 shadow-sm">
               <Card.Body className="d-flex align-items-center">
@@ -324,7 +235,6 @@ const ProfileSettings = () => {
           </Col>
         </Row>
 
-        {/* Formulaire principal */}
         <Card className="border-0 shadow-sm">
           <Card.Body className="p-4">
             <h4 className="mb-4">Modifier le profil</h4>
@@ -334,10 +244,15 @@ const ProfileSettings = () => {
               <div className="text-center mb-4">
                 <div className="position-relative d-inline-block">
                   <div className="avatar-container">
+                    {/* ✅ Misma lógica que en Profile: avatar del usuario o imagen por defecto */}
                     <img 
-                      src={previewAvatar || auth.user.avatar} 
+                      src={previewAvatar || DEFAULT_AVATAR_URL}
                       alt="avatar" 
                       className="avatar-image"
+                      onError={(e) => {
+                        console.error('❌ Error cargando avatar:', previewAvatar);
+                        e.target.src = DEFAULT_AVATAR_URL;
+                      }}
                     />
                     
                     <label htmlFor="avatar-upload" className="avatar-overlay">
@@ -355,7 +270,7 @@ const ProfileSettings = () => {
                   </div>
                 </div>
                 
-                {avatar && (
+                {avatarFile && (
                   <div className="mt-2">
                     <Button 
                       variant="link" 
@@ -453,7 +368,6 @@ const ProfileSettings = () => {
                 </Col>
               </Row>
 
-              {/* Boutons d'action */}
               <div className="d-flex justify-content-end gap-2">
                 <Button 
                   variant="outline-secondary"
@@ -486,67 +400,13 @@ const ProfileSettings = () => {
             </Form>
           </Card.Body>
         </Card>
-
-        {/* Zone de danger */}
-        <Card className="border-0 shadow-sm border-danger mt-4">
-          <Card.Body className="p-4">
-            <h4 className="text-danger mb-3">Zone de danger</h4>
-            
-            <Alert variant="warning" className="mb-3">
-              <ExclamationTriangle className="me-2" size={20} />
-              <strong>Attention !</strong> Ces actions sont irréversibles.
-            </Alert>
-            
-            <div className="d-flex justify-content-between align-items-center flex-wrap gap-3">
-              <div>
-                <h5 className="h6 mb-1">Supprimer le compte</h5>
-                <p className="text-muted small mb-0">
-                  Une fois supprimé, vous ne pourrez plus récupérer vos données.
-                </p>
-              </div>
-              <Button 
-                variant="outline-danger"
-                onClick={() => setShowDeleteConfirm(true)}
-                className="rounded-pill px-4"
-              >
-                Supprimer
-              </Button>
-            </div>
-          </Card.Body>
-        </Card>
-
-        {/* Modal de confirmation */}
-        <Modal show={showDeleteConfirm} onHide={() => setShowDeleteConfirm(false)} centered>
-          <Modal.Header closeButton>
-            <Modal.Title className="text-danger">
-              <ExclamationTriangle className="me-2" size={20} />
-              Supprimer le compte
-            </Modal.Title>
-          </Modal.Header>
-          
-          <Modal.Body>
-            <p className="mb-3">
-              Êtes-vous sûr de vouloir supprimer votre compte ? Cette action est irréversible.
-            </p>
-          </Modal.Body>
-          
-          <Modal.Footer>
-            <Button variant="secondary" onClick={() => setShowDeleteConfirm(false)}>
-              Annuler
-            </Button>
-            <Button variant="danger">
-              Confirmer
-            </Button>
-          </Modal.Footer>
-        </Modal>
       </Container>
 
-      {/* Styles */}
       <style jsx="true">{`
         .avatar-container {
           position: relative;
-          width: 150px;
-          height: 150px;
+          width: 120px;
+          height: 120px;
           margin: 0 auto;
           border-radius: 50%;
           overflow: hidden;

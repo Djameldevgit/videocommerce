@@ -863,5 +863,8 @@ export const clearUserVideos = () => ({
   type: VIDEO_TYPES.CLEAR_USER_VIDEOS
 });
 
-  
+export const toggleSaveVideo = () => ({
+  type: VIDEO_TYPES.CLEAR_USER_VIDEOS
+});
+
  

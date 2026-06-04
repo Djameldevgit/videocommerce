@@ -629,6 +629,8 @@ const getMusicLibrary = async (req, res) => {
 };
 
 // backend/controllers/videoController.js
+// backend/controllers/videoController.js - CORREGIDO
+
 const getChannelVideos = async (req, res) => {
   try {
     const { channelId } = req.params;
@@ -644,14 +646,62 @@ const getChannelVideos = async (req, res) => {
     const isOwnerOrAdmin = req.user && (channel.owner.toString() === req.user._id.toString() || req.user.role === 'admin');
     if (!isOwnerOrAdmin) match.pendiente = false;
 
-    // ✅ CORREGIDO: Añadir populate('channel')
-    const videos = await Video.find(match)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit))
-      .populate('user', 'username avatar')
-      .populate('channel', 'name avatar isVerified _id')  // ← Poblar canal
-      .lean();
+    // ✅ CORREGIDO: Usar aggregate para transformar el avatar del canal
+    const videos = await Video.aggregate([
+      { $match: match },
+      { $sort: { createdAt: -1 } },
+      { $skip: skip },
+      { $limit: parseInt(limit) },
+      // ✅ Populate user
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'user',
+          foreignField: '_id',
+          as: 'userData'
+        }
+      },
+      { $unwind: { path: '$userData', preserveNullAndEmptyArrays: true } },
+      // ✅ Populate channel
+      {
+        $lookup: {
+          from: 'channels',
+          localField: 'channel',
+          foreignField: '_id',
+          as: 'channelData'
+        }
+      },
+      { $unwind: { path: '$channelData', preserveNullAndEmptyArrays: true } },
+      // ✅ TRANSFORMAR AVATAR DEL CANAL (array a string)
+      {
+        $addFields: {
+          user: {
+            _id: '$userData._id',
+            username: '$userData.username',
+            avatar: '$userData.avatar'
+          },
+          channel: {
+            _id: '$channelData._id',
+            name: '$channelData.name',
+            isVerified: '$channelData.isVerified',
+            // ✅ Extraer la primera URL del avatar del array
+            avatar: {
+              $cond: {
+                if: { $isArray: '$channelData.avatar' },
+                then: { $arrayElemAt: ['$channelData.avatar.url', 0] },
+                else: '$channelData.avatar'
+              }
+            }
+          }
+        }
+      },
+      {
+        $project: {
+          userData: 0,
+          channelData: 0
+        }
+      }
+    ]);
 
     const total = await Video.countDocuments(match);
 
@@ -663,6 +713,7 @@ const getChannelVideos = async (req, res) => {
       totalPages: Math.ceil(total / parseInt(limit))
     });
   } catch (err) {
+    console.error('❌ Error en getChannelVideos:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -1594,7 +1645,7 @@ const filterVideos = async (req, res) => {
     else if (sortBy === 'liked') sort = { likesCount: -1 };
     else sort = { createdAt: -1 };
 
-    // ✅ CORREGIDO: Usar aggregate con $lookup
+    // ✅ USAR AGGREGATE CORREGIDO
     const videos = await Video.aggregate([
       { $match: match },
       { $addFields: { likesCount: { $size: '$likes' } } },
@@ -1610,7 +1661,6 @@ const filterVideos = async (req, res) => {
         }
       },
       { $unwind: { path: '$userData', preserveNullAndEmptyArrays: true } },
-      // ✅ Lookup para channel
       {
         $lookup: {
           from: 'channels',
@@ -1630,8 +1680,15 @@ const filterVideos = async (req, res) => {
           channel: {
             _id: '$channelData._id',
             name: '$channelData.name',
-            avatar: '$channelData.avatar',
-            isVerified: '$channelData.isVerified'
+            isVerified: '$channelData.isVerified',
+            // ✅ Extraer avatar del array
+            avatar: {
+              $cond: {
+                if: { $isArray: '$channelData.avatar' },
+                then: { $arrayElemAt: ['$channelData.avatar.url', 0] },
+                else: '$channelData.avatar'
+              }
+            }
           }
         }
       },
@@ -1667,73 +1724,78 @@ const filterVideos = async (req, res) => {
 const getVideosByCategory = async (req, res) => {
   try {
     const { slug } = req.params;
-    const { page = 1, limit = 12, sortBy = 'recent', wilaya, minPrice, maxPrice } = req.query;
+    const { page = 1, limit = 12, sortBy = 'recent' } = req.query;
     
-    console.log('🔍 [getVideosByCategory] slug:', slug);
-    console.log('🔍 [getVideosByCategory] page:', page, 'limit:', limit);
+    const skip = (parseInt(page) - 1) * parseInt(limit);
     
-    // 1. Buscar la categoría por slug
     const category = await Category.findOne({ slug: slug, isActive: true });
-    
     if (!category) {
-      console.log('❌ Categoría no encontrada:', slug);
-      return res.json({
-        success: true,
-        videos: [],
-        total: 0,
-        categoryInfo: null
-      });
+      return res.json({ success: true, videos: [], total: 0, categoryInfo: null });
     }
     
-    console.log('✅ Categoría encontrada:', category.name, category._id);
-    
-    // 2. Construir filtro
-    let filter = {
-      category: category._id,
-      pendiente: false,
-      isActive: true
-    };
-    
-    if (wilaya && wilaya !== '') filter.wilaya = wilaya;
-    if (minPrice) filter.price = { ...filter.price, $gte: Number(minPrice) };
-    if (maxPrice) filter.price = { ...filter.price, $lte: Number(maxPrice) };
-    
-    // 3. Ordenamiento
+    let filter = { category: category._id, pendiente: false, isActive: true };
     let sort = {};
+    
     switch (sortBy) {
       case 'views': sort = { views: -1 }; break;
-      case 'likes': sort = { likes: -1 }; break;
-      case 'price_asc': sort = { price: 1 }; break;
-      case 'price_desc': sort = { price: -1 }; break;
-      case 'oldest': sort = { createdAt: 1 }; break;
+      case 'likes': sort = { likesCount: -1 }; break;
       default: sort = { createdAt: -1 };
     }
     
-    // 4. Paginación
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    
-    // 5. ✅ OBTENER VIDEOS CON POPULATE DE CHANNEL
-    const videos = await Video.find(filter)
-      .sort(sort)
-      .skip(skip)
-      .limit(parseInt(limit))
-      .populate('user', 'username avatar')
-      .populate({
-        path: 'channel',
-        select: '_id name avatar isVerified owner',
-        model: 'Channel'
-      })
-      .lean();
-    
-    console.log(`📹 Videos encontrados: ${videos.length}`);
-    
-    // ✅ VERIFICAR QUE CHANNEL ESTÁ POBLADO
-    videos.forEach((video, index) => {
-      const hasChannel = video.channel ? '✅' : '❌';
-      const channelName = video.channel.name || 'SIN CANAL';
-      const channelId = video.channel._id || 'NULO';
-      console.log(`   ${hasChannel} Video ${index + 1}: "${video.title}" - Canal: ${channelName} (${channelId})`);
-    });
+    // ✅ USAR AGGREGATE CON TRANSFORMACIÓN DE AVATAR
+    const videos = await Video.aggregate([
+      { $match: filter },
+      { $addFields: { likesCount: { $size: '$likes' } } },
+      { $sort: sort },
+      { $skip: skip },
+      { $limit: parseInt(limit) },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'user',
+          foreignField: '_id',
+          as: 'userData'
+        }
+      },
+      { $unwind: { path: '$userData', preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: 'channels',
+          localField: 'channel',
+          foreignField: '_id',
+          as: 'channelData'
+        }
+      },
+      { $unwind: { path: '$channelData', preserveNullAndEmptyArrays: true } },
+      {
+        $addFields: {
+          user: {
+            _id: '$userData._id',
+            username: '$userData.username',
+            avatar: '$userData.avatar'
+          },
+          channel: {
+            _id: '$channelData._id',
+            name: '$channelData.name',
+            isVerified: '$channelData.isVerified',
+            // ✅ Extraer avatar del array
+            avatar: {
+              $cond: {
+                if: { $isArray: '$channelData.avatar' },
+                then: { $arrayElemAt: ['$channelData.avatar.url', 0] },
+                else: '$channelData.avatar'
+              }
+            }
+          }
+        }
+      },
+      {
+        $project: {
+          userData: 0,
+          channelData: 0
+        }
+      }
+    ]);
     
     const total = await Video.countDocuments(filter);
     
@@ -1755,15 +1817,9 @@ const getVideosByCategory = async (req, res) => {
     
   } catch (error) {
     console.error('❌ Error en getVideosByCategory:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message,
-      videos: [],
-      total: 0
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
-
 
 
 
