@@ -1,4 +1,5 @@
-// node seedCategories.js - VERSIÓN QUE ELIMINA Y RECREA (con "Art" y "Social")
+// node seedCategories.js - VERSIÓN CON PRIORIDAD ALTA PARA TUTORIALES Y CANALES
+
 require('dotenv').config();
 const mongoose = require('mongoose');
 const Category = require('./models/categoryModel');
@@ -6,31 +7,64 @@ const Category = require('./models/categoryModel');
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/VideoCommerce';
 const mongooseOptions = { useNewUrlParser: true, useUnifiedTopology: true };
 
-// ✅ CATEGORÍAS EN EL ORDEN CORRECTO (con "Art" y "Réseaux sociaux" al final)
+// ✅ CATEGORÍAS CON ORDEN PRIORITARIO (importantes al principio)
 const categoriesData = [
-  { slug: 'agence', name: 'Agence', order: 1, icon: '🏢' },
-  { slug: 'immobilier', name: 'Immobilier', order: 2, icon: '🏠' },
-  { slug: 'vehicules', name: 'Automobiles & Véhicules', order: 3, icon: '🚗' },
-  { slug: 'pieces-detachees', name: 'Pièces détachées', order: 4, icon: '🔧' },
-  { slug: 'telephones', name: 'Téléphones & Accessoires', order: 5, icon: '📱' },
-  { slug: 'informatique', name: 'Informatique', order: 6, icon: '💻' },
-  { slug: 'electromenager', name: 'Électroménager & Électronique', order: 7, icon: '🔌' },
-  { slug: 'vetements-mode', name: 'Vêtements & Mode', order: 8, icon: '👕' },
-  { slug: 'sante-beaute', name: 'Santé & Beauté', order: 9, icon: '💄' },
-  { slug: 'meubles-maison', name: 'Meubles & Maison', order: 10, icon: '🛋️' },
-  { slug: 'loisirs-divertissements', name: 'Loisirs & Divertissements', order: 11, icon: '🎮' },
-  { slug: 'sport', name: 'Sport', order: 12, icon: '⚽' },
-  { slug: 'emploi', name: 'Emploi', order: 13, icon: '💼' },
-  { slug: 'materiaux-equipement', name: 'Matériaux & Équipement', order: 14, icon: '🏗️' },
-  { slug: 'alimentaires', name: 'Alimentaires', order: 15, icon: '🍎' },
-  { slug: 'voyages', name: 'Voyages', order: 16, icon: '✈️' },
-  { slug: 'services', name: 'Services', order: 17, icon: '🛠️' },
+  // ============ 🎓 CATEGORÍAS ESPECIALES (Alta prioridad - Primeras en el slider) ============
+  { 
+    slug: 'tutorials', 
+    name: 'Tutoriels', 
+    nameFr: 'Tutoriels',
+    nameAr: 'دروس تعليمية',
+    order: 1,                    // ← PRIMERA posición
+    icon: '🎓', 
+    isPublic: true,              // ← Ahora visible para todos (para onboarding)
+    isAdminOnly: false,          // ← Ya no es solo admin
+    isSpecial: true,
+    specialType: 'tutorials',
+    priority: 'high'
+  },
+  { 
+    slug: 'channels', 
+    name: 'Chaînes', 
+    nameFr: 'Chaînes',
+    nameAr: 'قنوات',
+    order: 2,                    // ← SEGUNDA posición
+    icon: '📺', 
+    isPublic: true, 
+    isAdminOnly: false,
+    isSpecial: true,
+    specialType: 'channels',
+    priority: 'high'
+  },
 
-  { slug: 'art', name: 'Art', order: 18, icon: '🎨' },
- ];
+  // ============ 🏪 CATEGORÍAS COMERCIALES (Prioridad media) ============
+  { slug: 'agence', name: 'Agence', order: 3, icon: '🏢', isPublic: true, isAdminOnly: false },
+  { slug: 'immobilier', name: 'Immobilier', order: 4, icon: '🏠', isPublic: true, isAdminOnly: false },
+  { slug: 'vehicules', name: 'Automobiles & Véhicules', order: 5, icon: '🚗', isPublic: true, isAdminOnly: false },
+  { slug: 'pieces-detachees', name: 'Pièces détachées', order: 6, icon: '🔧', isPublic: true, isAdminOnly: false },
+  { slug: 'telephones', name: 'Téléphones & Accessoires', order: 7, icon: '📱', isPublic: true, isAdminOnly: false },
+  { slug: 'informatique', name: 'Informatique', order: 8, icon: '💻', isPublic: true, isAdminOnly: false },
+  { slug: 'electromenager', name: 'Électroménager & Électronique', order: 9, icon: '🔌', isPublic: true, isAdminOnly: false },
+  { slug: 'vetements-mode', name: 'Vêtements & Mode', order: 10, icon: '👕', isPublic: true, isAdminOnly: false },
+  { slug: 'sante-beaute', name: 'Santé & Beauté', order: 11, icon: '💄', isPublic: true, isAdminOnly: false },
+  { slug: 'meubles-maison', name: 'Meubles & Maison', order: 12, icon: '🛋️', isPublic: true, isAdminOnly: false },
+  { slug: 'loisirs-divertissements', name: 'Loisirs & Divertissements', order: 13, icon: '🎮', isPublic: true, isAdminOnly: false },
+  { slug: 'sport', name: 'Sport', order: 14, icon: '⚽', isPublic: true, isAdminOnly: false },
+  { slug: 'emploi', name: 'Emploi', order: 15, icon: '💼', isPublic: true, isAdminOnly: false },
+  { slug: 'materiaux-equipement', name: 'Matériaux & Équipement', order: 16, icon: '🏗️', isPublic: true, isAdminOnly: false },
+  { slug: 'alimentaires', name: 'Alimentaires', order: 17, icon: '🍎', isPublic: true, isAdminOnly: false },
+  { slug: 'voyages', name: 'Voyages', order: 18, icon: '✈️', isPublic: true, isAdminOnly: false },
+  { slug: 'services', name: 'Services', order: 19, icon: '🛠️', isPublic: true, isAdminOnly: false },
+  { slug: 'art', name: 'Art', order: 20, icon: '🎨', isPublic: true, isAdminOnly: false },
+];
 
-// Colores para cada categoría (incluyendo 'art' y 'reseaux-sociaux')
+// Colores para cada categoría
 const categoryColors = {
+  // Especiales (alta prioridad)
+  'tutorials': '#F1C40F',        // Amarillo - llama la atención
+  'channels': '#8E44AD',         // Púrpura - destaca canales
+  
+  // Comerciales
   'agence': '#4A90E2',
   'immobilier': '#50B5A9',
   'vehicules': '#E67E22',
@@ -48,8 +82,8 @@ const categoryColors = {
   'alimentaires': '#27AE60',
   'voyages': '#2980B9',
   'services': '#16A085',
-    'art': '#E84393',        // Rosa/Magenta para arte
- };
+  'art': '#E84393',
+};
 
 const seedCategories = async () => {
   try {
@@ -67,18 +101,29 @@ const seedCategories = async () => {
       const categoryData = {
         name: cat.name,
         slug: cat.slug,
+        nameFr: cat.nameFr || cat.name,
+        nameAr: cat.nameAr || cat.name,
         imageUrl: `/categories/${cat.slug}/${cat.slug}.png`,
         order: cat.order,
         isActive: true,
         icon: cat.icon,
         iconColor: categoryColors[cat.slug] || '#666666',
         bgColor: `${categoryColors[cat.slug] || '#666666'}15`,
-        videoCount: 0
+        videoCount: 0,
+        // ✅ NUEVOS CAMPOS
+        isPublic: cat.isPublic !== undefined ? cat.isPublic : true,
+        isAdminOnly: cat.isAdminOnly || false,
+        isSpecial: cat.isSpecial || false,
+        specialType: cat.specialType || null,
+        priority: cat.priority || 'normal'
       };
       const newCat = new Category(categoryData);
       await newCat.save();
       created++;
-      console.log(`✅ [${cat.order}] CREADA: ${cat.name} (${cat.slug})`);
+      
+      const priorityBadge = categoryData.priority === 'high' ? '🔥 ALTA' : '📌';
+      const special = categoryData.isSpecial ? `✨ [${categoryData.specialType}]` : '';
+      console.log(`✅ [${cat.order}] ${priorityBadge} CREADA: ${cat.name} ${special}`);
     }
 
     console.log(`\n📊 Resumen final: ${created} categorías creadas.`);
@@ -86,15 +131,18 @@ const seedCategories = async () => {
     // Mostrar todas las categorías ordenadas
     const allCategories = await Category.find({ isActive: true })
       .sort({ order: 1 })
-      .select('name slug order videoCount')
+      .select('name slug order videoCount isSpecial specialType priority')
       .lean();
     
-    console.log('\n📋 ORDEN FINAL DE CATEGORÍAS:');
+    console.log('\n📋 ORDEN FINAL DE CATEGORÍAS (Prioridad alta primero):');
     allCategories.forEach((cat, idx) => {
-      console.log(`   ${idx + 1}. ${cat.name} (orden: ${cat.order}) - ${cat.videoCount} videos`);
+      const priorityIcon = cat.priority === 'high' ? '🔥' : '  ';
+      const specialIcon = cat.isSpecial ? `✨` : '  ';
+      console.log(`   ${priorityIcon} ${specialIcon} ${idx + 1}. ${cat.name} (orden: ${cat.order})`);
     });
 
     console.log('\n🎉 Seed completado exitosamente!');
+    console.log('\n💡 NOTA: Las categorías "Tutoriels" y "Chaînes" aparecerán PRIMERO en el slider por su alta prioridad.');
     process.exit(0);
     
   } catch (error) {

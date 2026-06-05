@@ -1,4 +1,4 @@
-// models/userModel.js - VERSIÓN CORREGIDA
+// models/userModel.js - VERSIÓN COMPLETA CORREGIDA
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
@@ -11,19 +11,23 @@ const userSchema = new mongoose.Schema({
     // ============ ROLES Y PERMISOS ============
     role: {
         type: String,
-        enum: ['user', 'moderator', 'userPro','admin'],
+        enum: ['user', 'moderator', 'userPro','admin'],  // ✅ userPro se maneja con isPro + channelPlan
         default: 'user'
     },
 
+    // ============ PLANES DE CANAL (comercial) ============
     channelPlan: {
         type: String,
         enum: ['free', 'basic', 'pro', 'business'],
         default: 'free'
-      },
-      channelPlanExpiresAt: Date,
-      channelPlanAutoRenew: { type: Boolean, default: false },
+    },
+    channelPlanExpiresAt: Date,
+    channelPlanAutoRenew: { type: Boolean, default: false },
+    
+    // ============ PERMISOS DE MODERADOR ============
     assignedCategories: { type: [String], default: [], index: true },
     assignedSubCategories: { type: [String], default: [], index: true },
+    canApproveAllCategories: { type: Boolean, default: false },  // ✅ Campo faltante
     
     // ============ PERFIL PERSONAL ============
     avatar: {
@@ -41,8 +45,10 @@ const userSchema = new mongoose.Schema({
     isVerified: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
     isBlocked: { type: Boolean, default: false },
-    isPro: { type: Boolean, default: false },
+    isPro: { type: Boolean, default: false },  // ← Para compatibilidad con código legacy
     proExpiryDate: { type: Date, default: null },
+    
+    // ============ BLOQUEO (actual) ============
     blockDetails: {
         reason: { type: String, default: null },
         description: { type: String, default: null },
@@ -51,73 +57,158 @@ const userSchema = new mongoose.Schema({
         blockedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'user', default: null }
     },
     
+    // ============ HISTORIAL DE BLOQUEOS (auditoría) ============
+    blockHistory: [{
+        reason: { type: String, required: true },
+        description: { type: String },
+        blockDate: { type: Date, default: Date.now },
+        blockExpiryDate: { type: Date, default: null },
+        blockedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'user' },
+        unblockDate: { type: Date, default: null },
+        unblockedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'user' }
+    }],
+    
     // ============ ESTADÍSTICAS DE PERFIL ============
     profileViews: [{
-        user: { type: mongoose.Types.ObjectId, ref: 'user' },
+        user: { type: mongoose.Schema.Types.ObjectId, ref: 'user' },
         viewedAt: { type: Date, default: Date.now }
     }],
     profileViewsCount: { type: Number, default: 0 },
- 
-    // ============ INTERACCIONES ============
-    savedVideos: [{ type: mongoose.Types.ObjectId, ref: 'Video' }],
-    followingChannels: [{ type: mongoose.Types.ObjectId, ref: 'Channel' }],
-    followers: [{ type: mongoose.Types.ObjectId, ref: 'user' }],
-    following: [{ type: mongoose.Types.ObjectId, ref: 'user' }],
-    followingUsers: [{ type: mongoose.Types.ObjectId, ref: 'user' }],
-    followersUsers: [{ type: mongoose.Types.ObjectId, ref: 'user' }],
     
-    // ============================================
-    // ✅ NUEVO: REFERENCIA A LOS CANALES DEL USUARIO
-    // ============================================
-    channels: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Channel' }],  // ← ¡CRUCIAL! Canales que posee
+    // ============ INTERACCIONES ============
+    savedVideos: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Video' }],
+    followingChannels: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Channel' }],
+    
+    // ✅ UNIFICADO: Solo usar estos dos campos para seguir usuarios
+    followers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'user' }],   // Usuarios que me siguen
+    following: [{ type: mongoose.Schema.Types.ObjectId, ref: 'user' }],   // Usuarios que sigo
+    
+    // ============ CANALES DEL USUARIO ============
+    channels: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Channel' }],  // Canales que posee
+    
+    // ============ ÚLTIMO INICIO DE SESIÓN ============
+    lastLogin: { type: Date, default: Date.now },
+    online: { type: Boolean, default: false }
     
 }, { timestamps: true });
 
-// Índices
+// ============================================
+// 🔧 ÍNDICES
+// ============================================
 userSchema.index({ role: 1, isActive: 1 });
 userSchema.index({ assignedCategories: 1 });
 userSchema.index({ assignedSubCategories: 1 });
 userSchema.index({ username: 1 });
 userSchema.index({ email: 1 });
+userSchema.index({ createdAt: -1 });  // Para ordenar por fecha
 
-// Métodos existentes
+// ============================================
+// 📌 MÉTODOS DEL MODELO
+// ============================================
+
+// Verificar si puede moderar una categoría
 userSchema.methods.canModerate = function(categorySlug, subCategorySlug = null) {
     if (this.role === 'admin') return true;
     if (this.role === 'moderator') {
+        if (this.canApproveAllCategories) return true;
         if (subCategorySlug && this.assignedSubCategories.includes(subCategorySlug)) return true;
         if (categorySlug && this.assignedCategories.includes(categorySlug)) return true;
     }
     return false;
 };
 
+// Obtener datos de moderación asignados
 userSchema.methods.getAssignedData = function() {
     return {
-        categories: this.assignedCategories,
-        subCategories: this.assignedSubCategories
+        categories: this.assignedCategories || [],
+        subCategories: this.assignedSubCategories || [],
+        canApproveAll: this.canApproveAllCategories || false
     };
 };
 
-// ✅ NUEVO MÉTODO: Obtener canales del usuario
+// Obtener todos los canales del usuario
 userSchema.methods.getUserChannels = async function() {
     const Channel = mongoose.model('Channel');
     return await Channel.find({ owner: this._id });
 };
 
-// ✅ NUEVO MÉTODO: Verificar si el usuario sigue un canal
+// Verificar si sigue un canal específico
 userSchema.methods.isFollowingChannel = function(channelId) {
-    return this.followingChannels.includes(channelId);
+    return this.followingChannels.some(id => id.toString() === channelId.toString()) || false;
 };
 
-// ✅ NUEVO MÉTODO: Seguir/Dejar de seguir canal
+// Seguir/Dejar de seguir canal
 userSchema.methods.toggleFollowChannel = async function(channelId) {
-    const index = this.followingChannels.indexOf(channelId);
+    const index = this.followingChannels.findIndex(id => id.toString() === channelId.toString());
+    let isNowFollowing = false;
+    
     if (index === -1) {
         this.followingChannels.push(channelId);
+        isNowFollowing = true;
     } else {
         this.followingChannels.splice(index, 1);
+        isNowFollowing = false;
     }
+    
     await this.save();
-    return index === -1; // true = siguiendo, false = dejó de seguir
+    return isNowFollowing;
+};
+
+// Verificar si sigue un usuario
+userSchema.methods.isFollowingUser = function(userId) {
+    return this.following.some(id => id.toString() === userId.toString()) || false;
+};
+
+// Seguir/Dejar de seguir usuario
+userSchema.methods.toggleFollowUser = async function(userId) {
+    const index = this.following.findIndex(id => id.toString() === userId.toString());
+    let isNowFollowing = false;
+    
+    if (index === -1) {
+        this.following.push(userId);
+        isNowFollowing = true;
+    } else {
+        this.following.splice(index, 1);
+        isNowFollowing = false;
+    }
+    
+    await this.save();
+    return isNowFollowing;
+};
+
+// Verificar si tiene plan activo
+userSchema.methods.hasActivePlan = function() {
+    if (this.channelPlan === 'free') return true;
+    if (!this.channelPlanExpiresAt) return true;
+    return new Date() < new Date(this.channelPlanExpiresAt);
+};
+
+// Obtener nombre del plan formateado
+userSchema.methods.getPlanName = function() {
+    const plans = {
+        free: 'Gratuit',
+        basic: 'Basique',
+        pro: 'Professionnel',
+        business: 'Entreprise'
+    };
+    return plans[this.channelPlan] || 'Gratuit';
+};
+
+// Verificar si el usuario está bloqueado permanentemente
+userSchema.methods.isPermanentlyBlocked = function() {
+    if (!this.isBlocked) return false;
+    if (!this.blockDetails.blockExpiryDate) return true; // Bloqueo permanente
+    return new Date() < new Date(this.blockDetails.blockExpiryDate);
+};
+
+// Obtener tiempo restante de bloqueo
+userSchema.methods.getBlockTimeRemaining = function() {
+    if (!this.isBlocked) return null;
+    if (!this.blockDetails.blockExpiryDate) return 'Permanent';
+    const remaining = new Date(this.blockDetails.blockExpiryDate) - new Date();
+    if (remaining <= 0) return 'Expiré';
+    const days = Math.ceil(remaining / (1000 * 60 * 60 * 24));
+    return `${days} jour${days > 1 ? 's' : ''}`;
 };
 
 module.exports = mongoose.model('user', userSchema);

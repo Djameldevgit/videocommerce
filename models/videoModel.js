@@ -123,5 +123,38 @@ videoSchema.pre('save', function(next) {
     }
     next();
 });
+// ============ MÉTODOS FALTANTES ============
 
+// Método para compartir
+videoSchema.methods.share = async function(userId) {
+    const userIdStr = userId.toString();
+    const index = this.shares.findIndex(id => id && id.toString() === userIdStr);
+    let shared = false;
+    
+    if (index === -1) {
+      this.shares.push(userId);
+      shared = true;
+    } else {
+      this.shares.splice(index, 1);
+      shared = false;
+    }
+    
+    this.updateEngagementScore();
+    await this.save();
+    return { shared, sharesCount: this.shares.length };
+  };
+  
+  // Método para actualizar tiempo de visualización
+  videoSchema.methods.updateWatchTime = async function(userId, watchTimeSeconds) {
+    if (!userId) return;
+    
+    this.watchTime = (this.watchTime || 0) + watchTimeSeconds;
+    
+    if (this.views > 0) {
+      this.averageWatchTime = this.watchTime / this.views;
+    }
+    
+    await this.save();
+    return { watchTime: this.watchTime, averageWatchTime: this.averageWatchTime };
+  };
 module.exports = mongoose.model('Video', videoSchema);

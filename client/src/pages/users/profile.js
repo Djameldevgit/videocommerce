@@ -1,4 +1,4 @@
-// src/pages/Profile.jsx - VERSIÓN CORREGIDA CON AVATAR
+// src/pages/Profile.jsx - VERSIÓN CORREGIDA CON LIKES Y DROPDOWN MEJORADO
 
 import React, { useEffect, useState, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
@@ -35,10 +35,17 @@ import {
   Clock,
   Briefcase,
   Building,
-  Eye
+  Eye,
+  Heart,
+  Bookmark,
+  People,
+  PersonPlus,
+  BoxArrowUpRight
 } from 'react-bootstrap-icons';
 import { getProfileUsers } from '../../redux/actions/profileAction';
 import { getMyChannels, deleteChannel, CHANNEL_TYPES } from '../../redux/actions/channelAction';
+//import { getSavedVideos, getLikedVideos } from '../../redux/actions/videoUserAction';
+import { getSavedVideos,getLikedVideos } from '../../redux/actions/userAction';
 import useUserPlan from '../../components/useUserPlan';
 import { GLOBALTYPES } from '../../redux/actions/globalTypes';
 import VideoCardVertical from '../../components/VideoCardVertical';
@@ -379,8 +386,116 @@ const VideosTab = ({ userId, isOwner, userRole }) => {
   );
 };
 
-// ==================== TAB INFO ====================
-const UserInfoTab = ({ user }) => {
+// ==================== TAB SAVED VIDEOS ====================
+const SavedVideosTab = ({ userId, token }) => {
+  const dispatch = useDispatch();
+  const [savedVideos, setSavedVideos] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const savedLoadedRef = useRef(false);
+
+  useEffect(() => {
+    const loadSaved = async () => {
+      if (!token || savedLoadedRef.current) return;
+      setLoading(true);
+      savedLoadedRef.current = true;
+      const result = await dispatch(getSavedVideos(token, 1, 50));
+      if (result?.success) {
+        setSavedVideos(result.videos || []);
+      }
+      setLoading(false);
+    };
+    loadSaved();
+  }, [token, dispatch]);
+
+  if (loading) {
+    return (
+      <div className="text-center py-5">
+        <Spinner animation="border" variant="primary" size="sm" />
+        <p className="mt-2 text-muted">Chargement des vidéos enregistrées...</p>
+      </div>
+    );
+  }
+
+  if (savedVideos.length === 0) {
+    return (
+      <div className="empty-state text-center py-5">
+        <Bookmark size={48} className="empty-icon text-muted mb-3" />
+        <p className="text-muted">Aucune vidéo enregistrée</p>
+        <p className="small text-muted">Les vidéos que vous sauvegardez apparaîtront ici</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="videos-tab">
+      <Row xs={2} sm={2} md={3} lg={4} className="g-2">
+        {savedVideos.map(video => (
+          <Col key={video._id}>
+            <VideoCardVertical video={video} />
+          </Col>
+        ))}
+      </Row>
+    </div>
+  );
+};
+
+// ==================== TAB LIKED VIDEOS ====================
+const LikedVideosTab = ({ userId, token }) => {
+  const dispatch = useDispatch();
+  const [likedVideos, setLikedVideos] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const likedLoadedRef = useRef(false);
+
+  useEffect(() => {
+    const loadLiked = async () => {
+      if (!token || likedLoadedRef.current) return;
+      setLoading(true);
+      likedLoadedRef.current = true;
+      const result = await dispatch(getLikedVideos(token, 1, 50));
+      if (result?.success) {
+        setLikedVideos(result.videos || []);
+      }
+      setLoading(false);
+    };
+    loadLiked();
+  }, [token, dispatch]);
+
+  if (loading) {
+    return (
+      <div className="text-center py-5">
+        <Spinner animation="border" variant="primary" size="sm" />
+        <p className="mt-2 text-muted">Chargement des vidéos aimées...</p>
+      </div>
+    );
+  }
+
+  if (likedVideos.length === 0) {
+    return (
+      <div className="empty-state text-center py-5">
+        <Heart size={48} className="empty-icon text-muted mb-3" />
+        <p className="text-muted">Aucune vidéo aimée</p>
+        <p className="small text-muted">Les vidéos que vous aimez apparaîtront ici</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="videos-tab">
+      <Row xs={2} sm={2} md={3} lg={4} className="g-2">
+        {likedVideos.map(video => (
+          <Col key={video._id}>
+            <VideoCardVertical video={video} />
+          </Col>
+        ))}
+      </Row>
+    </div>
+  );
+};
+
+// ==================== INFO MODAL ====================
+const InfoModal = ({ show, onClose, user }) => {
+  if (!show) return null;
+
   const formatDate = (dateString) => {
     if (!dateString) return 'Date non disponible';
     const date = new Date(dateString);
@@ -391,68 +506,91 @@ const UserInfoTab = ({ user }) => {
       day: 'numeric'
     });
   };
-  
+
   return (
-    <div className="user-info-tab">
-      {/* À propos */}
-      <Card className="mb-4 border-0 shadow-sm">
-        <Card.Body>
-          <h6 className="section-subtitle">
-            <PersonBadge size={16} className="me-2" />
-            À propos
-          </h6>
-          {user?.story ? (
-            <p className="mb-0 text-muted">{user.story}</p>
-          ) : (
-            <p className="mb-0 text-muted fst-italic">Aucune description</p>
-          )}
-        </Card.Body>
-      </Card>
-      
-      {/* Informations de contact */}
-      <Card className="border-0 shadow-sm">
-        <Card.Body>
-          <h6 className="section-subtitle mb-3">
-            <InfoCircle size={16} className="me-2" />
-            Informations de contact
-          </h6>
+    <div className="modal-overlay-custom" onClick={onClose}>
+      <div className="modal-content-custom info-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header-custom">
+          <h3><PersonBadge size={20} className="me-2" /> Informations du profil</h3>
+          <button className="btn-close-custom" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body-custom">
+          {/* À propos */}
+          <div className="info-section mb-4">
+            <h6 className="section-subtitle">
+              <InfoCircle size={14} className="me-2" />
+              À propos
+            </h6>
+            {user?.story ? (
+              <p className="mb-0 text-muted">{user.story}</p>
+            ) : (
+              <p className="mb-0 text-muted fst-italic">Aucune description</p>
+            )}
+          </div>
           
-          <div className="info-grid">
-            <div className="info-item">
-              <span className="info-icon"><Envelope /></span>
-              <div className="info-content">
-                <small className="text-muted">Email</small>
-                <p className="mb-0">{user?.email || 'Non renseigné'}</p>
+          {/* Contact */}
+          <div className="info-section mb-4">
+            <h6 className="section-subtitle mb-3">
+              <Envelope size={14} className="me-2" />
+              Contact
+            </h6>
+            
+            <div className="info-grid">
+              <div className="info-item">
+                <span className="info-icon"><Envelope /></span>
+                <div className="info-content">
+                  <small className="text-muted">Email</small>
+                  <p className="mb-0">{user?.email || 'Non renseigné'}</p>
+                </div>
+              </div>
+              
+              <div className="info-item">
+                <span className="info-icon"><Telephone /></span>
+                <div className="info-content">
+                  <small className="text-muted">Téléphone</small>
+                  <p className="mb-0">{user?.mobile || 'Non renseigné'}</p>
+                </div>
+              </div>
+              
+              <div className="info-item">
+                <span className="info-icon"><GeoAlt /></span>
+                <div className="info-content">
+                  <small className="text-muted">Adresse</small>
+                  <p className="mb-0">{user?.address || 'Non renseignée'}</p>
+                </div>
+              </div>
+              
+              <div className="info-item">
+                <span className="info-icon"><Globe /></span>
+                <div className="info-content">
+                  <small className="text-muted">Site web</small>
+                  {user?.website ? (
+                    <a href={user.website.startsWith('http') ? user.website : `https://${user.website}`} target="_blank" rel="noopener noreferrer">
+                      {user.website}
+                    </a>
+                  ) : (
+                    <p className="mb-0">Non renseigné</p>
+                  )}
+                </div>
               </div>
             </div>
+          </div>
+          
+          {/* Statistiques */}
+          <div className="info-section">
+            <h6 className="section-subtitle mb-3">
+              <People size={14} className="me-2" />
+              Statistiques
+            </h6>
             
-            <div className="info-item">
-              <span className="info-icon"><Telephone /></span>
-              <div className="info-content">
-                <small className="text-muted">Téléphone</small>
-                <p className="mb-0">{user?.mobile || 'Non renseigné'}</p>
+            <div className="stats-mini-grid">
+              <div className="stat-mini-item">
+                <span className="stat-mini-value">{user?.followers?.length || 0}</span>
+                <span className="stat-mini-label">Abonnés</span>
               </div>
-            </div>
-            
-            <div className="info-item">
-              <span className="info-icon"><GeoAlt /></span>
-              <div className="info-content">
-                <small className="text-muted">Adresse</small>
-                <p className="mb-0">{user?.address || 'Non renseignée'}</p>
-              </div>
-            </div>
-            
-            <div className="info-item">
-              <span className="info-icon"><Globe /></span>
-              <div className="info-content">
-                <small className="text-muted">Site web</small>
-                {user?.website ? (
-                  <a href={user.website.startsWith('http') ? user.website : `https://${user.website}`} target="_blank" rel="noopener noreferrer">
-                    {user.website}
-                  </a>
-                ) : (
-                  <p className="mb-0">Non renseigné</p>
-                )}
+              <div className="stat-mini-item">
+                <span className="stat-mini-value">{user?.following?.length || 0}</span>
+                <span className="stat-mini-label">Abonnements</span>
               </div>
             </div>
           </div>
@@ -463,70 +601,11 @@ const UserInfoTab = ({ user }) => {
               Membre depuis le {formatDate(user?.createdAt)}
             </small>
           </div>
-        </Card.Body>
-      </Card>
-    </div>
-  );
-};
-
-// ==================== TAB PLAN ====================
-const PlanInfoTab = ({ planData }) => {
-  const { 
-    planName, 
-    planLimits, 
-    isUserPro, 
-    hasActivePlan,
-    getDaysRemaining,
-    isExpired,
-    planColor,
-    planIcon
-  } = planData;
-  
-  const planFeatures = [
-    { label: 'Canaux max', value: planLimits?.maxChannels === 'unlimited' ? 'Illimité' : planLimits?.maxChannels },
-    { label: 'Vidéos max', value: planLimits?.maxVideos === 'unlimited' ? 'Illimité' : planLimits?.maxVideos },
-    { label: 'Durée max vidéo', value: `${planLimits?.maxDuration || 20} secondes` },
-    { label: 'Upload HD', value: planLimits?.canUpload ? '✅ Oui' : '❌ Non' },
-    { label: 'Analytiques', value: planLimits?.canAccessAnalytics ? '✅ Oui' : '❌ Non' }
-  ];
-  
-  return (
-    <div className="plan-info-tab">
-      <Card className="border-0 shadow-sm">
-        <Card.Body>
-          <div className="plan-header" style={{ borderBottomColor: planColor }}>
-            <div className="plan-icon" style={{ backgroundColor: `${planColor}15`, color: planColor }}>
-              {planIcon || (planName === 'Gratuit' ? '🆓' : '⭐')}
-            </div>
-            <div className="plan-details">
-              <h5 className="mb-1">Plan {planName || 'Gratuit'}</h5>
-              {isUserPro && hasActivePlan && getDaysRemaining() > 0 && (
-                <Badge bg="info" className="rounded-pill">
-                  <Clock size={10} className="me-1" />
-                  {getDaysRemaining()} jours restants
-                </Badge>
-              )}
-              {isExpired && (
-                <Badge bg="danger" className="rounded-pill">
-                  ⚠️ Expiré
-                </Badge>
-              )}
-            </div>
-          </div>
-          
-          <div className="plan-features mt-4">
-            <h6 className="section-subtitle mb-3">Caractéristiques incluses</h6>
-            <div className="features-list">
-              {planFeatures.map((feature, idx) => (
-                <div className="feature-row" key={idx}>
-                  <span className="feature-label">{feature.label}</span>
-                  <span className="feature-value">{feature.value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </Card.Body>
-      </Card>
+        </div>
+        <div className="modal-footer-custom">
+          <button className="btn-cancel-custom" onClick={onClose}>Fermer</button>
+        </div>
+      </div>
     </div>
   );
 };
@@ -545,6 +624,7 @@ const Profile = () => {
   const [activeTab, setActiveTab] = useState('channels');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [channelToDelete, setChannelToDelete] = useState(null);
+  const [showInfoModal, setShowInfoModal] = useState(false);
   
   const planData = useUserPlan();
   const { isUserPro } = planData;
@@ -676,6 +756,7 @@ const Profile = () => {
     }
   };
   const handleUpgradeToPro = () => history.push('/planes');
+  const handleShowInfo = () => setShowInfoModal(true);
  
   const ownChannels = userChannels.map(ch => ({
     ...ch,
@@ -724,7 +805,7 @@ const Profile = () => {
     <div className="profile-page">
       <Container className="py-4">
         
-        {/* Avatar + Dropdown */}
+        {/* Avatar + Dropdown - INFO MOVED TO DROPDOWN */}
         <div className="profile-header">
           <div className="avatar-section">
             <div className="avatar-container">
@@ -746,6 +827,13 @@ const Profile = () => {
               </Dropdown.Toggle>
               
               <Dropdown.Menu align="end">
+                {/* ✅ Información del perfil - MOVIDA AQUÍ */}
+                <Dropdown.Item onClick={handleShowInfo}>
+                  <InfoCircle size={14} className="me-2" /> Informations
+                </Dropdown.Item>
+                
+                <Dropdown.Divider />
+                
                 <Dropdown.Item onClick={handleUpgradeToPro} className="text-primary">
                   <Star size={14} className="me-2" /> Devenir UserPro
                 </Dropdown.Item>
@@ -782,7 +870,7 @@ const Profile = () => {
           )}
         </div>
         
-        {/* Tabs */}
+        {/* Tabs - CON LIKES AÑADIDO */}
         <div className="profile-tabs mt-4">
           <Tabs
             activeKey={activeTab}
@@ -817,13 +905,27 @@ const Profile = () => {
               </div>
             </Tab>
             
-            <Tab eventKey="info" title={
-              <span><PersonBadge size={16} className="me-2" />Infos</span>
-            }>
-              <div className="tab-content-wrapper">
-                <UserInfoTab user={currentUser} />
-              </div>
-            </Tab>
+            {/* ✅ NUEVO TAB SAVED - Solo visible para el dueño */}
+            {isOwnProfile && (
+              <Tab eventKey="saved" title={
+                <span><Bookmark size={16} className="me-2" />Enregistrés</span>
+              }>
+                <div className="tab-content-wrapper">
+                  <SavedVideosTab userId={id} token={auth.token} />
+                </div>
+              </Tab>
+            )}
+            
+            {/* ✅ NUEVO TAB LIKED - Solo visible para el dueño */}
+            {isOwnProfile && (
+              <Tab eventKey="liked" title={
+                <span><Heart size={16} className="me-2" />J'aime</span>
+              }>
+                <div className="tab-content-wrapper">
+                  <LikedVideosTab userId={id} token={auth.token} />
+                </div>
+              </Tab>
+            )}
             
             <Tab eventKey="plan" title={
               <span><CreditCard size={16} className="me-2" />Plan</span>
@@ -863,7 +965,76 @@ const Profile = () => {
           </div>
         )}
         
+        {/* Modal de información del perfil */}
+        <InfoModal 
+          show={showInfoModal} 
+          onClose={() => setShowInfoModal(false)} 
+          user={currentUser} 
+        />
+        
       </Container>
+    </div>
+  );
+};
+
+// ==================== TAB PLAN ====================
+const PlanInfoTab = ({ planData }) => {
+  const { 
+    planName, 
+    planLimits, 
+    isUserPro, 
+    hasActivePlan,
+    getDaysRemaining,
+    isExpired,
+    planColor,
+    planIcon
+  } = planData;
+  
+  const planFeatures = [
+    { label: 'Canaux max', value: planLimits?.maxChannels === 'unlimited' ? 'Illimité' : planLimits?.maxChannels },
+    { label: 'Vidéos max', value: planLimits?.maxVideos === 'unlimited' ? 'Illimité' : planLimits?.maxVideos },
+    { label: 'Durée max vidéo', value: `${planLimits?.maxDuration || 20} secondes` },
+    { label: 'Upload HD', value: planLimits?.canUpload ? '✅ Oui' : '❌ Non' },
+    { label: 'Analytiques', value: planLimits?.canAccessAnalytics ? '✅ Oui' : '❌ Non' }
+  ];
+  
+  return (
+    <div className="plan-info-tab">
+      <Card className="border-0 shadow-sm">
+        <Card.Body>
+          <div className="plan-header" style={{ borderBottomColor: planColor }}>
+            <div className="plan-icon" style={{ backgroundColor: `${planColor}15`, color: planColor }}>
+              {planIcon || (planName === 'Gratuit' ? '🆓' : '⭐')}
+            </div>
+            <div className="plan-details">
+              <h5 className="mb-1">Plan {planName || 'Gratuit'}</h5>
+              {isUserPro && hasActivePlan && getDaysRemaining() > 0 && (
+                <Badge bg="info" className="rounded-pill">
+                  <Clock size={10} className="me-1" />
+                  {getDaysRemaining()} jours restants
+                </Badge>
+              )}
+              {isExpired && (
+                <Badge bg="danger" className="rounded-pill">
+                  ⚠️ Expiré
+                </Badge>
+              )}
+            </div>
+          </div>
+          
+          <div className="plan-features mt-4">
+            <h6 className="section-subtitle mb-3">Caractéristiques incluses</h6>
+            <div className="features-list">
+              {planFeatures.map((feature, idx) => (
+                <div className="feature-row" key={idx}>
+                  <span className="feature-label">{feature.label}</span>
+                  <span className="feature-value">{feature.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Card.Body>
+      </Card>
     </div>
   );
 };

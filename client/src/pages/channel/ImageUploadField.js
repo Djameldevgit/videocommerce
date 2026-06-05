@@ -1,8 +1,8 @@
 // frontend/src/components/ImageUploadField.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const ImageUploadField = ({ 
-  images = [],  // ✅ VALOR POR DEFECTO como array vacío
+  images = [],  // Puede ser array de Files o array de objetos
   setImages, 
   label = 'Imagen',
   multiple = false,
@@ -10,8 +10,37 @@ const ImageUploadField = ({
 }) => {
   const [error, setError] = useState('');
 
-  // ✅ Verificar que images sea un array
-  const safeImages = Array.isArray(images) ? images : [];
+  // ✅ Normalizar imágenes para trabajar siempre con objetos
+  const normalizeImages = (imgs) => {
+    if (!Array.isArray(imgs)) return [];
+    
+    return imgs.map(img => {
+      // Si ya es un objeto con propiedades, devolverlo
+      if (img && typeof img === 'object' && (img.url || img.public_id)) {
+        return img;
+      }
+      // Si es un File, convertirlo a objeto
+      if (img instanceof File) {
+        return {
+          file: img,
+          url: URL.createObjectURL(img),
+          name: img.name,
+          isExisting: false
+        };
+      }
+      // Si es string (URL), convertirlo a objeto
+      if (typeof img === 'string') {
+        return {
+          url: img,
+          isExisting: true,
+          isUrl: true
+        };
+      }
+      return img;
+    });
+  };
+
+  const safeImages = normalizeImages(images);
 
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
@@ -40,7 +69,15 @@ const ImageUploadField = ({
     }
     
     if (validFiles.length > 0) {
-      setImages([...safeImages, ...validFiles]);
+      // ✅ Convertir cada File a objeto con propiedades
+      const newImages = validFiles.map(file => ({
+        file: file,
+        url: URL.createObjectURL(file),
+        name: file.name,
+        isExisting: false
+      }));
+      
+      setImages([...safeImages, ...newImages]);
       setError('');
     }
     
@@ -50,19 +87,35 @@ const ImageUploadField = ({
 
   const removeImage = (index) => {
     const newImages = [...safeImages];
+    // Liberar URL object si existe
+    if (newImages[index]?.url && newImages[index].url.startsWith('blob:')) {
+      URL.revokeObjectURL(newImages[index].url);
+    }
     newImages.splice(index, 1);
     setImages(newImages);
   };
 
   const getPreviewUrl = (image) => {
     if (!image) return '';
-    if (image instanceof File) {
-      return URL.createObjectURL(image);
-    }
+    // Si tiene url en el objeto
+    if (image.url) return image.url;
+    // Si es File
+    if (image instanceof File) return URL.createObjectURL(image);
+    // Si es string
     if (typeof image === 'string') return image;
-    if (image?.url) return image.url;
     return '';
   };
+
+  // ✅ Limpiar URLs al desmontar
+  useEffect(() => {
+    return () => {
+      safeImages.forEach(img => {
+        if (img.url && img.url.startsWith('blob:')) {
+          URL.revokeObjectURL(img.url);
+        }
+      });
+    };
+  }, []);
 
   return (
     <div className="image-upload-field mb-3">
@@ -82,6 +135,9 @@ const ImageUploadField = ({
                   objectFit: 'cover', 
                   borderRadius: '8px',
                   border: '2px solid #ddd'
+                }}
+                onError={(e) => {
+                  e.target.src = '/placeholder-image.png';
                 }}
               />
               <button

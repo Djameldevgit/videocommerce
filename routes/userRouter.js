@@ -1,17 +1,16 @@
+// routes/userRoutes.js
 const router = require('express').Router()
 const auth = require("../middleware/auth")
 const userCtrl = require('../controllers/userCtrl')
 
 // ============================================
-// 1️⃣ RUTAS ESTÁTICAS (sin parámetros dinámicos)
+// 1️⃣ RUTAS ESTÁTICAS
 // ============================================
-//router.get('/users', auth, userCtrl.getUsers)
 router.get('/users', auth, userCtrl.getUsersAction)
 router.get('/users/admins', auth, userCtrl.getAdmins)
 router.get('/users/search', auth, userCtrl.searchUser)
- 
 router.get('/inactive-users', auth, userCtrl.getInactiveUsers)
- 
+
 // ============================================
 // 2️⃣ RUTAS DE CONTACTO Y SOPORTE
 // ============================================
@@ -33,12 +32,13 @@ router.patch('/user', auth, userCtrl.updateUser)
 router.delete('/user/:id', auth, userCtrl.deleteUser)
 
 // ============================================
-// 5️⃣ RUTAS DE SEGUIDORES (FOLLOW/UNFOLLOW)
+// 5️⃣ RUTAS DE SEGUIDORES
 // ============================================
 router.patch('/user/:id/follow', auth, userCtrl.follow)
 router.patch('/user/:id/unfollow', auth, userCtrl.unfollow)
+
 // ============================================
-// 6️⃣ RUTAS DE ACTIVACIÓN/DESACTIVACIÓN (cuenta normal)
+// 6️⃣ RUTAS DE ACTIVACIÓN/DESACTIVACIÓN
 // ============================================
 router.patch('/toggle_active/:id', auth, userCtrl.toggleActiveStatus)
 router.patch('/user/:id/activate', auth, userCtrl.activateUser)
@@ -56,29 +56,39 @@ router.patch('/user/:id/unblock', auth, userCtrl.unblockUser)
 router.patch('/user/:userId/activate-pro', auth, userCtrl.activatePro)
 router.patch('/user/:userId/deactivate-pro', auth, userCtrl.deactivatePro)
 
-router.get('/user/:userId/followers', auth, userCtrl.getFollowers);
-router.get('/user/:userId/following', auth, userCtrl.getFollowing);
-router.get('/user/:userId/profile-views', auth, userCtrl.getProfileViews);
-//router.post('/user/:userId/profile-view', auth, userCtrl.registerProfileView);
-router.get('/user/:userId/profile', auth, userCtrl.getUserProfile);
- // Perfil de usuario (no canal)
- 
+// ============================================
+// 9️⃣ RUTAS DE PERFIL Y ESTADÍSTICAS
+// ============================================
+router.get('/user/:userId/followers', auth, userCtrl.getFollowers)
+router.get('/user/:userId/following', auth, userCtrl.getFollowing)
+router.get('/user/:userId/profile-views', auth, userCtrl.getProfileViews)
+router.get('/user/:userId/profile', auth, userCtrl.getUserProfile)
+router.get('/channel/:userId', auth, userCtrl.getChannelProfile)
+router.patch('/user/:userId/profile-view', auth, userCtrl.registerProfileView)
+router.get('/user/:userId/profile-stats', auth, userCtrl.getProfileStats)
 
-// Después (perfil del canal)
-router.get('/channel/:userId', auth, userCtrl.getChannelProfile);
-// routes/adminRoutes.js - AÑADIR ESTAS RUTAS
-// Actualizar plan de usuario
-router.patch('/users/:userId/plan', auth, userCtrl.updateUserPlan);
+// ============================================
+// 🔟 RUTAS DE PLANES Y TRANSACCIONES
+// ============================================
+router.patch('/users/:userId/plan', auth, userCtrl.updateUserPlan)
+router.get('/users/:userId/transactions', auth, userCtrl.getUserTransactions)
 
-// Obtener transacciones de un usuario
-router.get('/users/:userId/transactions', auth, userCtrl.getUserTransactions);
+// ============================================
+// 1️⃣1️⃣ RUTAS DE VIDEOS GUARDADOS
+// ============================================
+router.patch('/user/save-video/:videoId', auth, userCtrl.saveVideo)
+router.get('/user/check-saved/:videoId', auth, userCtrl.checkSavedVideo)
+router.get('/user/saved-videos', auth, userCtrl.getSavedVideos)  // ✅ GET - VIDEOS GUARDADOS
+router.post('/videos/:videoId/save', auth, userCtrl.toggleSaveVideo)
 
-router.patch('/user/:userId/profile-view', auth, userCtrl.registerProfileView);
-router.get('/user/:userId/profile-stats', auth, userCtrl.getProfileStats);
-router.get('/user/:userId/profile-views', auth, userCtrl.getProfileViews); // Y
-router.patch('/user/save-video/:videoId', auth, userCtrl.saveVideo);
-router.get('/user/check-saved/:videoId', auth, userCtrl.checkSavedVideo);
-router.get('/user/saved-videos', auth, userCtrl.getSavedVideos);
+// ============================================
+// 🆕 1️⃣2️⃣ RUTAS DE VIDEOS CON LIKE (FALTANTES)
+// ============================================
+router.get('/user/liked-videos', auth, userCtrl.getLikedVideos)  // ✅ NUEVA - VIDEOS CON LIKE
+
+// ============================================
+// 🆕 1️⃣3️⃣ RUTAS DE VIDEOS DEL USUARIO
+// ============================================
+router.get('/users/:userId/videos', auth, userCtrl.getUserVideos)  // ✅ NUEVA - VIDEOS DEL USUARIO
+
 module.exports = router
-
- 

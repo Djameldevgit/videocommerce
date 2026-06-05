@@ -6,32 +6,51 @@ import { createNotify } from './notifyAction'; // ✅ Importar createNotify
 
 // redux/actions/videoAction.js - AGREGAR ESTOS TIPOS
 
+// redux/actions/videoAction.js
+// ============================================
+// 📦 TIPOS DE ACCIONES - COMPLETO
+// ============================================
+
 export const VIDEO_TYPES = {
+  // ============ ESTADOS DE CARGA ============
   LOADING: 'VIDEO_LOADING',
   LOADING_BY_CATEGORY: 'LOADING_BY_CATEGORY',
-  GET_VIDEOS: 'GET_VIDEOS',
+  TRENDING_LOADING: 'TRENDING_LOADING',
+  MUSIC_LOADING: 'MUSIC_LOADING',
+  
+  // ============ CRUD BÁSICO ============
+  CREATE_VIDEO: 'CREATE_VIDEO',
+  UPDATE_VIDEO: 'UPDATE_VIDEO',
+  DELETE_VIDEO: 'DELETE_VIDEO',
   GET_VIDEO: 'GET_VIDEO',
+  GET_VIDEOS: 'GET_VIDEOS',
+  GET_PENDING_VIDEO: 'GET_PENDING_VIDEO',
+  
+  // ============ LISTADOS PÚBLICOS ============
   GET_FEATURED_VIDEOS: 'GET_FEATURED_VIDEOS',
   GET_POPULAR_VIDEOS: 'GET_POPULAR_VIDEOS',
   GET_RELATED_VIDEOS: 'GET_RELATED_VIDEOS',
   GET_VIDEOS_BY_CATEGORY: 'GET_VIDEOS_BY_CATEGORY',
   GET_TRENDING_VIDEOS: 'GET_TRENDING_VIDEOS',
-  TRENDING_LOADING: 'TRENDING_LOADING',
   LOAD_MORE_TRENDING: 'LOAD_MORE_TRENDING',
-  CREATE_VIDEO: 'CREATE_VIDEO',
-  UPDATE_VIDEO: 'UPDATE_VIDEO',
-  DELETE_VIDEO: 'DELETE_VIDEO',
+  
+  // ============ INTERACCIONES ============
   LIKE_VIDEO: 'LIKE_VIDEO',
   SHARE_VIDEO: 'SHARE_VIDEO',
+  INCREMENT_VIEW: 'INCREMENT_VIEW',
+  TOGGLE_SAVE_VIDEO: 'TOGGLE_SAVE_VIDEO',
+  GET_SAVED_VIDEOS: 'GET_SAVED_VIDEOS',
+  GET_LIKED_VIDEOS: 'GET_LIKED_VIDEOS',
+  
+  // ============ ESTADÍSTICAS ============
   UPDATE_VIDEO_STATS: 'UPDATE_VIDEO_STATS',
   UPDATE_VIDEO_ENGAGEMENT: 'UPDATE_VIDEO_ENGAGEMENT',
-  INCREMENT_VIEW: 'INCREMENT_VIEW',
-  MUSIC_LOADING: 'MUSIC_LOADING',
+  
+  // ============ MÚSICA ============
   GET_MUSIC_LIBRARY: 'GET_MUSIC_LIBRARY',
   MUSIC_ERROR: 'MUSIC_ERROR',
-  GET_PENDING_VIDEO: 'GET_PENDING_VIDEO',
   
-  // 🆕 TIPOS COMERCIALES
+  // ============ COMERCIALES ============
   GET_COMMERCIAL_VIDEOS: 'GET_COMMERCIAL_VIDEOS',
   GET_NEARBY_VIDEOS: 'GET_NEARBY_VIDEOS',
   UPDATE_VIDEO_STOCK: 'UPDATE_VIDEO_STOCK',
@@ -39,15 +58,12 @@ export const VIDEO_TYPES = {
   UPDATE_VIDEO_LOCATION: 'UPDATE_VIDEO_LOCATION',
   GET_MY_COMMERCIAL_VIDEOS: 'GET_MY_COMMERCIAL_VIDEOS',
   FEATURE_VIDEO: 'FEATURE_VIDEO',
-
-
+  
+  // ============ VIDEOS DE USUARIO ============
   GET_USER_VIDEOS_REQUEST: 'GET_USER_VIDEOS_REQUEST',
   GET_USER_VIDEOS_SUCCESS: 'GET_USER_VIDEOS_SUCCESS',
   GET_USER_VIDEOS_FAIL: 'GET_USER_VIDEOS_FAIL',
-  CLEAR_USER_VIDEOS: 'CLEAR_USER_VIDEOS',
-
-
-
+  CLEAR_USER_VIDEOS: 'CLEAR_USER_VIDEOS'
 };
 
 // redux/actions/categoryAction.js - AÑADIR ESTAS ACCIONES
@@ -80,52 +96,8 @@ export const getCategoriesWithVideos = (page = 1, limit = 2) => async (dispatch)
   }
 };
  
-
-// ✅ Obtener videos guardados
-export const getSavedVideos = (token, page = 1, limit = 12) => async (dispatch) => {
-  try {
-    console.log('📥 getSavedVideos - token presente:', !!token);
-    
-    // ✅ URL CORRECTA - sin token en la URL
-    const url = `user/saved-videos?page=${page}&limit=${limit}`;
-    const res = await getDataAPI(url, token);
-    
-    console.log('✅ getSavedVideos - respuesta:', res.data?.savedVideos?.length || 0, 'videos');
-    
-    dispatch({
-      type: 'GET_SAVED_VIDEOS',
-      payload: res.data.savedVideos || []
-    });
-    
-    return res.data;
-  } catch (err) {
-    console.error('❌ getSavedVideos error:', err);
-    return { success: false };
-  }
-};
-
-// ✅ Obtener videos liked
-export const getLikedVideos = (token, page = 1, limit = 12) => async (dispatch) => {
-  try {
-    console.log('📥 getLikedVideos - token presente:', !!token);
-    
-    // ✅ URL CORRECTA - sin token en la URL
-    const url = `user/liked-videos?page=${page}&limit=${limit}`;
-    const res = await getDataAPI(url, token);
-    
-    console.log('✅ getLikedVideos - respuesta:', res.data?.likedVideos?.length || 0, 'videos');
-    
-    dispatch({
-      type: 'GET_LIKED_VIDEOS',
-      payload: res.data.likedVideos || []
-    });
-    
-    return res.data;
-  } catch (err) {
-    console.error('❌ getLikedVideos error:', err);
-    return { success: false };
-  }
-};
+ 
+ 
 export const loadMoreCategories = (page = 1, limit = 2) => async (dispatch, getState) => {
   try {
     dispatch({ type: types.LOAD_MORE_CATEGORIES });
@@ -602,39 +574,6 @@ export const likeVideo = (id, token, auth, socket, videoData) => async (dispatch
   }
 };
 
-// ✅ Compartir video CON NOTIFICACIÓN
-export const shareVideo = (id, token, auth, socket, videoData) => async (dispatch) => {
-  try {
-    const res = await patchDataAPI(`videos/${id}/share`, {}, token);
-    
-    dispatch({
-      type: VIDEO_TYPES.SHARE_VIDEO,
-      payload: { id, shares: res.data.shares, shared: res.data.shared }
-    });
-    
-    // ✅ Notificar al dueño del video que fue compartido
-    if (res.data.shared && videoData && videoData.user?._id && videoData.user._id !== auth.user._id) {
-      const msg = {
-        id: auth.user._id,
-        text: `🔄 @${auth.user.username} a partagé votre vidéo`,
-        recipients: [videoData.user._id],
-        url: `/video/${id}`,
-        content: videoData.title,
-        image: videoData.thumbnail,
-        type: 'video'
-      };
-      
-      dispatch(createNotify({ msg, auth, socket }));
-    }
-    
-    return { shared: res.data.shared, shares: res.data.shares };
-  } catch (err) {
-    console.error('Error shareVideo:', err);
-    return { shared: false, shares: 0 };
-  }
-};
-
- 
  
  
  // redux/actions/videoAction.js
@@ -718,25 +657,7 @@ export const getVideoByIdPrivate = (id, token) => async (dispatch) => {
 // redux/actions/videoAction.js (añadir/verificar esta función)
 
 // ✅ Tracking tiempo de visualización
-export const trackWatchTime = (id, watchTime, token) => async (dispatch) => {
-  try {
-    if (!token || !id || !watchTime) return;
-    
-    const res = await postDataAPI(`videos/${id}/watch-time`, { watchTime }, token);
-    console.log(`📊 WatchTime registrado: ${watchTime}s para video ${id}`);
-    return res.data;
-  } catch (err) {
-    console.error('❌ Error trackWatchTime:', err.response?.data?.message || err.message);
-  }
-};
-export const getPopularVideos = (limit = 10) => async (dispatch) => {
-  try {
-    const res = await getDataAPI(`videos/popular?limit=${limit}`);
-    dispatch({ type: VIDEO_TYPES.GET_POPULAR_VIDEOS, payload: res.data.videos });
-  } catch (err) {
-    console.error('Error getPopularVideos:', err);
-  }
-};
+ 
 
 // redux/actions/videoAction.js
 
@@ -857,14 +778,154 @@ export const getUserVideos = (userId, filter = 'all', page = 1, limit = 12) => a
   }
 };
 // ============================================
-// 🗑️ LIMPIAR VIDEOS DEL USUARIO
+// ⏱️ TRACKING DE TIEMPO DE VISUALIZACIÓN
 // ============================================
+export const trackWatchTime = (videoId, watchTimeSeconds, token) => async (dispatch, getState) => {
+  try {
+    if (!token || !videoId || watchTimeSeconds < 1) return;
+    
+    // Solo registrar cada 5 segundos para evitar muchas peticiones
+    const lastTrackedKey = `last_tracked_${videoId}`;
+    const lastTracked = sessionStorage.getItem(lastTrackedKey);
+    const now = Date.now();
+    
+    if (lastTracked && (now - parseInt(lastTracked)) < 5000) {
+      return; // No registrar más de una vez cada 5 segundos
+    }
+    
+    sessionStorage.setItem(lastTrackedKey, now);
+    
+    const res = await postDataAPI(`videos/${videoId}/watch-time`, { watchTime: watchTimeSeconds }, token);
+    
+    if (res.data.success) {
+      dispatch({
+        type: VIDEO_TYPES.UPDATE_VIDEO_STATS,
+        payload: {
+          videoId,
+          stats: {
+            watchTime: res.data.watchTime,
+            averageWatchTime: res.data.averageWatchTime
+          }
+        }
+      });
+      
+      console.log(`⏱️ WatchTime registrado: ${watchTimeSeconds}s para video ${videoId}`);
+    }
+    
+    return res.data;
+  } catch (err) {
+    console.error('❌ Error trackWatchTime:', err);
+  }
+};
+export const toggleSaveVideo = (videoId, token, auth, socket, videoData) => async (dispatch) => {
+  try {
+    // Verificar si ya está guardado en el estado actual
+    const isSaved = auth.user?.savedVideos?.includes(videoId) || false;
+    
+    // Optimistic update
+    dispatch({
+      type: 'USER_UPDATE_SAVED',
+      payload: { videoId, isSaved: !isSaved }
+    });
+    
+    const res = await postDataAPI(`videos/${videoId}/save`, {}, token);
+    
+    if (res.data.success) {
+      // ✅ Notificar al dueño del video (solo si es guardado, no cuando se quita)
+      if (!isSaved && videoData && videoData.user?._id && videoData.user._id !== auth.user._id) {
+        const msg = {
+          id: auth.user._id,
+          text: `🔖 @${auth.user.username} a guardado tu video en favoritos`,
+          recipients: [videoData.user._id],
+          url: `/video/${videoId}`,
+          content: videoData.title,
+          image: videoData.thumbnail,
+          type: 'video'
+        };
+        dispatch(createNotify({ msg, auth, socket }));
+      }
+      
+      dispatch({
+        type: GLOBALTYPES.ALERT,
+        payload: { success: !isSaved ? '✓ Video guardado' : '✓ Video eliminado de favoritos' }
+      });
+    }
+    
+    return { success: true, isSaved: !isSaved };
+  } catch (err) {
+    console.error('Error toggleSaveVideo:', err);
+    // Revertir optimistic update
+    dispatch({
+      type: 'USER_UPDATE_SAVED',
+      payload: { videoId, isSaved: !isSaved }
+    });
+    dispatch({
+      type: GLOBALTYPES.ALERT,
+      payload: { error: err.response?.data?.message || 'Error al guardar video' }
+    });
+    return { success: false, error: err.message };
+  }
+};
+
+// ============================================
+// 📤 COMPARTIR VIDEO (COMPLETO CON NOTIFICACIÓN)
+// ============================================
+export const shareVideo = (id, token, auth, socket, videoData) => async (dispatch) => {
+  try {
+    dispatch({ type: VIDEO_TYPES.LOADING, payload: true });
+    
+    const res = await patchDataAPI(`videos/${id}/share`, {}, token);
+    
+    if (res.data.success) {
+      dispatch({
+        type: VIDEO_TYPES.SHARE_VIDEO,
+        payload: { 
+          id, 
+          shares: res.data.shares, 
+          shared: res.data.shared 
+        }
+      });
+      
+      // ✅ Notificar al dueño del video (solo cuando se comparte, no cuando se quita)
+      if (res.data.shared && videoData && videoData.user?._id && videoData.user._id !== auth.user._id) {
+        const msg = {
+          id: auth.user._id,
+          text: `🔄 @${auth.user.username} ha compartido tu video`,
+          recipients: [videoData.user._id],
+          url: `/video/${id}`,
+          content: videoData.title,
+          image: videoData.thumbnail,
+          type: 'video'
+        };
+        
+        dispatch(createNotify({ msg, auth, socket }));
+      }
+      
+      dispatch({
+        type: GLOBALTYPES.ALERT,
+        payload: { success: res.data.shared ? '✓ Video compartido' : '✓ Compartido eliminado' }
+      });
+    }
+    
+    dispatch({ type: VIDEO_TYPES.LOADING, payload: false });
+    return { shared: res.data.shared, shares: res.data.shares };
+  } catch (err) {
+    console.error('❌ Error shareVideo:', err);
+    dispatch({
+      type: GLOBALTYPES.ALERT,
+      payload: { error: err.response?.data?.message || 'Error al compartir video' }
+    });
+    dispatch({ type: VIDEO_TYPES.LOADING, payload: false });
+    return { shared: false, shares: 0 };
+  }
+};
 export const clearUserVideos = () => ({
   type: VIDEO_TYPES.CLEAR_USER_VIDEOS
 });
 
-export const toggleSaveVideo = () => ({
-  type: VIDEO_TYPES.CLEAR_USER_VIDEOS
-});
+ 
+ // redux/actions/videoAction.js
 
+// ✅ CORRECTO - Usa la ruta de userRoutes
+ 
  

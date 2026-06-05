@@ -34,7 +34,7 @@ import filter from './filterReducer.'
 import carousel from './carouselReducer'
 import video  from './videoReducer'
 import videoApprove from './videoApproveReducer';
-import userVideo from './userVideoReducer'; // ✅ NUEVO
+ 
 import image from './imageReducer'
 import channel  from './channelReducer'
  
@@ -71,5 +71,5 @@ export default combineReducers({
     category,
     accordionReducer,
     filter,
-    carousel,video ,videoApprove,userVideo ,image, channel  
+    carousel,video ,videoApprove  ,image, channel  
 })

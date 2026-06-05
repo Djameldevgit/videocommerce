@@ -1,4 +1,3 @@
-// backend/controllers/channelCtrl.js
 const Channel = require('../models/channelModel');
 const Video = require('../models/videoModel');
 const User = require('../models/userModel');
@@ -189,11 +188,6 @@ const createChannel = async (req, res) => {
         });
     }
 };
-// backend/controllers/channelCtrl.js
-
-// backend/controllers/channelCtrl.js
-
-// backend/controllers/channelCtrl.js
 
 // ==================== OBTENER MIS CANALES (CORREGIDO) ====================
 const getMyChannels = async (req, res) => {
@@ -411,16 +405,17 @@ const updateChannel = async (req, res) => {
     }
 };
 
-// backend/controllers/channelCtrl.js
-
-// backend/controllers/channelCtrl.js
-
-// ==================== OBTENER PERFIL DEL CANAL (CORREGIDO) ====================
 const getChannelProfile = async (req, res) => {
     try {
         const { channelId } = req.params;
         const currentUserId = req.user ? req.user._id : null;
-        const isAdmin = req.user ? req.user.role === 'admin' : false;
+        const userRole = req.user ? req.user.role : null;
+        const isAdmin = userRole === 'admin';
+
+        console.log('📺 getChannelProfile llamado:');
+        console.log('   - channelId:', channelId);
+        console.log('   - currentUserId:', currentUserId);
+        console.log('   - userRole:', userRole);
 
         if (!mongoose.Types.ObjectId.isValid(channelId)) {
             return res.status(400).json({ success: false, message: 'ID inválido' });
@@ -431,10 +426,11 @@ const getChannelProfile = async (req, res) => {
             .lean();
 
         if (!channel) {
+            console.log('❌ Canal no encontrado en BD');
             return res.status(404).json({ success: false, message: 'Canal no encontrado' });
         }
 
-        // ✅ Verificar si el usuario actual es el DUEÑO del canal
+        // ✅ VERIFICAR SI EL USUARIO ACTUAL ES EL DUEÑO
         const isOwner = currentUserId && channel.owner._id.toString() === currentUserId.toString();
 
         console.log('📺 Canal encontrado:', {
@@ -443,16 +439,16 @@ const getChannelProfile = async (req, res) => {
             pending: channel.pending,
             isActive: channel.isActive,
             isOwner: isOwner,
-            isAdmin: isAdmin,
-            currentUserId: currentUserId,
-            ownerId: channel.owner._id.toString()
+            isAdmin: isAdmin
         });
 
-        // ✅ REGLA NÚMERO 1: El DUEÑO siempre puede ver su canal (pendiente o no)
+        // ============================================
+        // ✅ REGLA 1: EL DUEÑO SIEMPRE PUEDE VER SU CANAL
+        // ============================================
         if (isOwner) {
-            console.log(`👑 Dueño viendo su canal: ${channel.name} (pending: ${channel.pending})`);
+            console.log(`👑 Dueño viendo su canal pendiente: ${channel.name}`);
             
-            // Obtener estadísticas de videos para el dueño (incluye pendientes? No, solo publicados)
+            // Obtener estadísticas (solo videos publicados para el dueño)
             const stats = await Video.aggregate([
                 { $match: { channel: new mongoose.Types.ObjectId(channelId), isActive: true, pendiente: false } },
                 { $group: {
@@ -465,6 +461,7 @@ const getChannelProfile = async (req, res) => {
 
             const statsData = stats.length > 0 ? stats[0] : { totalVideos: 0, totalLikes: 0, totalViews: 0 };
 
+            // ✅ Devolver el canal COMPLETO (incluyendo pending: true)
             const profileData = {
                 _id: channel._id.toString(),
                 name: channel.name,
@@ -482,7 +479,7 @@ const getChannelProfile = async (req, res) => {
                 totalLikes: statsData.totalLikes,
                 owner: channel.owner,
                 isFollowing: false,
-                pending: channel.pending || false,
+                pending: channel.pending || false,  // ✅ MANTENER EL ESTADO PENDING
                 isActive: channel.isActive !== false,
                 email: channel.email || '',
                 phone: channel.phone || '',
@@ -494,7 +491,9 @@ const getChannelProfile = async (req, res) => {
             return res.json({ success: true, profile: profileData });
         }
 
-        // ✅ REGLA NÚMERO 2: ADMIN puede ver cualquier canal
+        // ============================================
+        // ✅ REGLA 2: ADMIN PUEDE VER CUALQUIER CANAL
+        // ============================================
         if (isAdmin) {
             console.log(`👑 Admin viendo canal: ${channel.name} (pending: ${channel.pending})`);
             
@@ -527,7 +526,9 @@ const getChannelProfile = async (req, res) => {
             return res.json({ success: true, profile: profileData });
         }
 
-        // ✅ REGLA NÚMERO 3: Usuarios NORMALES solo ven canales aprobados y activos
+        // ============================================
+        // ✅ REGLA 3: USUARIOS NORMALES SOLO VEN CANALES APROBADOS
+        // ============================================
         if (channel.pending) {
             console.log(`❌ Canal pendiente bloqueado para usuario normal: ${channel.name}`);
             return res.status(404).json({ 

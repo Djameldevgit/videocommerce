@@ -85,49 +85,112 @@ export const CHANNEL_TYPES = {
 
  
 // ==================== CREAR CANAL (como createPost) ====================
+// redux/actions/channelAction.js
+
 export const createChannel = ({ 
     channelData,   // { name, activity, description, wilaya, commune, phone, email, website }
-    avatar,        // Array de File objects (como images en createPost)
-    cover,         // Array de File objects (como images en createPost)
+    avatar,        // Array de objetos de imagen
+    cover,         // Array de objetos de imagen
     auth 
 }) => async (dispatch) => {
     let uploadedAvatar = [];
     let uploadedCover = [];
     
     try {
+        console.log('🚀 createChannel INICIADO');
+        console.log('📝 channelData:', channelData);
+        console.log('📸 avatar tiene archivos?', avatar?.length);
+        console.log('📸 cover tiene archivos?', cover?.length);
+        console.log('🔑 Token presente?', !!auth?.token);
+        
         dispatch({ type: GLOBALTYPES.ALERT, payload: { loading: true } });
         
-        // ✅ EXACTAMENTE IGUAL QUE createPost
+        // ✅ SUBIR AVATAR SI EXISTE (como array)
         if(avatar && avatar.length > 0) {
-            uploadedAvatar = await imageUpload2(avatar);
+            console.log('📤 Subiendo avatar...', avatar.length, 'imagen(es)');
+            try {
+                uploadedAvatar = await imageUpload2(avatar);
+                console.log('✅ Avatar subido:', uploadedAvatar);
+            } catch (uploadErr) {
+                console.error('❌ Error subiendo avatar:', uploadErr);
+                throw new Error(`Error al subir avatar: ${uploadErr.message}`);
+            }
         }
         
+        // ✅ SUBIR COVER SI EXISTE (como array)
         if(cover && cover.length > 0) {
-            uploadedCover = await imageUpload2(cover);
+            console.log('📤 Subiendo cover...', cover.length, 'imagen(es)');
+            try {
+                uploadedCover = await imageUpload2(cover);
+                console.log('✅ Cover subido:', uploadedCover);
+            } catch (uploadErr) {
+                console.error('❌ Error subiendo cover:', uploadErr);
+                throw new Error(`Error al subir cover: ${uploadErr.message}`);
+            }
         }
         
-        // ✅ EXACTAMENTE IGUAL QUE createPost
-        const res = await postDataAPI('channels', { 
+        // ✅ PREPARAR DATOS PARA ENVIAR
+        const dataToSend = { 
             ...channelData,
             avatar: uploadedAvatar,
             cover: uploadedCover
-        }, auth.token);
+        };
         
-        dispatch({ 
-            type: CHANNEL_TYPES.CREATE_CHANNEL, 
-            payload: res.data.channel 
-        });
+        console.log('📡 Enviando petición POST a /api/channels');
+        console.log('📦 Datos a enviar:', JSON.stringify({
+            ...dataToSend,
+            avatar: uploadedAvatar.length,
+            cover: uploadedCover.length
+        }));
         
-        dispatch({ type: GLOBALTYPES.ALERT, payload: { loading: false } });
+        // ✅ ENVIAR PETICIÓN CON TRY-CATCH ESPECÍFICO
+        let res;
+        try {
+            res = await postDataAPI('channels', dataToSend, auth.token);
+            console.log('📡 Respuesta recibida:', res);
+            console.log('📡 Status:', res.status);
+            console.log('📡 Data:', res.data);
+        } catch (apiErr) {
+            console.error('❌ Error en la petición API:', apiErr);
+            console.error('❌ Response error:', apiErr.response?.data);
+            throw new Error(apiErr.response?.data?.msg || apiErr.response?.data?.message || 'Error de conexión con el servidor');
+        }
         
-        return { success: true, channel: res.data.channel };
+        if (res.data?.success) {
+            console.log('✅ Canal creado exitosamente:', res.data.channel);
+            
+            dispatch({ 
+                type: CHANNEL_TYPES.CREATE_CHANNEL_SUCCESS, 
+                payload: res.data.channel 
+            });
+            
+            dispatch({ 
+                type: GLOBALTYPES.ALERT, 
+                payload: { success: res.data.msg || 'Canal créé avec succès!' } 
+            });
+            
+            return { success: true, channel: res.data.channel };
+        } else {
+            const errorMsg = res.data?.msg || res.data?.message || 'Error desconocido al crear canal';
+            console.error('❌ Error en respuesta:', errorMsg);
+            throw new Error(errorMsg);
+        }
         
     } catch (err) {
+        console.error('❌ Error capturado en createChannel:', err);
+        console.error('❌ Mensaje:', err.message);
+        
+        const errorMessage = err.message || 'Error al crear el canal';
+        
         dispatch({
             type: GLOBALTYPES.ALERT,
-            payload: { error: err.response?.data?.msg || err.message }
+            payload: { error: errorMessage }
         });
-        return { success: false, error: err.response?.data?.msg };
+        
+        return { success: false, error: errorMessage };
+        
+    } finally {
+        dispatch({ type: GLOBALTYPES.ALERT, payload: { loading: false } });
     }
 };
 
@@ -226,8 +289,7 @@ export const updateChannel = ({
     } finally {
         dispatch({ type: GLOBALTYPES.ALERT, payload: { loading: false } });
     }
-};
-// ==================== ACTUALIZAR CANAL (como updatePost) ====================
+}
  
 // ==================== OBTENER PERFIL DEL CANAL ====================
 // frontend/src/redux/actions/channelAction.js

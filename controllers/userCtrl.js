@@ -6,6 +6,7 @@ const Video = require('../models/videoModel');
 const sendMail = require('./sendMail');
 const Report = require('../models/reportModel');
 const Channel = require('../models/channelModel');
+
 class APIfeatures {
   constructor(query, queryString) {
     this.query = query;
@@ -23,22 +24,20 @@ class APIfeatures {
 
 const userCtrl = {
 
-  
-  
   // ==================== PERFIL DEL CANAL (PÚBLICO) ====================
-   getChannelProfile : async (req, res) => {
+  getChannelProfile: async (req, res) => {
     try {
-      const { channelId } = req.params; // ID del canal, no del usuario
+      const { channelId } = req.params;
       const currentUserId = req.user._id;
-  
+
       const channel = await Channel.findById(channelId)
         .populate('owner', 'username avatar fullname isPro role')
         .lean();
-  
+
       if (!channel || !channel.isActive) {
         return res.status(404).json({ success: false, message: 'Canal no encontrado' });
       }
-  
+
       let isFollowing = false;
       if (currentUserId) {
         const currentUser = await Users.findById(currentUserId).select('followingChannels');
@@ -46,8 +45,7 @@ const userCtrl = {
           isFollowing = currentUser.followingChannels.some(id => id.toString() === channel._id.toString());
         }
       }
-  
-      // Estadísticas de videos del canal
+
       const videoStats = await Video.aggregate([
         { $match: { channel: channel._id, pendiente: false, isActive: true } },
         {
@@ -60,7 +58,7 @@ const userCtrl = {
           }
         }
       ]);
-  
+
       const profileData = {
         _id: channel._id,
         name: channel.name,
@@ -87,54 +85,50 @@ const userCtrl = {
         },
         isFollowing
       };
-  
-      // Si el usuario actual es el dueño, mostrar datos privados
+
       if (currentUserId && channel.owner._id.toString() === currentUserId.toString()) {
         profileData.email = channel.email;
         profileData.phone = channel.phoneHidden ? null : channel.phone;
         profileData.website = channel.website;
         profileData.delivery = channel.delivery;
       }
-  
+
       res.json({ success: true, profile: profileData });
     } catch (err) {
       console.error('❌ getChannelProfile error:', err);
       res.status(500).json({ success: false, message: err.message });
     }
   },
-  
+
   // ==================== SEGUIR / DEJAR DE SEGUIR CANAL ====================
-    toggleFollowChannel : async (req, res) => {
+  toggleFollowChannel: async (req, res) => {
     try {
       const { channelId } = req.params;
       const userId = req.user._id;
-  
+
       const channel = await Channel.findById(channelId);
       if (!channel) {
         return res.status(404).json({ success: false, message: 'Canal no encontrado' });
       }
-  
+
       const user = await Users.findById(userId);
       let isFollowing = false;
-      const alreadyFollowing = user.followingChannels.includes(channelId);
-  
+      const alreadyFollowing = user.followingChannels.includes(channelId) || false;
+
       if (alreadyFollowing) {
-        // Dejar de seguir
         await Users.findByIdAndUpdate(userId, { $pull: { followingChannels: channelId } });
         await Channel.findByIdAndUpdate(channelId, { $pull: { followers: userId } });
         isFollowing = false;
       } else {
-        // Seguir
         await Users.findByIdAndUpdate(userId, { $addToSet: { followingChannels: channelId } });
         await Channel.findByIdAndUpdate(channelId, { $addToSet: { followers: userId } });
         isFollowing = true;
       }
-  
-      // Actualizar contador de seguidores del canal
+
       const updatedChannel = await Channel.findById(channelId);
       updatedChannel.followersCount = updatedChannel.followers.length;
       await updatedChannel.save();
-  
+
       res.json({
         success: true,
         isFollowing,
@@ -145,9 +139,9 @@ const userCtrl = {
       res.status(500).json({ success: false, message: err.message });
     }
   },
-  
+
   // ==================== OBTENER SEGUIDORES DE UN CANAL ====================
-  getChannelFollowers : async (req, res) => {
+  getChannelFollowers: async (req, res) => {
     try {
       const { channelId } = req.params;
       const channel = await Channel.findById(channelId).populate('followers', 'username avatar fullname bio');
@@ -159,9 +153,9 @@ const userCtrl = {
       res.status(500).json({ success: false, message: err.message });
     }
   },
-  
+
   // ==================== OBTENER CANALES QUE SIGUE UN USUARIO ====================
-   getUserFollowingChannels : async (req, res) => {
+  getUserFollowingChannels: async (req, res) => {
     try {
       const { userId } = req.params;
       const user = await Users.findById(userId).populate('followingChannels', 'name avatar followersCount');
@@ -173,22 +167,30 @@ const userCtrl = {
       res.status(500).json({ success: false, message: err.message });
     }
   },
-  
+
+  getMyFollowedChannels: async (req, res) => {
+    try {
+      const userId = req.user._id;
+      const user = await Users.findById(userId).populate('followingChannels', 'name avatar description followersCount');
+      res.json({ success: true, channels: user.followingChannels || [] });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
   // ==================== REGISTRAR VISTA AL PERFIL DEL CANAL ====================
-   registerChannelView : async (req, res) => {
+  registerChannelView: async (req, res) => {
     try {
       const { channelId } = req.params;
       const viewerId = req.user._id;
-  
+
       const channel = await Channel.findById(channelId);
       if (!channel) return res.status(404).json({ success: false, message: 'Canal no encontrado' });
-  
-      // Evitar auto-visitas
+
       if (channel.owner.toString() === viewerId.toString()) {
         return res.json({ success: true, message: 'Vista propia no registrada' });
       }
-  
-      // Registrar vista (puedes crear un array profileViews en Channel)
+
       const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
       const existingView = (channel.profileViews || []).find(
         view => view.user.toString() === viewerId.toString() && new Date(view.viewedAt) > oneDayAgo
@@ -204,19 +206,19 @@ const userCtrl = {
       res.status(500).json({ success: false, message: err.message });
     }
   },
-  
-  // ==================== OBTENER ESTADÍSTICAS DEL CANAL (PARA EL DUEÑO) ====================
-  getChannelStats : async (req, res) => {
+
+  // ==================== OBTENER ESTADÍSTICAS DEL CANAL ====================
+  getChannelStats: async (req, res) => {
     try {
       const { channelId } = req.params;
       const userId = req.user._id;
-  
+
       const channel = await Channel.findById(channelId);
       if (!channel) return res.status(404).json({ success: false, message: 'Canal no encontrado' });
       if (channel.owner.toString() !== userId.toString() && req.user.role !== 'admin') {
         return res.status(403).json({ success: false, message: 'No autorizado' });
       }
-  
+
       const weeklyViews = [];
       for (let i = 6; i >= 0; i--) {
         const day = new Date();
@@ -229,10 +231,11 @@ const userCtrl = {
         ).length;
         weeklyViews.push({ date: day.toLocaleDateString('fr-FR', { weekday: 'short' }), count });
       }
-  
+
       const videoStats = await Video.aggregate([
         { $match: { channel: channel._id, pendiente: false } },
-        { $group: {
+        {
+          $group: {
             _id: null,
             totalVideos: { $sum: 1 },
             totalViews: { $sum: '$views' },
@@ -241,7 +244,7 @@ const userCtrl = {
           }
         }
       ]);
-  
+
       res.json({
         success: true,
         stats: {
@@ -255,63 +258,45 @@ const userCtrl = {
       res.status(500).json({ success: false, message: err.message });
     }
   },
-  
-  // ==================== GUARDAR / QUITAR VIDEO DE FAVORITOS ====================
-   toggleSaveVideo : async (req, res) => {
+
+  // ==================== VIDEOS GUARDADOS ====================
+  toggleSaveVideo: async (req, res) => {
     try {
       const { videoId } = req.params;
       const userId = req.user._id;
       const user = await Users.findById(userId);
-      const isSaved = user.savedVideos.includes(videoId);
+      const isSaved = user.savedVideos.includes(videoId) || false;
       if (isSaved) {
         await Users.findByIdAndUpdate(userId, { $pull: { savedVideos: videoId } });
       } else {
         await Users.findByIdAndUpdate(userId, { $addToSet: { savedVideos: videoId } });
       }
-      res.json({ success: true, saved: !isSaved });
+      res.json({ success: true, isSaved: !isSaved });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
     }
   },
-  
-    getSavedVideos : async (req, res) => {
-    try {
-      const userId = req.user._id;
-      const user = await Users.findById(userId).populate({
-        path: 'savedVideos',
-        populate: { path: 'channel', select: 'name avatar' }
-      });
-      res.json({ success: true, videos: user.savedVideos || [] });
-    } catch (err) {
-      res.status(500).json({ success: false, message: err.message });
-    }
-  },
-  
-   checkSavedVideo : async (req, res) => {
+
+   
+
+  checkSavedVideo: async (req, res) => {
     try {
       const { videoId } = req.params;
       const user = await Users.findById(req.user._id);
-      const saved = user.savedVideos.includes(videoId);
+      const saved = user.savedVideos.includes(videoId) || false;
       res.json({ success: true, saved });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
     }
   },
-  
-  // ==================== MANTENER FUNCIONES ANTIGUAS DE USUARIO (OPCIONAL) ====================
-  // (getUser, updateUser, deleteUser, etc. se mantienen sin cambios)
- 
 
+   
 
-
-
-
+  // ==================== FUNCIONES DE USUARIO ====================
   assignCategoriesToModerator: async (req, res) => {
     try {
       const { id } = req.params;
       const { assignedCategories } = req.body;
-
-      console.log('📝 Asignando categorías a:', id);
 
       if (!req.user || req.user.role !== 'admin') {
         return res.status(403).json({ success: false, message: "Non autorisé" });
@@ -335,24 +320,14 @@ const userCtrl = {
   getModeratorCategories: async (req, res) => {
     try {
       const { id } = req.params;
-
       const user = await Users.findById(id).select('assignedCategories role canApproveAllCategories');
       if (!user) {
         return res.status(404).json({ success: false, message: "Utilisateur non trouvé" });
       }
-
       if (user.role !== 'moderator') {
-        return res.status(400).json({
-          success: false,
-          message: "Cet utilisateur n'est pas un modérateur"
-        });
+        return res.status(400).json({ success: false, message: "Cet utilisateur n'est pas un modérateur" });
       }
-
-      res.json({
-        success: true,
-        canApproveAll: user.canApproveAllCategories,
-        categories: user.assignedCategories
-      });
+      res.json({ success: true, canApproveAll: user.canApproveAllCategories, categories: user.assignedCategories });
     } catch (err) {
       console.error('❌ Error getModeratorCategories:', err);
       res.status(500).json({ success: false, error: err.message });
@@ -362,14 +337,11 @@ const userCtrl = {
   checkModeratorPermission: async (req, res) => {
     try {
       const { userId, categorySlug, subCategorySlug } = req.params;
-
       const user = await Users.findById(userId);
       if (!user) {
         return res.status(404).json({ success: false, message: "Utilisateur non trouvé" });
       }
-
       let canModerate = false;
-
       if (user.role === 'admin') {
         canModerate = true;
       } else if (user.role === 'moderator') {
@@ -377,18 +349,11 @@ const userCtrl = {
           canModerate = true;
         } else if (user.assignedCategories && user.assignedCategories.length > 0) {
           canModerate = user.assignedCategories.some(cat =>
-            cat.slug === categorySlug ||
-            (subCategorySlug && cat.subCategories && cat.subCategories.includes(subCategorySlug))
+            cat.slug === categorySlug || (subCategorySlug && cat.subCategories && cat.subCategories.includes(subCategorySlug))
           );
         }
       }
-
-      res.json({
-        success: true,
-        canModerate,
-        role: user.role,
-        permissionLevel: user.permissionLevel
-      });
+      res.json({ success: true, canModerate, role: user.role, permissionLevel: user.permissionLevel });
     } catch (err) {
       console.error('❌ Error checkModeratorPermission:', err);
       res.status(500).json({ success: false, error: err.message });
@@ -399,25 +364,13 @@ const userCtrl = {
     try {
       const { message, lang } = req.body;
       const user = req.user;
-
       if (!message || !message.trim()) {
         return res.status(400).json({ msg: 'El mensaje es obligatorio.' });
       }
-
       const subject = `Solicitud de activación de cuenta - ${user.username}`;
-      const customMessage = `
-        El usuario ${user.username} ha solicitado la activación de su cuenta.
-
-        ID: ${user._id}
-        Correo: ${user.email}
-
-        Mensaje del usuario:
-        ${message}
-      `;
-
+      const customMessage = `El usuario ${user.username} ha solicitado la activación de su cuenta.\n\nID: ${user._id}\nCorreo: ${user.email}\n\nMensaje del usuario:\n${message}`;
       const adminEmail = "artealger2020argelia@gmail.com";
       await sendMail(adminEmail, '#', lang || 'es', 'informativo', subject, customMessage);
-
       return res.json({ msg: '✅ Mensaje enviado correctamente al administrador.' });
     } catch (err) {
       console.error('❌ Error al procesar solicitud de activación:', err);
@@ -429,30 +382,11 @@ const userCtrl = {
     try {
       const { title, message, lang } = req.body;
       const user = req.user;
-
-      if (!user) {
-        return res.status(401).json({ msg: 'Usuario no autenticado.' });
-      }
-
-      if (!title || !message) {
-        return res.status(400).json({ msg: 'Faltan el título o el mensaje.' });
-      }
-
+      if (!user) return res.status(401).json({ msg: 'Usuario no autenticado.' });
+      if (!title || !message) return res.status(400).json({ msg: 'Faltan el título o el mensaje.' });
       const subject = `[Contacto] ${title} - ${user.username}`;
-      const fullMessage = `
-Mensaje del usuario:
---------------------
-Nombre: ${user.username}
-Email: ${user.email}
-ID: ${user._id}
-
-Mensaje:
---------
-${message}
-      `;
-
+      const fullMessage = `Mensaje del usuario:\n--------------------\nNombre: ${user.username}\nEmail: ${user.email}\nID: ${user._id}\n\nMensaje:\n--------\n${message}`;
       await sendMail('artealger2020argelia@gmail.com', '#', lang || 'es', 'informativo', subject, fullMessage);
-
       return res.json({ success: true, msg: 'Mensaje enviado correctamente.' });
     } catch (err) {
       console.error('❌ Error al enviar el mensaje de contacto:', err);
@@ -464,22 +398,10 @@ ${message}
     try {
       const { message, lang } = req.body;
       const user = req.user;
-
-      if (!message) {
-        return res.status(400).json({ msg: 'El mensaje es obligatorio.' });
-      }
-
+      if (!message) return res.status(400).json({ msg: 'El mensaje es obligatorio.' });
       const subject = `🛑 Solicitud de revisión de bloqueo - ${user.username}`;
-      const fullMessage = `
-Usuario: ${user.username}
-ID: ${user._id}
-Email: ${user.email}
-Mensaje: ${message}
-Fecha de solicitud: ${new Date().toLocaleString(lang || 'es')}
-      `;
-
+      const fullMessage = `Usuario: ${user.username}\nID: ${user._id}\nEmail: ${user.email}\nMensaje: ${message}\nFecha: ${new Date().toLocaleString(lang || 'es')}`;
       await sendMail('artealger2020argelia@gmail.com', '#', lang || 'es', 'informativo', subject, fullMessage);
-
       return res.json({ msg: '✅ Solicitud de desbloqueo enviada correctamente.' });
     } catch (err) {
       console.error('❌ Error en contactBlockedSupport:', err);
@@ -490,17 +412,12 @@ Fecha de solicitud: ${new Date().toLocaleString(lang || 'es')}
   validateUserActivity: async (req, res, next) => {
     const user = await Users.findById(req.user._id);
     if (!user) return res.status(401).json({ msg: 'Usuario no encontrado.' });
-
     const accountAge = Date.now() - new Date(user.createdAt).getTime();
     const threeDays = 3 * 24 * 60 * 60 * 1000;
-
     if (!user.isVerified && accountAge > threeDays) {
       await Users.findByIdAndDelete(user._id);
-      return res.status(403).json({
-        msg: 'Tu cuenta ha sido eliminada por no verificarla a tiempo. Regístrate de nuevo si deseas acceder.',
-      });
+      return res.status(403).json({ msg: 'Tu cuenta ha sido eliminada por no verificarla a tiempo.' });
     }
-
     next();
   },
 
@@ -508,10 +425,8 @@ Fecha de solicitud: ${new Date().toLocaleString(lang || 'es')}
     try {
       const user = await Users.findById(req.params.id);
       if (!user) return res.status(404).json({ msg: "Usuario no encontrado." });
-
       user.isActive = !user.isActive;
       await user.save();
-
       res.json({ msg: "Estado actualizado", user });
     } catch (err) {
       return res.status(500).json({ msg: err.message });
@@ -520,8 +435,7 @@ Fecha de solicitud: ${new Date().toLocaleString(lang || 'es')}
 
   getAdmins: async (req, res) => {
     try {
-      const admins = await Users.find({ role: 'admin' })
-        .select('username avatar online _id');
+      const admins = await Users.find({ role: 'admin' }).select('username avatar online _id');
       res.json({ users: admins });
     } catch (err) {
       res.status(500).json({ msg: err.message });
@@ -530,8 +444,7 @@ Fecha de solicitud: ${new Date().toLocaleString(lang || 'es')}
 
   searchUser: async (req, res) => {
     try {
-      const users = await Users.find({ username: { $regex: req.query.username } })
-        .limit(10).select("username avatar");
+      const users = await Users.find({ username: { $regex: req.query.username } }).limit(10).select("username avatar");
       res.json({ users });
     } catch (err) {
       return res.status(500).json({ msg: err.message });
@@ -540,24 +453,19 @@ Fecha de solicitud: ${new Date().toLocaleString(lang || 'es')}
 
   getUser: async (req, res) => {
     try {
-      const user = await Users.findById(req.params.id).select('-password')
-        .populate("followers following", "-password");
+      const user = await Users.findById(req.params.id).select('-password').populate("followers following", "-password");
       if (!user) return res.status(400).json({ msg: "User does not exist." });
       res.json({ user });
     } catch (err) {
       return res.status(500).json({ msg: err.message });
     }
   },
-   
+
   updateUser: async (req, res) => {
     try {
       const { avatar, fullname, mobile, address, story, website } = req.body;
       if (!fullname) return res.status(400).json({ msg: "Please add your full name." });
-
-      await Users.findOneAndUpdate({ _id: req.user._id }, {
-        avatar, fullname, mobile, address, story, website
-      });
-
+      await Users.findOneAndUpdate({ _id: req.user._id }, { avatar, fullname, mobile, address, story, website });
       res.json({ msg: "Update Success!" });
     } catch (err) {
       return res.status(500).json({ msg: err.message });
@@ -566,294 +474,120 @@ Fecha de solicitud: ${new Date().toLocaleString(lang || 'es')}
 
   follow: async (req, res) => {
     try {
-      const user = await Users.find({_id: req.params.id, followers: req.user._id});
-      if(user.length > 0) return res.status(500).json({msg: "You followed this user."});
-
-      const newUser = await Users.findOneAndUpdate({_id: req.params.id}, { 
-        $push: {followers: req.user._id}
-      }, {new: true}).populate("followers following", "-password");
-
-      await Users.findOneAndUpdate({_id: req.user._id}, {
-        $push: {following: req.params.id}
-      }, {new: true});
-
-      res.json({newUser});
+      const user = await Users.find({ _id: req.params.id, followers: req.user._id });
+      if (user.length > 0) return res.status(500).json({ msg: "You followed this user." });
+      const newUser = await Users.findOneAndUpdate({ _id: req.params.id }, { $push: { followers: req.user._id } }, { new: true }).populate("followers following", "-password");
+      await Users.findOneAndUpdate({ _id: req.user._id }, { $push: { following: req.params.id } }, { new: true });
+      res.json({ newUser });
     } catch (err) {
-      return res.status(500).json({msg: err.message});
+      return res.status(500).json({ msg: err.message });
     }
   },
 
   unfollow: async (req, res) => {
     try {
-      const newUser = await Users.findOneAndUpdate({_id: req.params.id}, { 
-        $pull: {followers: req.user._id}
-      }, {new: true}).populate("followers following", "-password");
-
-      await Users.findOneAndUpdate({_id: req.user._id}, {
-        $pull: {following: req.params.id}
-      }, {new: true});
-
-      res.json({newUser});
+      const newUser = await Users.findOneAndUpdate({ _id: req.params.id }, { $pull: { followers: req.user._id } }, { new: true }).populate("followers following", "-password");
+      await Users.findOneAndUpdate({ _id: req.user._id }, { $pull: { following: req.params.id } }, { new: true });
+      res.json({ newUser });
     } catch (err) {
-      return res.status(500).json({msg: err.message});
+      return res.status(500).json({ msg: err.message });
     }
   },
 
   deleteUser: async (req, res) => {
     try {
       if (req.user.role !== 'admin') {
-        return res.status(403).json({ success: false, msg: 'Acceso denegado. Se requieren privilegios de administrador' });
+        return res.status(403).json({ success: false, msg: 'Acceso denegado.' });
       }
-
       if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-        return res.status(400).json({ success: false, msg: 'ID de usuario no válido' });
+        return res.status(400).json({ success: false, msg: 'ID no válido' });
       }
-
       const userToDelete = await Users.findById(req.params.id);
-      if (!userToDelete) {
-        return res.status(404).json({ success: false, msg: 'Usuario no encontrado' });
-      }
-
+      if (!userToDelete) return res.status(404).json({ success: false, msg: 'Usuario no encontrado' });
       if (userToDelete._id.toString() === req.user._id.toString()) {
         return res.status(400).json({ success: false, msg: 'No puedes eliminarte a ti mismo' });
       }
-
       const userVideos = await Video.find({ user: req.params.id });
-
       await Video.deleteMany({ user: req.params.id });
-
       await Comments.deleteMany({ videoId: { $in: userVideos.map(v => v._id) } });
-
-      await Report.deleteMany({
-        $or: [
-          { userId: req.params.id },
-          { reportedBy: req.params.id }
-        ]
-      });
-
+      await Report.deleteMany({ $or: [{ userId: req.params.id }, { reportedBy: req.params.id }] });
       await Comments.deleteMany({ user: req.params.id });
-
-      await Notifications.deleteMany({
-        $or: [
-          { sender: req.params.id },
-          { recipient: req.params.id }
-        ]
+      await Notifications.deleteMany({ $or: [{ sender: req.params.id }, { recipient: req.params.id }] });
+      await Users.updateMany({ $or: [{ followers: req.params.id }, { following: req.params.id }, { savedVideos: { $in: userVideos.map(v => v._id) } }] }, {
+        $pull: { followers: req.params.id, following: req.params.id, savedVideos: { $in: userVideos.map(v => v._id) } }
       });
-
-      await Users.updateMany(
-        {
-          $or: [
-            { followers: req.params.id },
-            { following: req.params.id },
-            { savedVideos: { $in: userVideos.map(v => v._id) } }
-          ]
-        },
-        {
-          $pull: {
-            followers: req.params.id,
-            following: req.params.id,
-            savedVideos: { $in: userVideos.map(v => v._id) }
-          }
-        }
-      );
-
-      await Video.updateMany(
-        { likes: req.params.id },
-        { $pull: { likes: req.params.id } }
-      );
-
+      await Video.updateMany({ likes: req.params.id }, { $pull: { likes: req.params.id } });
       await userToDelete.deleteOne();
-
-      res.json({
-        success: true,
-        msg: 'Usuario y todo su contenido relacionado eliminados permanentemente',
-        deletedAt: new Date()
-      });
+      res.json({ success: true, msg: 'Usuario eliminado permanentemente', deletedAt: new Date() });
     } catch (err) {
-      console.error('Error en eliminación completa:', err);
+      console.error('Error en eliminación:', err);
       res.status(500).json({ success: false, msg: 'Error al eliminar usuario', error: err.message });
     }
   },
-  getChannelProfile : async (req, res) => {
+
+  getUserProfile: async (req, res) => {
     try {
-        const userId = req.user._id;
-        const channels = await Channel.find({ owner: userId });
-        res.json({ success: true, channels });
+      const { userId } = req.params;
+      const currentUserId = req.user._id;
+      const user = await Users.findById(userId).select('-password').populate('followers', '_id').populate('following', '_id');
+      if (!user) return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+      const followers = user.followers || [];
+      const following = user.following || [];
+      let isFollowing = false;
+      if (currentUserId && currentUserId.toString() !== userId) {
+        isFollowing = Array.isArray(followers) && followers.some(f => f && f._id && f._id.toString() === currentUserId.toString());
+      }
+      const videoStats = await Video.aggregate([
+        { $match: { user: new mongoose.Types.ObjectId(userId), pendiente: false, isActive: true } },
+        { $group: { _id: null, totalVideos: { $sum: 1 }, totalLikes: { $sum: { $size: '$likes' } }, totalViews: { $sum: '$views' }, totalComments: { $sum: { $size: '$comments' } }, totalShares: { $sum: { $size: { $ifNull: ['$shares', []] } } } } }
+      ]);
+      res.json({ success: true, profile: {
+        _id: user._id, username: user.username, avatar: user.avatar, bio: user.bio || '', fullname: user.fullname || user.username,
+        isPro: user.isPro || false, role: user.role, followersCount: followers.length || 0, followingCount: following.length || 0,
+        profileViewsCount: user.profileViewsCount || 0, isFollowing,
+        videoStats: videoStats[0] || { totalVideos: 0, totalLikes: 0, totalViews: 0, totalComments: 0, totalShares: 0 }
+      } });
     } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
+      console.error('Error getUserProfile:', err);
+      res.status(500).json({ success: false, message: err.message });
     }
-},
-  getUserProfile : async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const currentUserId = req.user._id;
-
-    const user = await Users.findById(userId)
-      .select('-password')
-      .populate('followers following', 'username avatar')
-      .lean();
-
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
-    }
-
-    // Estadísticas de videos (opcional)
-    const videoStats = await Video.aggregate([
-      { $match: { user: new mongoose.Types.ObjectId(userId), pendiente: false, isActive: true } },
-      { $group: {
-          _id: null,
-          totalVideos: { $sum: 1 },
-          totalLikes: { $sum: { $size: { $ifNull: ['$likes', []] } } },
-          totalViews: { $sum: '$views' },
-          totalComments: { $sum: { $size: { $ifNull: ['$comments', []] } } }
-        }
-      }
-    ]);
-
-    let isFollowing = false;
-    if (currentUserId && currentUserId.toString() !== userId) {
-      const currentUser = await Users.findById(currentUserId).select('following');
-      if (currentUser && currentUser.following) {
-        isFollowing = currentUser.following.some(id => id.toString() === userId);
-      }
-    }
-
-    res.json({
-      success: true,
-      user: {
-        _id: user._id,
-        username: user.username,
-        avatar: user.avatar,
-        fullname: user.fullname,
-        bio: user.bio || '',
-        story: user.story,
-        mobile: user.mobile,
-        address: user.address,
-        website: user.website,
-        followers: user.followers || [],
-        following: user.following || [],
-        createdAt: user.createdAt,
-        role: user.role,
-        isPro: user.isPro,
-        isVerified: user.isVerified,
-        videoStats: videoStats[0] || { totalVideos: 0, totalLikes: 0, totalViews: 0, totalComments: 0 },
-        isFollowing
-      }
-    });
-  } catch (err) {
-    console.error('❌ getUserProfile error:', err);
-    res.status(500).json({ success: false, message: err.message });
-  }
-},
+  },
 
   getUsersAction: async (req, res) => {
     try {
       const filter = req.query.filter;
-
-      const query = Users.find()
-        .select('-password')
-        .populate('followers', 'username avatar')
-        .populate('following', 'username avatar')
-        .lean();
-
+      const query = Users.find().select('-password').populate('followers', 'username avatar').populate('following', 'username avatar').lean();
       const features = new APIfeatures(query, req.query).paginating();
       const users = await features.query.sort('-createdAt');
-
-      const usersWithDetails = await Promise.all(
-        users.map(async (user) => {
-          try {
-            const videos = await Video.find({ user: user._id, pendiente: false, isActive: true });
-
-            const totalLikesReceived = videos.reduce((acc, video) => {
-              return acc + (video.likes ? video.likes.length : 0);
-            }, 0);
-
-            const totalCommentsReceived = videos.reduce((acc, video) => {
-              return acc + (video.comments ? video.comments.length : 0);
-            }, 0);
-
-            const reportsReceived = await Report.countDocuments({ userId: user._id });
-            const likesGiven = await Video.countDocuments({ likes: user._id });
-            const commentsMade = await Comments.countDocuments({ user: user._id });
-
-            let blockInfoData = null;
-            if (user.isBlocked && user.blockDetails && user.blockDetails.reason) {
-              blockInfoData = {
-                motivo: user.blockDetails.reason || 'Sin especificar',
-                content: user.blockDetails.description,
-                fechaLimite: user.blockDetails.blockExpiryDate,
-                esBloqueado: user.isBlocked,
-                bloqueadoEn: user.blockDetails.blockDate,
-                bloqueadoPor: user.blockDetails.blockedBy || null
-              };
-            }
-
-            return {
-              ...user,
-              isBlocked: user.isBlocked || false,
-              blockInfo: blockInfoData,
-              blockDetails: user.blockDetails,
-              videoCount: videos.length,
-              totalLikesReceived,
-              totalCommentsReceived,
-              totalFollowers: user.followers.length || 0,
-              totalFollowing: user.following.length || 0,
-              totalReportsReceived: reportsReceived,
-              likesGiven,
-              commentsMade,
-              videos: videos || []
-            };
-          } catch (userError) {
-            console.error('Error procesando usuario:', userError);
-            return {
-              ...user,
-              isBlocked: user.isBlocked || false,
-              videoCount: 0,
-              totalLikesReceived: 0,
-              totalCommentsReceived: 0,
-              totalFollowers: 0,
-              totalFollowing: 0,
-              totalReportsReceived: 0,
-              likesGiven: 0,
-              commentsMade: 0,
-              blockInfo: null,
-              videos: []
-            };
+      const usersWithDetails = await Promise.all(users.map(async (user) => {
+        try {
+          const videos = await Video.find({ user: user._id, pendiente: false, isActive: true });
+          const totalLikesReceived = videos.reduce((acc, video) => acc + (video.likes ? video.likes.length : 0), 0);
+          const totalCommentsReceived = videos.reduce((acc, video) => acc + (video.comments ? video.comments.length : 0), 0);
+          const reportsReceived = await Report.countDocuments({ userId: user._id });
+          const likesGiven = await Video.countDocuments({ likes: user._id });
+          const commentsMade = await Comments.countDocuments({ user: user._id });
+          let blockInfoData = null;
+          if (user.isBlocked && user.blockDetails && user.blockDetails.reason) {
+            blockInfoData = { motivo: user.blockDetails.reason || 'Sin especificar', content: user.blockDetails.description, fechaLimite: user.blockDetails.blockExpiryDate, esBloqueado: user.isBlocked, bloqueadoEn: user.blockDetails.blockDate, bloqueadoPor: user.blockDetails.blockedBy || null };
           }
-        })
-      );
-
+          return { ...user, isBlocked: user.isBlocked || false, blockInfo: blockInfoData, blockDetails: user.blockDetails, videoCount: videos.length, totalLikesReceived, totalCommentsReceived, totalFollowers: user.followers.length || 0, totalFollowing: user.following.length || 0, totalReportsReceived: reportsReceived, likesGiven, commentsMade, videos: videos || [] };
+        } catch (userError) {
+          console.error('Error procesando usuario:', userError);
+          return { ...user, isBlocked: user.isBlocked || false, videoCount: 0, totalLikesReceived: 0, totalCommentsReceived: 0, totalFollowers: 0, totalFollowing: 0, totalReportsReceived: 0, likesGiven: 0, commentsMade: 0, blockInfo: null, videos: [] };
+        }
+      }));
       switch (filter) {
-        case 'mostLikes':
-          usersWithDetails.sort((a, b) => b.totalLikesReceived - a.totalLikesReceived);
-          break;
-        case 'mostComments':
-          usersWithDetails.sort((a, b) => b.totalCommentsReceived - a.totalCommentsReceived);
-          break;
-        case 'mostFollowers':
-          usersWithDetails.sort((a, b) => b.totalFollowers - a.totalFollowers);
-          break;
-        case 'mostVideos':
-          usersWithDetails.sort((a, b) => b.videoCount - a.videoCount);
-          break;
-        case 'mostReports':
-          usersWithDetails.sort((a, b) => b.totalReportsReceived - a.totalReportsReceived);
-          break;
-        case 'lastLogin':
-          usersWithDetails.sort((a, b) => new Date(b.lastLogin || 0) - new Date(a.lastLogin || 0));
-          break;
-        case 'latestRegistered':
-          usersWithDetails.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-          break;
-        default:
-          break;
+        case 'mostLikes': usersWithDetails.sort((a, b) => b.totalLikesReceived - a.totalLikesReceived); break;
+        case 'mostComments': usersWithDetails.sort((a, b) => b.totalCommentsReceived - a.totalCommentsReceived); break;
+        case 'mostFollowers': usersWithDetails.sort((a, b) => b.totalFollowers - a.totalFollowers); break;
+        case 'mostVideos': usersWithDetails.sort((a, b) => b.videoCount - a.videoCount); break;
+        case 'mostReports': usersWithDetails.sort((a, b) => b.totalReportsReceived - a.totalReportsReceived); break;
+        case 'lastLogin': usersWithDetails.sort((a, b) => new Date(b.lastLogin || 0) - new Date(a.lastLogin || 0)); break;
+        case 'latestRegistered': usersWithDetails.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)); break;
+        default: break;
       }
-
-      res.json({
-        msg: 'Success!',
-        result: usersWithDetails.length,
-        users: usersWithDetails,
-      });
+      res.json({ msg: 'Success!', result: usersWithDetails.length, users: usersWithDetails });
     } catch (err) {
       console.error('ERROR en getUsersAction:', err);
       return res.status(500).json({ msg: err.message, users: [] });
@@ -863,23 +597,13 @@ Fecha de solicitud: ${new Date().toLocaleString(lang || 'es')}
   getInactiveUsers: async (req, res) => {
     try {
       const oneMonthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-
-      const inactiveCandidates = await Users.find({
-        isVerified: true,
-        createdAt: { $lt: oneMonthAgo }
-      }).select('_id username email createdAt');
-
+      const inactiveCandidates = await Users.find({ isVerified: true, createdAt: { $lt: oneMonthAgo } }).select('_id username email createdAt');
       const trulyInactive = [];
-
       for (const user of inactiveCandidates) {
         const hasVideos = await Video.exists({ user: user._id });
         const hasComments = await Comments.exists({ user: user._id });
-
-        if (!hasVideos && !hasComments) {
-          trulyInactive.push(user);
-        }
+        if (!hasVideos && !hasComments) trulyInactive.push(user);
       }
-
       res.json({ inactiveUsers: trulyInactive });
     } catch (err) {
       return res.status(500).json({ msg: err.message });
@@ -891,50 +615,16 @@ Fecha de solicitud: ${new Date().toLocaleString(lang || 'es')}
       const { id } = req.params;
       const { reason, description, blockExpiryDate } = req.body;
       const adminId = req.user._id;
-
-      if (!reason) {
-        return res.status(400).json({ message: 'Le motif du blocage est requis' });
-      }
-
+      if (!reason) return res.status(400).json({ message: 'Le motif du blocage est requis' });
       const user = await Users.findById(id);
-      if (!user) {
-        return res.status(404).json({ message: 'Utilisateur non trouvé' });
-      }
-
-      if (!user.blockHistory) {
-        user.blockHistory = [];
-      }
-
-      user.blockHistory.push({
-        reason,
-        description,
-        blockDate: new Date(),
-        blockExpiryDate: blockExpiryDate || null,
-        blockedBy: adminId
-      });
-
+      if (!user) return res.status(404).json({ message: 'Utilisateur non trouvé' });
+      if (!user.blockHistory) user.blockHistory = [];
+      user.blockHistory.push({ reason, description, blockDate: new Date(), blockExpiryDate: blockExpiryDate || null, blockedBy: adminId });
       user.isBlocked = true;
       user.isActive = false;
-      user.blockDetails = {
-        reason,
-        description,
-        blockDate: new Date(),
-        blockExpiryDate: blockExpiryDate || null,
-        blockedBy: adminId
-      };
-
+      user.blockDetails = { reason, description, blockDate: new Date(), blockExpiryDate: blockExpiryDate || null, blockedBy: adminId };
       await user.save();
-
-      res.json({
-        success: true,
-        message: 'Utilisateur bloqué avec succès',
-        user: {
-          _id: user._id,
-          isBlocked: user.isBlocked,
-          isActive: user.isActive,
-          blockDetails: user.blockDetails
-        }
-      });
+      res.json({ success: true, message: 'Utilisateur bloqué avec succès', user: { _id: user._id, isBlocked: user.isBlocked, isActive: user.isActive, blockDetails: user.blockDetails } });
     } catch (error) {
       console.error('Error blockUser:', error);
       res.status(500).json({ message: error.message || 'Erreur lors du blocage' });
@@ -945,41 +635,17 @@ Fecha de solicitud: ${new Date().toLocaleString(lang || 'es')}
     try {
       const { id } = req.params;
       const adminId = req.user._id;
-
       const user = await Users.findById(id);
-      if (!user) {
-        return res.status(404).json({ message: 'Utilisateur non trouvé' });
-      }
-
+      if (!user) return res.status(404).json({ message: 'Utilisateur non trouvé' });
       if (user.blockHistory && user.blockHistory.length > 0) {
         const lastBlock = user.blockHistory[user.blockHistory.length - 1];
-        if (!lastBlock.unblockDate) {
-          lastBlock.unblockDate = new Date();
-          lastBlock.unblockedBy = adminId;
-        }
+        if (!lastBlock.unblockDate) { lastBlock.unblockDate = new Date(); lastBlock.unblockedBy = adminId; }
       }
-
       user.isBlocked = false;
       user.isActive = true;
-      user.blockDetails = {
-        reason: null,
-        description: null,
-        blockDate: null,
-        blockExpiryDate: null,
-        blockedBy: null
-      };
-
+      user.blockDetails = { reason: null, description: null, blockDate: null, blockExpiryDate: null, blockedBy: null };
       await user.save();
-
-      res.json({
-        success: true,
-        message: 'Utilisateur débloqué avec succès',
-        user: {
-          _id: user._id,
-          isBlocked: user.isBlocked,
-          isActive: user.isActive
-        }
-      });
+      res.json({ success: true, message: 'Utilisateur débloqué avec succès', user: { _id: user._id, isBlocked: user.isBlocked, isActive: user.isActive } });
     } catch (error) {
       console.error('Error unblockUser:', error);
       res.status(500).json({ message: error.message || 'Erreur lors du déblocage' });
@@ -989,58 +655,24 @@ Fecha de solicitud: ${new Date().toLocaleString(lang || 'es')}
   activateUser: async (req, res) => {
     try {
       const { id } = req.params;
-
-      const user = await Users.findByIdAndUpdate(
-        id,
-        { isActive: true },
-        { new: true }
-      );
-
-      if (!user) {
-        return res.status(404).json({ message: 'Utilisateur non trouvé' });
-      }
-
-      res.json({
-        success: true,
-        message: 'Utilisateur activé avec succès',
-        user: {
-          _id: user._id,
-          isActive: user.isActive,
-          isBlocked: user.isBlocked
-        }
-      });
+      const user = await Users.findByIdAndUpdate(id, { isActive: true }, { new: true });
+      if (!user) return res.status(404).json({ message: 'Utilisateur non trouvé' });
+      res.json({ success: true, message: 'Utilisateur activé', user: { _id: user._id, isActive: user.isActive, isBlocked: user.isBlocked } });
     } catch (error) {
       console.error('Error activateUser:', error);
-      res.status(500).json({ message: error.message || 'Erreur lors de l\'activation' });
+      res.status(500).json({ message: error.message });
     }
   },
 
   deactivateUser: async (req, res) => {
     try {
       const { id } = req.params;
-
-      const user = await Users.findByIdAndUpdate(
-        id,
-        { isActive: false },
-        { new: true }
-      );
-
-      if (!user) {
-        return res.status(404).json({ message: 'Utilisateur non trouvé' });
-      }
-
-      res.json({
-        success: true,
-        message: 'Utilisateur désactivé avec succès',
-        user: {
-          _id: user._id,
-          isActive: user.isActive,
-          isBlocked: user.isBlocked
-        }
-      });
+      const user = await Users.findByIdAndUpdate(id, { isActive: false }, { new: true });
+      if (!user) return res.status(404).json({ message: 'Utilisateur non trouvé' });
+      res.json({ success: true, message: 'Utilisateur désactivé', user: { _id: user._id, isActive: user.isActive, isBlocked: user.isBlocked } });
     } catch (error) {
       console.error('Error deactivateUser:', error);
-      res.status(500).json({ message: error.message || 'Erreur lors de la désactivation' });
+      res.status(500).json({ message: error.message });
     }
   },
 
@@ -1048,255 +680,53 @@ Fecha de solicitud: ${new Date().toLocaleString(lang || 'es')}
     try {
       const { userId } = req.params;
       const { proExpiryDate } = req.body;
-
-      if (req.user.role !== 'admin') {
-        return res.status(403).json({
-          success: false,
-          message: 'Accès non autorisé. Seul un administrateur peut activer le compte Pro.'
-        });
-      }
-
+      if (req.user.role !== 'admin') return res.status(403).json({ success: false, message: 'Accès non autorisé.' });
       const user = await Users.findById(userId);
-      if (!user) {
-        return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
-      }
-
+      if (!user) return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
       user.isPro = true;
       user.proExpiryDate = proExpiryDate || null;
       await user.save();
-
-      res.json({
-        success: true,
-        message: 'Compte Pro activé avec succès',
-        user: {
-          _id: user._id,
-          username: user.username,
-          email: user.email,
-          isPro: user.isPro,
-          proExpiryDate: user.proExpiryDate
-        }
-      });
+      res.json({ success: true, message: 'Compte Pro activé', user: { _id: user._id, username: user.username, email: user.email, isPro: user.isPro, proExpiryDate: user.proExpiryDate } });
     } catch (error) {
       console.error('Error activatePro:', error);
-      res.status(500).json({ success: false, message: error.message || 'Erreur lors de l\'activation du compte Pro' });
+      res.status(500).json({ success: false, message: error.message });
     }
   },
 
   deactivatePro: async (req, res) => {
     try {
       const { userId } = req.params;
-
-      if (req.user.role !== 'admin') {
-        return res.status(403).json({
-          success: false,
-          message: 'Accès non autorisé. Seul un administrateur peut désactiver le compte Pro.'
-        });
-      }
-
+      if (req.user.role !== 'admin') return res.status(403).json({ success: false, message: 'Accès non autorisé.' });
       const user = await Users.findById(userId);
-      if (!user) {
-        return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
-      }
-
+      if (!user) return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
       user.isPro = false;
       user.proExpiryDate = null;
       await user.save();
-
-      res.json({
-        success: true,
-        message: 'Compte Pro désactivé avec succès',
-        user: {
-          _id: user._id,
-          username: user.username,
-          email: user.email,
-          isPro: user.isPro,
-          proExpiryDate: user.proExpiryDate
-        }
-      });
+      res.json({ success: true, message: 'Compte Pro désactivé', user: { _id: user._id, username: user.username, email: user.email, isPro: user.isPro, proExpiryDate: user.proExpiryDate } });
     } catch (error) {
       console.error('Error deactivatePro:', error);
-      res.status(500).json({ success: false, message: error.message || 'Erreur lors de la désactivation du compte Pro' });
+      res.status(500).json({ success: false, message: error.message });
     }
   },
 
-  getUserProfile: async (req, res) => {
-    try {
-      const { userId } = req.params;
-      const currentUserId = req.user._id;
-      
-      const user = await Users.findById(userId)
-        .select('-password')
-        .populate('followers', '_id')
-        .populate('following', '_id');
-      
-      if (!user) {
-        return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
-      }
-      
-      const followers = user.followers || [];
-      const following = user.following || [];
-      
-      let isFollowing = false;
-      if (currentUserId && currentUserId.toString() !== userId) {
-        isFollowing = Array.isArray(followers) && followers.some(f => f && f._id && f._id.toString() === currentUserId.toString());
-      }
-      
-      const videoStats = await Video.aggregate([
-        { $match: { user: new mongoose.Types.ObjectId(userId), pendiente: false, isActive: true } },
-        {
-          $group: {
-            _id: null,
-            totalVideos: { $sum: 1 },
-            totalLikes: { $sum: { $size: '$likes' } },
-            totalViews: { $sum: '$views' },
-            totalComments: { $sum: { $size: '$comments' } },
-            totalShares: { $sum: { $size: { $ifNull: ['$shares', []] } } }
-          }
-        }
-      ]);
-      
-      res.json({
-        success: true,
-        profile: {
-          _id: user._id,
-          username: user.username,
-          avatar: user.avatar,
-          bio: user.bio || '',
-          fullname: user.fullname || user.username,
-          isPro: user.isPro || false,
-          role: user.role,
-          followersCount: followers.length || 0,
-          followingCount: following.length || 0,
-          profileViewsCount: user.profileViewsCount || 0,
-          isFollowing,
-          videoStats: videoStats[0] || {
-            totalVideos: 0,
-            totalLikes: 0,
-            totalViews: 0,
-            totalComments: 0,
-            totalShares: 0
-          }
-        }
-      });
-    } catch (err) {
-      console.error('Error getUserProfile:', err);
-      res.status(500).json({ success: false, message: err.message });
-    }
-  },
-// Actualizado para trabajar con el modelo Channel
-  getChannelProfile : async (req, res) => {
-  try {
-    const { userId } = req.params;  // Recibe el ID del usuario dueño del canal
-    const currentUserId = req.user._id;
-    
-    // Buscar el canal principal del usuario (o el primero, si tiene varios)
-    // Puedes modificar la lógica para que el usuario seleccione qué canal mostrar
-    const channel = await Channel.findOne({ owner: userId, isActive: true })
-      .populate('owner', 'username avatar fullname isPro role'); // Dueño para info extra
-    
-    if (!channel) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'El usuario no tiene un canal activo' 
-      });
-    }
-    
-    // Verificar si el usuario actual sigue este canal
-    let isFollowing = false;
-    if (currentUserId && currentUserId.toString() !== userId) {
-      const currentUser = await Users.findById(currentUserId).select('followingChannels');
-      isFollowing = currentUser.followingChannels.some(
-        cId => cId.toString() === channel._id.toString()
-      );
-    }
-    
-    // Estadísticas de videos del canal
-    const videoStats = await Video.aggregate([
-      { $match: { channel: channel._id, pendiente: false, isActive: true } },
-      {
-        $group: {
-          _id: null,
-          totalVideos: { $sum: 1 },
-          totalLikes: { $sum: { $size: '$likes' } },
-          totalViews: { $sum: '$views' },
-          totalComments: { $sum: { $size: '$comments' } },
-          totalShares: { $sum: { $size: { $ifNull: ['$shares', []] } } }
-        }
-      }
-    ]);
-    
-    // Respuesta con datos del canal
-    res.json({
-      success: true,
-      profile: {
-        // Datos del canal
-        _id: channel._id,
-        name: channel.name,
-        description: channel.description,
-        avatar: channel.avatar,
-        cover: channel.cover,
-        phone: channel.phoneHidden ? null : channel.phone, // Opcional
-        website: channel.website,
-        wilaya: channel.wilaya,
-        commune: channel.commune,
-        isVerified: channel.isVerified,
-        followersCount: channel.followersCount || 0,
-        totalVideos: channel.totalVideos || 0,
-        // Datos del dueño (para mostrar username, etc.)
-        owner: {
-          _id: channel.owner._id,
-          username: channel.owner.username,
-          avatar: channel.owner.avatar,
-          isPro: channel.owner.isPro,
-          role: channel.owner.role
-        },
-        // Estadísticas de videos
-        videoStats: videoStats[0] || {
-          totalVideos: 0,
-          totalLikes: 0,
-          totalViews: 0,
-          totalComments: 0,
-          totalShares: 0
-        },
-        isFollowing
-      }
-    });
-    
-  } catch (err) {
-    console.error('Error en getChannelProfile:', err);
-    res.status(500).json({ success: false, message: err.message });
-  }
-},
   getFollowers: async (req, res) => {
     try {
       const { userId } = req.params;
-      const user = await Users.findById(userId)
-        .populate('followers', 'username avatar fullname bio isPro role');
-
-      if (!user) {
-        return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
-      }
-
+      const user = await Users.findById(userId).populate('followers', 'username avatar fullname bio isPro role');
+      if (!user) return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
       const followersList = user.followers || [];
       const currentUserId = req.user._id;
       let currentUserFollowing = [];
-      
       if (currentUserId) {
         const currentUser = await Users.findById(currentUserId).select('following');
         currentUserFollowing = (currentUser.following || []).map(id => id.toString());
       }
-
       const followersWithStatus = followersList.map(follower => {
         const followerObj = follower.toObject ? follower.toObject() : follower;
         followerObj.isFollowing = currentUserFollowing.includes(followerObj._id.toString());
         return followerObj;
       });
-
-      res.json({
-        success: true,
-        users: followersWithStatus,
-        count: followersWithStatus.length
-      });
+      res.json({ success: true, users: followersWithStatus, count: followersWithStatus.length });
     } catch (err) {
       console.error('Error getFollowers:', err);
       res.status(500).json({ success: false, message: err.message });
@@ -1306,33 +736,21 @@ Fecha de solicitud: ${new Date().toLocaleString(lang || 'es')}
   getFollowing: async (req, res) => {
     try {
       const { userId } = req.params;
-      const user = await Users.findById(userId)
-        .populate('following', 'username avatar fullname bio isPro role');
-
-      if (!user) {
-        return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
-      }
-
+      const user = await Users.findById(userId).populate('following', 'username avatar fullname bio isPro role');
+      if (!user) return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
       const followingList = user.following || [];
       const currentUserId = req.user._id;
       let currentUserFollowing = [];
-      
       if (currentUserId) {
         const currentUser = await Users.findById(currentUserId).select('following');
         currentUserFollowing = (currentUser.following || []).map(id => id.toString());
       }
-
       const followingWithStatus = followingList.map(follow => {
         const followObj = follow.toObject ? follow.toObject() : follow;
         followObj.isFollowing = currentUserFollowing.includes(followObj._id.toString());
         return followObj;
       });
-
-      res.json({
-        success: true,
-        users: followingWithStatus,
-        count: followingWithStatus.length
-      });
+      res.json({ success: true, users: followingWithStatus, count: followingWithStatus.length });
     } catch (err) {
       console.error('Error getFollowing:', err);
       res.status(500).json({ success: false, message: err.message });
@@ -1344,36 +762,14 @@ Fecha de solicitud: ${new Date().toLocaleString(lang || 'es')}
       const { userId } = req.params;
       const currentUserId = req.user._id;
       const currentUserRole = req.user.role;
-
       if (currentUserId.toString() !== userId && currentUserRole !== 'admin') {
-        return res.status(403).json({
-          success: false,
-          message: 'No autorizado para ver las vistas del perfil'
-        });
+        return res.status(403).json({ success: false, message: 'No autorizado' });
       }
-
-      const user = await Users.findById(userId)
-        .populate('profileViews.user', 'username avatar fullname bio isPro role');
-
-      if (!user) {
-        return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
-      }
-
+      const user = await Users.findById(userId).populate('profileViews.user', 'username avatar fullname bio isPro role');
+      if (!user) return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
       const profileViewsList = user.profileViews || [];
-
-      const views = profileViewsList
-        .filter(view => view && view.user)
-        .sort((a, b) => new Date(b.viewedAt) - new Date(a.viewedAt))
-        .map(view => ({
-          ...view.user.toObject(),
-          viewedAt: view.viewedAt
-        }));
-
-      res.json({
-        success: true,
-        views,
-        count: views.length
-      });
+      const views = profileViewsList.filter(view => view && view.user).sort((a, b) => new Date(b.viewedAt) - new Date(a.viewedAt)).map(view => ({ ...view.user.toObject(), viewedAt: view.viewedAt }));
+      res.json({ success: true, views, count: views.length });
     } catch (err) {
       console.error('Error getProfileViews:', err);
       res.status(500).json({ success: false, message: err.message });
@@ -1384,41 +780,18 @@ Fecha de solicitud: ${new Date().toLocaleString(lang || 'es')}
     try {
       const { userId } = req.params;
       const currentUserId = req.user._id;
-
-      if (currentUserId.toString() === userId) {
-        return res.status(200).json({ success: true, message: 'No se registra vista propia' });
-      }
-
+      if (currentUserId.toString() === userId) return res.json({ success: true, message: 'No se registra vista propia' });
       const user = await Users.findById(userId);
-      if (!user) {
-        return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
-      }
-
-      const oneDayAgo = new Date();
-      oneDayAgo.setHours(oneDayAgo.getHours() - 24);
-
-      const existingView = user.profileViews.find(
-        view => view.user.toString() === currentUserId.toString() && 
-                new Date(view.viewedAt) > oneDayAgo
-      );
-
+      if (!user) return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+      const oneDayAgo = new Date(); oneDayAgo.setHours(oneDayAgo.getHours() - 24);
+      const existingView = user.profileViews.find(view => view.user.toString() === currentUserId.toString() && new Date(view.viewedAt) > oneDayAgo);
       if (!existingView) {
         user.profileViews = user.profileViews || [];
-        user.profileViews.push({
-          user: currentUserId,
-          viewedAt: new Date()
-        });
-        
+        user.profileViews.push({ user: currentUserId, viewedAt: new Date() });
         user.profileViewsCount = (user.profileViewsCount || 0) + 1;
-        
-        if (user.profileViews.length > 100) {
-          user.profileViews = user.profileViews.slice(-100);
-        }
-        
+        if (user.profileViews.length > 100) user.profileViews = user.profileViews.slice(-100);
         await user.save();
-        console.log(`✅ Vista registrada: ${currentUserId} vio el perfil de ${userId}`);
       }
-
       res.json({ success: true, count: user.profileViewsCount });
     } catch (err) {
       console.error('❌ Error registerProfileView:', err);
@@ -1429,43 +802,16 @@ Fecha de solicitud: ${new Date().toLocaleString(lang || 'es')}
   getProfileStats: async (req, res) => {
     try {
       const { userId } = req.params;
-      const currentUserId = req.user._id;
-
-      const user = await Users.findById(userId)
-        .select('profileViewsCount followers following');
-
-      if (!user) {
-        return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
-      }
-
+      const user = await Users.findById(userId).select('profileViewsCount followers following');
+      if (!user) return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
       const weeklyViews = [];
       for (let i = 6; i >= 0; i--) {
-        const day = new Date();
-        day.setDate(day.getDate() - i);
-        day.setHours(0, 0, 0, 0);
-        
-        const nextDay = new Date(day);
-        nextDay.setDate(nextDay.getDate() + 1);
-        
-        const count = (user.profileViews || []).filter(view => 
-          new Date(view.viewedAt) >= day && new Date(view.viewedAt) < nextDay
-        ).length || 0;
-        
-        weeklyViews.push({
-          date: day.toLocaleDateString('fr-FR', { weekday: 'short' }),
-          count
-        });
+        const day = new Date(); day.setDate(day.getDate() - i); day.setHours(0, 0, 0, 0);
+        const nextDay = new Date(day); nextDay.setDate(nextDay.getDate() + 1);
+        const count = (user.profileViews || []).filter(view => new Date(view.viewedAt) >= day && new Date(view.viewedAt) < nextDay).length || 0;
+        weeklyViews.push({ date: day.toLocaleDateString('fr-FR', { weekday: 'short' }), count });
       }
-
-      res.json({
-        success: true,
-        stats: {
-          totalViews: user.profileViewsCount || 0,
-          weeklyViews,
-          followersCount: user.followers.length || 0,
-          followingCount: user.following.length || 0
-        }
-      });
+      res.json({ success: true, stats: { totalViews: user.profileViewsCount || 0, weeklyViews, followersCount: user.followers.length || 0, followingCount: user.following.length || 0 } });
     } catch (err) {
       console.error('❌ Error getProfileStats:', err);
       res.status(500).json({ success: false, message: err.message });
@@ -1476,23 +822,14 @@ Fecha de solicitud: ${new Date().toLocaleString(lang || 'es')}
     try {
       const { videoId } = req.params;
       const userId = req.user._id;
-
       const user = await Users.findById(userId);
-      if (!user) {
-        return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
-      }
-
-      const isSaved = user.savedVideos && user.savedVideos.includes(videoId);
-
+      if (!user) return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+      const isSaved = user.savedVideos.includes(videoId) || false;
       if (isSaved) {
-        await Users.findByIdAndUpdate(userId, {
-          $pull: { savedVideos: videoId }
-        });
+        await Users.findByIdAndUpdate(userId, { $pull: { savedVideos: videoId } });
         return res.json({ success: true, saved: false, message: 'Video eliminado de guardados' });
       } else {
-        await Users.findByIdAndUpdate(userId, {
-          $push: { savedVideos: videoId }
-        });
+        await Users.findByIdAndUpdate(userId, { $push: { savedVideos: videoId } });
         return res.json({ success: true, saved: true, message: 'Video guardado correctamente' });
       }
     } catch (err) {
@@ -1501,217 +838,468 @@ Fecha de solicitud: ${new Date().toLocaleString(lang || 'es')}
     }
   },
 
-  getSavedVideos: async (req, res) => {
+  // ==================== FUNCIONES DE ADMIN ====================
+  getUserTransactions: async (req, res) => {
     try {
-      const userId = req.user._id;
-      const { page = 1, limit = 12 } = req.query;
-      const skip = (parseInt(page) - 1) * parseInt(limit);
-
-      const user = await Users.findById(userId).populate({
-        path: 'savedVideos',
-        populate: {
-          path: 'user',
-          select: 'username avatar fullname'
-        },
-        options: {
-          skip: skip,
-          limit: parseInt(limit),
-          sort: { createdAt: -1 }
-        }
-      });
-
-      if (!user) {
-        return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
-      }
-
-      const total = await Users.findById(userId).select('savedVideos');
-      const totalSaved = total.savedVideos.length || 0;
-
-      res.json({
-        success: true,
-        videos: user.savedVideos || [],
-        total: totalSaved,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        hasMore: skip + (user.savedVideos.length || 0) < totalSaved
-      });
+      if (req.user.role !== 'admin') return res.status(403).json({ error: 'Accès admin requis' });
+      const { userId } = req.params;
+      const { limit = 50 } = req.query;
+      const Transaction = require('../models/Transaction');
+      const transactions = await Transaction.find({ user_id: userId }).sort({ createdAt: -1 }).limit(parseInt(limit));
+      res.json({ success: true, transactions });
     } catch (err) {
-      console.error('❌ Error getSavedVideos:', err);
-      res.status(500).json({ success: false, message: err.message });
+      console.error('❌ Error getUserTransactions:', err);
+      res.status(500).json({ error: err.message });
     }
   },
 
-  checkSavedVideo: async (req, res) => {
+  updateUserPlan: async (req, res) => {
     try {
-      const { videoId } = req.params;
-      const userId = req.user._id;
-
+      if (req.user.role !== 'admin') return res.status(403).json({ error: 'Accès administrateur requis' });
+      const { userId } = req.params;
+      const { plan, duration_months, expires_at, reason } = req.body;
+      const validPlans = ['free', 'basic', 'pro', 'business'];
+      if (!validPlans.includes(plan)) return res.status(400).json({ error: 'Plan invalide' });
       const user = await Users.findById(userId);
-      if (!user) {
-        return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+      if (!user) return res.status(404).json({ error: 'Utilisateur non trouvé' });
+      let planExpiresAt = null;
+      if (plan !== 'free') {
+        if (expires_at) planExpiresAt = new Date(expires_at);
+        else if (duration_months && duration_months > 0) { planExpiresAt = new Date(); planExpiresAt.setMonth(planExpiresAt.getMonth() + duration_months); }
+        else { planExpiresAt = new Date(); planExpiresAt.setMonth(planExpiresAt.getMonth() + 1); }
       }
-
-      const isSaved = user.savedVideos && user.savedVideos.includes(videoId);
-      res.json({ success: true, saved: isSaved });
+      const previousPlan = user.channelPlan;
+      const previousExpiry = user.channelPlanExpiresAt;
+      user.channelPlan = plan;
+      user.channelPlanExpiresAt = planExpiresAt;
+      user.channelPlanAutoRenew = false;
+      user.isPro = (plan === 'pro' || plan === 'business');
+      if (user.isPro && planExpiresAt) user.proExpiryDate = planExpiresAt;
+      else if (!user.isPro) user.proExpiryDate = null;
+      await user.save();
+      const Transaction = require('../models/Transaction');
+      const transaction = new Transaction({
+        checkout_id: `admin_${Date.now()}_${userId.slice(-6)}`,
+        user_id: userId,
+        user_email: user.email,
+        user_username: user.username,
+        plan_id: plan,
+        plan_name: plan === 'basic' ? 'Plan Basic' : plan === 'pro' ? 'Plan Pro' : plan === 'business' ? 'Plan Business' : 'Plan Gratuit',
+        duration_months: duration_months || (planExpiresAt ? Math.ceil((planExpiresAt - new Date()) / (1000 * 60 * 60 * 24 * 30)) : 0),
+        amount: 0,
+        currency: 'dzd',
+        status: 'paid',
+        payment_completed_at: new Date(),
+        plan_expires_at: planExpiresAt,
+        chargily_response: { admin_manual: true, reason: reason || `Admin ${req.user.username} action`, previous_plan: previousPlan, previous_expiry: previousExpiry }
+      });
+      await transaction.save();
+      const userResponse = user.toObject();
+      delete userResponse.password;
+      res.json({ success: true, user: userResponse, message: `Plan ${plan} activé avec succès${planExpiresAt ? ` jusqu'au ${planExpiresAt.toLocaleDateString()}` : ''}` });
     } catch (err) {
-      console.error('❌ Error checkSavedVideo:', err);
-      res.status(500).json({ success: false, message: err.message });
+      console.error('❌ Error updateUserPlan:', err);
+      res.status(500).json({ error: err.message });
     }
   },
+  // controllers/userCtrl.js
 
+   
 
-// En userCtrl.js - agregar esta función
-  getMyFollowedChannels : async (req, res) => {
+getUserVideos: async (req, res) => {
   try {
-    const userId = req.user._id;
-    const user = await Users.findById(userId).populate('followingChannels', 'name avatar description followersCount');
-    res.json({ success: true, channels: user.followingChannels || [] });
+    const { userId } = req.params;
+    const { page = 1, limit = 12, filter = 'all' } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const limitNum = parseInt(limit);
+    
+    let match = { user: new mongoose.Types.ObjectId(userId), isActive: true };
+    
+    if (filter === 'pending') {
+      match.pendiente = true;
+    } else if (filter === 'approved') {
+      match.pendiente = false;
+    }
+    // 'all' no añade filtro adicional
+    
+    const videos = await Video.find(match)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum)
+      .populate('user', 'username avatar')
+      .populate('channel', 'name avatar')
+      .lean();
+    
+    const total = await Video.countDocuments(match);
+    const pendingCount = await Video.countDocuments({ user: new mongoose.Types.ObjectId(userId), pendiente: true, isActive: true });
+    const approvedCount = await Video.countDocuments({ user: new mongoose.Types.ObjectId(userId), pendiente: false, isActive: true });
+    
+    // Marcar si el usuario ya dio like
+    const currentUserId = req.user._id;
+    const videosWithStatus = videos.map(v => ({
+      ...v,
+      liked: v.likes.some(id => id.toString() === currentUserId.toString()) || false
+    }));
+    
+    res.json({
+      success: true,
+      videos: videosWithStatus,
+      total,
+      pendingCount,
+      approvedCount,
+      page: parseInt(page),
+      totalPages: Math.ceil(total / limitNum),
+      hasMore: skip + videos.length < total
+    });
   } catch (err) {
+    console.error('Error getUserVideos:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 },
 
-
-
-// controllers/adminCtrl.js - AÑADIR ESTOS MÉTODOS
-
-// Obtener transacciones de un usuario específico
-getUserTransactions: async (req, res) => {
+// ==================== SEGUIR/DEJAR DE SEGUIR USUARIO ====================
+toggleFollow: async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Accès admin requis' });
+    const { userId } = req.params;
+    const currentUserId = req.user._id;
+    
+    if (userId === currentUserId.toString()) {
+      return res.status(400).json({ success: false, message: "Vous ne pouvez pas vous suivre vous-même" });
     }
     
-    const { userId } = req.params;
-    const { limit = 50 } = req.query;
+    const userToFollow = await Users.findById(userId);
+    const currentUser = await Users.findById(currentUserId);
     
-    const transactions = await Transaction.find({ user_id: userId })
-      .sort({ createdAt: -1 })
-      .limit(parseInt(limit));
+    if (!userToFollow || !currentUser) {
+      return res.status(404).json({ success: false, message: "Utilisateur non trouvé" });
+    }
+    
+    const isFollowing = currentUser.following.includes(userId);
+    
+    if (isFollowing) {
+      // Dejar de seguir
+      await Users.findByIdAndUpdate(currentUserId, { $pull: { following: userId } });
+      await Users.findByIdAndUpdate(userId, { $pull: { followers: currentUserId } });
+    } else {
+      // Seguir
+      await Users.findByIdAndUpdate(currentUserId, { $addToSet: { following: userId } });
+      await Users.findByIdAndUpdate(userId, { $addToSet: { followers: currentUserId } });
+    }
+    
+    const updatedUser = await Users.findById(userId);
+    const followersCount = updatedUser.followers.length;
     
     res.json({
       success: true,
-      transactions
+      isFollowing: !isFollowing,
+      followersCount
     });
-    
   } catch (err) {
-    console.error('❌ Error getUserTransactions:', err);
-    res.status(500).json({ error: err.message });
+    console.error('Error toggleFollow:', err);
+    res.status(500).json({ success: false, message: err.message });
   }
 },
+// controllers/userCtrl.js
+// ============================================
+// ✅ FUNCIONES FALTANTES - AGREGAR
+// ============================================
 
-
-
-// controllers/adminCtrl.js - AÑADIR/ACTUALIZAR ESTE MÉTODO
-
-// ========== ACTUALIZAR PLAN DEL USUARIO (channelPlan) ==========
-updateUserPlan: async (req, res) => {
+// ==================== ACTUALIZAR ROL DE USUARIO ====================
+updateUserRole: async (req, res) => {
   try {
-    // Verificar que sea admin
+    const { id } = req.params;
+    const { role } = req.body;
+    
     if (req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Accès administrateur requis' });
+      return res.status(403).json({ success: false, message: 'Accès non autorisé' });
     }
     
-    const { userId } = req.params;
-    const { 
-      plan,           // 'free', 'basic', 'pro', 'business'
-      duration_months, // número de meses (1, 3, 6, 12, 24)
-      expires_at,     // fecha opcional (si se pasa directamente)
-      reason          // razón del cambio (admin action)
-    } = req.body;
-    
-    console.log('📝 Admin updateUserPlan:', { userId, plan, duration_months, reason });
-    
-    // Validar plan
-    const validPlans = ['free', 'basic', 'pro', 'business'];
-    if (!validPlans.includes(plan)) {
-      return res.status(400).json({ error: 'Plan invalide' });
+    const validRoles = ['user', 'moderator', 'admin'];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({ success: false, message: 'Rôle invalide' });
     }
     
-    // Buscar usuario
-    const user = await User.findById(userId);
+    const user = await Users.findByIdAndUpdate(
+      id,
+      { role },
+      { new: true }
+    ).select('-password');
+    
     if (!user) {
-      return res.status(404).json({ error: 'Utilisateur non trouvé' });
+      return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
     }
     
-    // Calcular fecha de expiración
-    let planExpiresAt = null;
-    if (plan !== 'free') {
-      if (expires_at) {
-        planExpiresAt = new Date(expires_at);
-      } else if (duration_months && duration_months > 0) {
-        planExpiresAt = new Date();
-        planExpiresAt.setMonth(planExpiresAt.getMonth() + duration_months);
-      } else {
-        // Por defecto 1 mes
-        planExpiresAt = new Date();
-        planExpiresAt.setMonth(planExpiresAt.getMonth() + 1);
-      }
+    res.json({ success: true, user });
+  } catch (err) {
+    console.error('Error updateUserRole:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+},
+
+// ==================== VERIFICAR/DESVERIFICAR USUARIO ====================
+toggleVerification: async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { isVerified } = req.body;
+    
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Accès non autorisé' });
     }
     
-    // Guardar plan anterior para auditoría
-    const previousPlan = user.channelPlan;
-    const previousExpiry = user.channelPlanExpiresAt;
+    const user = await Users.findByIdAndUpdate(
+      userId,
+      { isVerified },
+      { new: true }
+    ).select('-password');
     
-    // Actualizar usuario
-    user.channelPlan = plan;
-    user.channelPlanExpiresAt = planExpiresAt;
-    user.channelPlanAutoRenew = false;
-    
-    // Actualizar campo isPro (para compatibilidad con código legacy)
-    user.isPro = (plan === 'pro' || plan === 'business');
-    if (user.isPro && planExpiresAt) {
-      user.proExpiryDate = planExpiresAt;
-    } else if (!user.isPro) {
-      user.proExpiryDate = null;
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
     }
     
-    await user.save();
-    
-    console.log(`✅ Plan mis à jour: ${previousPlan} → ${plan} pour ${userId}`);
-    console.log(`📅 Expire le: ${planExpiresAt || 'jamais'}`);
-    
-    // Registrar transacción administrativa (opcional pero recomendado)
-    const Transaction = require('../models/Transaction');
-    const transaction = new Transaction({
-      checkout_id: `admin_${Date.now()}_${userId.slice(-6)}`,
-      user_id: userId,
-      user_email: user.email,
-      user_username: user.username,
-      plan_id: plan,
-      plan_name: plan === 'basic' ? 'Plan Basic' : plan === 'pro' ? 'Plan Pro' : plan === 'business' ? 'Plan Business' : 'Plan Gratuit',
-      duration_months: duration_months || (planExpiresAt ? Math.ceil((planExpiresAt - new Date()) / (1000 * 60 * 60 * 24 * 30)) : 0),
-      amount: 0, // Admin action = gratis
-      currency: 'dzd',
-      status: 'paid',
-      payment_completed_at: new Date(),
-      plan_expires_at: planExpiresAt,
-      chargily_response: { 
-        admin_manual: true, 
-        reason: reason || `Admin ${req.user.username} action`,
-        previous_plan: previousPlan,
-        previous_expiry: previousExpiry
-      }
+    res.json({ 
+      success: true, 
+      message: isVerified ? 'Utilisateur vérifié' : 'Vérification retirée',
+      isVerified: user.isVerified 
     });
+  } catch (err) {
+    console.error('Error toggleVerification:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+},
+
+// ==================== OBTENER VIDEOS DEL USUARIO ====================
+getUserVideos: async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { page = 1, limit = 12, filter = 'all' } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const limitNum = parseInt(limit);
     
-    await transaction.save();
-    console.log(`📝 Transaction administrative enregistrée: ${transaction._id}`);
+    let match = { user: new mongoose.Types.ObjectId(userId), isActive: true };
     
-    // Devolver usuario actualizado (sin password)
-    const userResponse = user.toObject();
-    delete userResponse.password;
+    if (filter === 'pending') {
+      match.pendiente = true;
+    } else if (filter === 'approved') {
+      match.pendiente = false;
+    }
+    
+    const videos = await Video.find(match)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum)
+      .populate('user', 'username avatar')
+      .populate('channel', 'name avatar')
+      .lean();
+    
+    const total = await Video.countDocuments(match);
+    const pendingCount = await Video.countDocuments({ user: new mongoose.Types.ObjectId(userId), pendiente: true, isActive: true });
+    const approvedCount = await Video.countDocuments({ user: new mongoose.Types.ObjectId(userId), pendiente: false, isActive: true });
+    
+    const currentUserId = req.user._id;
+    const videosWithStatus = videos.map(v => ({
+      ...v,
+      liked: v.likes.some(id => id.toString() === currentUserId.toString()) || false
+    }));
     
     res.json({
       success: true,
-      user: userResponse,
-      message: `Plan ${plan} activé avec succès${planExpiresAt ? ` jusqu'au ${planExpiresAt.toLocaleDateString()}` : ''}`
+      videos: videosWithStatus,
+      total,
+      pendingCount,
+      approvedCount,
+      page: parseInt(page),
+      totalPages: Math.ceil(total / limitNum),
+      hasMore: skip + videos.length < total
     });
-    
   } catch (err) {
-    console.error('❌ Error updateUserPlan:', err);
-    res.status(500).json({ error: err.message });
+    console.error('Error getUserVideos:', err);
+    res.status(500).json({ success: false, message: err.message });
   }
 },
+
+// ==================== SEGUIR/DEJAR DE SEGUIR USUARIO (toggle) ====================
+ 
+
+// ==================== OBTENER VIDEOS GUARDADOS DE OTRO USUARIO (ADMIN) ====================
+getUserSavedVideos: async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { page = 1, limit = 12 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Solo admin puede ver saved videos de otros
+    if (req.user.role !== 'admin' && req.user._id.toString() !== userId) {
+      return res.status(403).json({ success: false, message: 'Accès non autorisé' });
+    }
+
+    const user = await Users.findById(userId).populate({
+      path: 'savedVideos',
+      populate: { path: 'user', select: 'username avatar' },
+      options: { skip, limit: parseInt(limit), sort: { createdAt: -1 } }
+    });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
+    }
+
+    const total = await Users.findById(userId).select('savedVideos');
+    const totalSaved = total.savedVideos.length || 0;
+
+    res.json({
+      success: true,
+      videos: user.savedVideos || [],
+      total: totalSaved,
+      page: parseInt(page),
+      totalPages: Math.ceil(totalSaved / parseInt(limit)),
+      hasMore: skip + (user.savedVideos.length || 0) < totalSaved
+    });
+  } catch (err) {
+    console.error('❌ Error getUserSavedVideos:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+},
+// controllers/userCtrl.js
+
+// ==================== SEGUIR/DEJAR DE SEGUIR USUARIO (TOGGLE) ====================
+toggleFollow: async (req, res) => {
+  try {
+    const { id } = req.params;
+    const currentUserId = req.user._id;
+    
+    if (id === currentUserId.toString()) {
+      return res.status(400).json({ success: false, message: "No puedes seguirte a ti mismo" });
+    }
+    
+    const userToFollow = await Users.findById(id);
+    const currentUser = await Users.findById(currentUserId);
+    
+    if (!userToFollow || !currentUser) {
+      return res.status(404).json({ success: false, message: "Usuario no encontrado" });
+    }
+    
+    const isFollowing = currentUser.following.includes(id) || false;
+    
+    if (isFollowing) {
+      // Dejar de seguir
+      await Users.findByIdAndUpdate(currentUserId, { $pull: { following: id } });
+      await Users.findByIdAndUpdate(id, { $pull: { followers: currentUserId } });
+    } else {
+      // Seguir
+      await Users.findByIdAndUpdate(currentUserId, { $addToSet: { following: id } });
+      await Users.findByIdAndUpdate(id, { $addToSet: { followers: currentUserId } });
+    }
+    
+    const updatedUser = await Users.findById(id);
+    const followersCount = updatedUser.followers.length || 0;
+    
+    res.json({
+      success: true,
+      isFollowing: !isFollowing,
+      followersCount
+    });
+  } catch (err) {
+    console.error('Error toggleFollow:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+},
+// controllers/userCtrl.js
+
+ 
+// ==================== VIDEOS DEL USUARIO ====================
+ 
+// controllers/userCtrl.js
+
+// ==================== VIDEOS GUARDADOS ====================
+getSavedVideos: async (req, res) => {
+  try {
+    // ✅ USAR req.user._id (NO req.params.id)
+    const userId = req.user._id;
+    
+    console.log('📥 getSavedVideos - Usuario ID:', userId);
+    
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Usuario no autenticado' });
+    }
+    
+    const { page = 1, limit = 12 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const limitNum = parseInt(limit);
+
+    const user = await Users.findById(userId).populate({
+      path: 'savedVideos',
+      populate: { path: 'user', select: 'username avatar' },
+      options: { skip, limit: limitNum, sort: { createdAt: -1 } }
+    });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+    }
+
+    const total = user.savedVideos.length || 0;
+
+    res.json({
+      success: true,
+      videos: user.savedVideos || [],
+      total: total,
+      page: parseInt(page),
+      totalPages: Math.ceil(total / limitNum),
+      hasMore: skip + (user.savedVideos.length || 0) < total
+    });
+  } catch (err) {
+    console.error('❌ Error getSavedVideos:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+},
+
+// ==================== VIDEOS CON LIKE ====================
+getLikedVideos: async (req, res) => {
+  try {
+    // ✅ USAR req.user._id (NO req.params.id)
+    const userId = req.user._id;
+    
+    console.log('📥 getLikedVideos - Usuario ID:', userId);
+    
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Usuario no autenticado' });
+    }
+    
+    const { page = 1, limit = 12 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const limitNum = parseInt(limit);
+
+    const videos = await Video.find({
+      likes: { $in: [userId] },
+      isActive: true,
+      pendiente: false
+    })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum)
+      .populate('user', 'username avatar')
+      .populate('channel', 'name avatar')
+      .lean();
+
+    const total = await Video.countDocuments({
+      likes: { $in: [userId] },
+      isActive: true,
+      pendiente: false
+    });
+
+    const videosWithLiked = videos.map(v => ({ ...v, liked: true }));
+
+    res.json({
+      success: true,
+      videos: videosWithLiked,
+      total,
+      page: parseInt(page),
+      totalPages: Math.ceil(total / limitNum),
+      hasMore: skip + videos.length < total
+    });
+  } catch (err) {
+    console.error('❌ Error getLikedVideos:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+}
 
 
 };

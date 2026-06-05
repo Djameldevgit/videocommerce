@@ -32,7 +32,7 @@ import Posts from './pages/aprobation/Posts';
  
 import EditChannel from './pages/channel/EditChannel';
 import ChannelProfile from './pages/channel/ChannelProfile';
-import MisChannel from './pages/channel/MisChannel';
+ 
 import ChannelFeed from './pages/channel/ChannelFeed';
 import Map from './pages/Map';
 import UserProInfoPlans from './pages/userProInfoPlans';
@@ -349,7 +349,7 @@ function AppContent() {
 
         <Route exact path="/channel/:channelId/edit" component={EditChannel} />
         <Route exact path="/channel/:channelId" component={ChannelProfile} />
- <Route exact path="/my-channels" component={MisChannel} />
+ 
  
  
   <Route exact path="/channel/:channelId/owner" component={ChannelOwnerView} />

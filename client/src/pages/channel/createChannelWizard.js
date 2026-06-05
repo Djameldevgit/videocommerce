@@ -1,6 +1,7 @@
 // src/pages/channel/CreateChannelWizard.jsx - VERSIÓN CORREGIDA
+// ✅ Redirige al perfil del usuario (área privada) donde puede ver sus canales
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useHistory } from 'react-router-dom';
 import { Container, Button, Card, Alert, Spinner, ProgressBar } from 'react-bootstrap';
@@ -10,6 +11,9 @@ import { createChannel, updateChannel, getMyChannels } from '../../redux/actions
 import { getMainCategories } from '../../redux/actions/categoryAction';
 import ImageUploadField from './ImageUploadField';
 import WilayaCommuneField from './WilayaCommuneField';
+
+// ✅ CATEGORÍAS EXCLUIDAS PARA USUARIOS NORMALES
+const ADMIN_ONLY_CATEGORY_SLUGS = ['tutorials', 'channels'];
 
 const CreateChannelWizard = () => {
     const dispatch = useDispatch();
@@ -36,6 +40,39 @@ const CreateChannelWizard = () => {
         email: '',
         website: ''
     });
+
+    const userRole = auth.user?.role;
+    const isAdmin = userRole === 'admin' || userRole === 'moderator';
+    const userId = auth.user?._id;
+
+    // ✅ FILTRAR CATEGORÍAS SEGÚN ROL DEL USUARIO
+    const filteredCategories = useMemo(() => {
+        if (!categories || categories.length === 0) return [];
+        
+        if (isAdmin) {
+            console.log('👑 Admin: Mostrando todas las categorías');
+            return categories;
+        }
+        
+        const filtered = categories.filter(cat => {
+            if (ADMIN_ONLY_CATEGORY_SLUGS.includes(cat.slug)) {
+                console.log(`🔒 Categoría excluida: ${cat.name} (${cat.slug})`);
+                return false;
+            }
+            if (cat.isAdminOnly === true) {
+                console.log(`🔒 Categoría admin-only excluida: ${cat.name}`);
+                return false;
+            }
+            if (cat.isSpecial === true && cat.specialType === 'admin') {
+                console.log(`🔒 Categoría especial excluida: ${cat.name}`);
+                return false;
+            }
+            return true;
+        });
+        
+        console.log(`📊 Categorías disponibles: ${filtered.length}`);
+        return filtered;
+    }, [categories, isAdmin]);
 
     useEffect(() => {
         if (!categories || categories.length === 0) {
@@ -80,22 +117,14 @@ const CreateChannelWizard = () => {
         setFormData(prev => ({ ...prev, [name]: value }));
     }, []);
 
-    // ✅ FUNCIÓN CORREGIDA - Más clara y con logs
     const canProceedToNextStep = () => {
         switch (currentStep) {
             case 1:
-                const isValid = formData.name.trim() !== '' && formData.activity !== '';
-                console.log('Step 1 validation:', { name: formData.name, activity: formData.activity, isValid });
-                return isValid;
+                return formData.name.trim() !== '' && formData.activity !== '';
             case 2:
-                const isValid2 = formData.wilaya !== '' && formData.commune !== '';
-                console.log('Step 2 validation:', { wilaya: formData.wilaya, commune: formData.commune, isValid: isValid2 });
-                return isValid2;
+                return formData.wilaya !== '' && formData.commune !== '';
             case 3:
-                // ✅ Paso 3 SIEMPRE true - no hay validaciones obligatorias
-                return true;
             case 4:
-                // ✅ Paso 4 SIEMPRE true - las imágenes son opcionales
                 return true;
             default:
                 return false;
@@ -106,7 +135,6 @@ const CreateChannelWizard = () => {
         if (canProceedToNextStep()) {
             setCurrentStep(prev => prev + 1);
         } else {
-            // Mostrar mensaje de validación
             let message = '';
             switch (currentStep) {
                 case 1:
@@ -128,13 +156,12 @@ const CreateChannelWizard = () => {
         }
     };
 
-    // ✅ HANDLE SUBMIT CORREGIDO
+    // ✅ HANDLE SUBMIT CON REDIRECCIÓN AL PERFIL
     const handleSubmit = async (e) => {
         e.preventDefault();
         
         if (isSubmitting) return;
         
-        // Validaciones finales
         if (!formData.name || !formData.activity) {
             return showAlert("Veuillez remplir le nom du canal et l'activité", "warning");
         }
@@ -158,8 +185,8 @@ const CreateChannelWizard = () => {
             
             console.log('📝 Enviando datos:', {
                 channelData,
-                avatarImages,
-                coverImages,
+                avatarCount: avatarImages.length,
+                coverCount: coverImages.length,
                 isEdit
             });
             
@@ -185,8 +212,18 @@ const CreateChannelWizard = () => {
             
             if (result?.success) {
                 showAlert(isEdit ? '✅ Canal actualisé avec succès!' : '✅ Canal créé avec succès!', 'success');
+                
+                // ✅ RECARGAR CANALES DEL USUARIO
                 await dispatch(getMyChannels(auth?.token));
-                setTimeout(() => history.push('/my-channels'), 2000);
+                
+                // ✅ REDIRIGIR AL PERFIL DEL USUARIO (DONDE VERÁ SUS CANALES)
+                setTimeout(() => {
+                    if (userId) {
+                        history.push(`/profile/${userId}`);
+                    } else {
+                        history.push('/my-channels');
+                    }
+                }, 1500);
             } else {
                 showAlert(result?.error || 'Erreur lors de la création du canal', 'danger');
             }
@@ -198,7 +235,6 @@ const CreateChannelWizard = () => {
         }
     };
 
-    // ✅ Función para obtener el título del paso
     const getStepTitle = () => {
         switch (currentStep) {
             case 1: return "Informations du canal";
@@ -209,9 +245,17 @@ const CreateChannelWizard = () => {
         }
     };
 
+    if (!categories || categories.length === 0) {
+        return (
+            <Container className="py-5 text-center">
+                <Spinner animation="border" variant="primary" />
+                <p className="mt-3">Chargement des catégories...</p>
+            </Container>
+        );
+    }
+
     return (
         <Container className="py-4">
-            {/* Alertas */}
             <AnimatePresence>
                 {alert.show && (
                     <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
@@ -225,9 +269,11 @@ const CreateChannelWizard = () => {
             <div className="text-center mb-4">
                 <h1>{isEdit ? '✏️ Modifier le canal' : '➕ Créer un canal'}</h1>
                 <p className="text-muted">Étape {currentStep} sur 4</p>
+                {isAdmin && (
+                    <small className="badge bg-info mt-2">👑 Mode administrateur - Toutes les catégories disponibles</small>
+                )}
             </div>
 
-            {/* Progress bar */}
             <div className="mb-4">
                 <ProgressBar now={(currentStep / 4) * 100} style={{ height: '8px' }} />
                 <div className="d-flex justify-content-between mt-2">
@@ -238,7 +284,6 @@ const CreateChannelWizard = () => {
                 </div>
             </div>
 
-            {/* Step content */}
             <AnimatePresence mode="wait">
                 {currentStep === 1 && (
                     <motion.div key="step1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
@@ -267,10 +312,18 @@ const CreateChannelWizard = () => {
                                     className="form-select"
                                 >
                                     <option value="">Sélectionnez une activité</option>
-                                    {categories?.map(cat => (
-                                        <option key={cat._id} value={cat.name}>{cat.name}</option>
+                                    {filteredCategories.map(cat => (
+                                        <option key={cat._id} value={cat.name}>
+                                            {cat.name}
+                                            {isAdmin && (cat.slug === 'tutorials' || cat.slug === 'channels') && ' 🔒 (Admin)'}
+                                        </option>
                                     ))}
                                 </select>
+                                <small className="text-muted">
+                                    {isAdmin 
+                                        ? "Mode admin: Vous pouvez créer des canaux dans toutes les catégories"
+                                        : "Choisissez la catégorie qui correspond le mieux à votre activité"}
+                                </small>
                             </div>
                             
                             <div className="mb-3">
@@ -378,7 +431,6 @@ const CreateChannelWizard = () => {
                 )}
             </AnimatePresence>
 
-            {/* Navigation buttons */}
             <div className="d-flex justify-content-between mt-4">
                 <Button 
                     variant="outline-secondary" 
@@ -416,7 +468,6 @@ const CreateChannelWizard = () => {
                 )}
             </div>
 
-            {/* Indicador de campos obligatorios */}
             <div className="text-center mt-4">
                 <small className="text-muted">* Champs obligatoires</small>
             </div>

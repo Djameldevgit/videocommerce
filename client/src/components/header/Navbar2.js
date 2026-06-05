@@ -515,7 +515,9 @@ const Navbar2 = () => {
                         </Badge>
                       </div>
                     )}
-                    
+                     
+                    <MenuItem icon={FaUserCircle} iconColor="#667eea" to="/userproinfoplans"> Info plan</MenuItem>
+                
                     <MenuItem icon={FaUserCircle} iconColor="#667eea" to={`/profile/${auth.user._id}`}>Mon Profil</MenuItem>
                     <MenuItem icon={FaInfoCircle} iconColor="#6c757d" to="/donation">Donation</MenuItem>
                     <MenuItem icon={FaShareAlt} iconColor="#ffc107" onClick={() => setShowShareModal(true)}>Partager l'App</MenuItem>

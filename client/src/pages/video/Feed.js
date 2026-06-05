@@ -1,4 +1,4 @@
-// components/Feed/Feed.jsx - VERSIÓN COMPLETA CORREGIDA
+// components/Feed/Feed.jsx - VERSIÓN CORREGIDA
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useHistory } from 'react-router-dom';
@@ -18,10 +18,9 @@ import {
 } from '@fortawesome/free-regular-svg-icons';
 import Hls from 'hls.js';
 
-import { likeVideo, shareVideo, deleteVideo } from '../../redux/actions/videoAction';
+import { likeVideo, shareVideo, deleteVideo, toggleSaveVideo } from '../../redux/actions/videoAction';
 import { aprobarVideo, eliminarVideo } from '../../redux/actions/videoApproveAction';
 import { GLOBALTYPES } from '../../redux/actions/globalTypes';
-import { toggleSaveVideo } from '../../redux/actions/videoAction';
 import { getChannelProfile } from '../../redux/actions/channelAction';
 
 import VideoComments from './VideoComments';
@@ -76,9 +75,16 @@ const Feed = ({
   const hasFetchedRef = useRef(false);
   const lastVideoIdRef = useRef(null);
 
+  // ✅ ESTADO INICIAL CORREGIDO - Verificar si el video ya está guardado
   const [liked, setLiked] = useState(video.liked || false);
   const [likesCount, setLikesCount] = useState(video.likes?.length || 0);
-  const [saved, setSaved] = useState(false);
+  // ✅ CORREGIDO: Inicializar 'saved' verificando si el video está en savedVideos del usuario
+  const [saved, setSaved] = useState(() => {
+    if (auth.user?.savedVideos && Array.isArray(auth.user.savedVideos)) {
+      return auth.user.savedVideos.includes(video._id);
+    }
+    return false;
+  });
   const [saving, setSaving] = useState(false);
   const [commentsCount, setCommentsCount] = useState(video.comments?.length || 0);
   const [showComments, setShowComments] = useState(false);
@@ -333,19 +339,33 @@ const Feed = ({
     }
   };
 
+  // ✅ CORREGIDO: handleSave con todos los parámetros y usando 'isSaved'
   const handleSave = async () => {
     if (!auth.token) return history.push('/login');
     if (guardPending()) return;
     if (saving) return;
     setSaving(true);
-    const result = await dispatch(toggleSaveVideo(video._id));
-    if (result?.saved !== undefined) {
-      setSaved(result.saved);
+    
+    // ✅ Pasar todos los parámetros necesarios
+    const result = await dispatch(toggleSaveVideo(
+      video._id,      // videoId
+      auth.token,     // token
+      auth,           // auth
+      socket,         // socket
+      video           // videoData
+    ));
+    
+    // ✅ CORREGIDO: usar 'isSaved' en lugar de 'saved'
+    if (result?.isSaved !== undefined) {
+      setSaved(result.isSaved);
       dispatch({
         type: GLOBALTYPES.ALERT,
-        payload: { success: result.saved ? 'Ajouté aux favoris' : 'Retiré des favoris' }
+        payload: { success: result.isSaved ? '✓ Ajouté aux favoris' : '✓ Retiré des favoris' }
       });
+    } else if (result?.success && result?.isSaved !== undefined) {
+      setSaved(result.isSaved);
     }
+    
     setSaving(false);
   };
 
@@ -363,6 +383,10 @@ const Feed = ({
   };
 
   const handleShare = async () => {
+    if (!auth.token) {
+      history.push('/login');
+      return;
+    }
     const url = `${window.location.origin}/video/${video._id}`;
     if (navigator.share) {
       try { await navigator.share({ title: video.title, text: video.description, url }); } catch { }
@@ -635,13 +659,17 @@ const Feed = ({
               <span className="vr-action-count">{formatNumber(commentsCount)}</span>
             </div>
 
-            {/* Save */}
+            {/* Save - CORREGIDO: usar 'saved' en lugar de 'isSaved' */}
             <div className="vr-action-group">
               <button className="vr-action-btn" onClick={handleSave} disabled={saving}>
                 {saving ? (
-                  <FontAwesomeIcon icon={faBookmark} spin />
+                  <FontAwesomeIcon icon={faSpinner} spin />
                 ) : (
-                  <FontAwesomeIcon icon={saved ? faBookmark : faBookmarkRegular} className="vr-action-icon" style={{ color: saved ? '#ffd700' : 'white' }} />
+                  <FontAwesomeIcon 
+                    icon={saved ? faBookmark : faBookmarkRegular} 
+                    className="vr-action-icon" 
+                    style={{ color: saved ? '#ffd700' : 'white' }} 
+                  />
                 )}
               </button>
               <span className="vr-action-count">Favoris</span>
@@ -697,7 +725,6 @@ const Feed = ({
             {isPending && isAdmin && <span className="vr-pending-badge">⏳ En attente</span>}
             
             <div className="vr-user-row">
-              
               <div className="vr-user-details">
                 <div 
                   className="vr-username" 

@@ -1,23 +1,49 @@
-// redux/reducers/userReducer.js - VERSIÓN COMPLETA OPTIMIZADA
+// redux/reducers/userReducer.js
+// ============================================
+// 📦 REDUCER DE USUARIO - FUSIONADO CON userVideoReducer
+// ============================================
 
 import { USER_TYPES } from '../actions/userAction';
 
 const initialState = {
-    // Usuarios normales
+    // ============ USUARIOS NORMALES (ADMIN) ============
     loading: false,
     users: [],
     result: 0,
     page: 1,
     error: null,
     
-    // Usuarios bloqueados (para admin)
+    // ============ USUARIOS BLOQUEADOS ============
     blockedUsers: [],
     blockedResult: 0,
     blockedPage: 1,
     loadingBlocked: false,
     
-    // Comentarios admin
-    adminComments: {}
+    // ============ COMENTARIOS ADMIN ============
+    adminComments: {},
+    
+    // ============ PERFIL DE USUARIO ============
+    profile: null,
+    userVideos: [],
+    savedVideos: [],
+    likedVideos: [],
+    activeTab: 'videos',
+    
+    // ============ PAGINACIÓN ============
+    userVideosTotal: 0,
+    userVideosPage: 1,
+    userVideosHasMore: true,
+    
+    savedVideosTotal: 0,
+    savedVideosPage: 1,
+    savedVideosHasMore: true,
+    
+    likedVideosTotal: 0,
+    likedVideosPage: 1,
+    likedVideosHasMore: true,
+    
+    // ============ ESTADOS DE CARGA ============
+    profileLoading: false
 };
 
 const userReducer = (state = initialState, action) => {
@@ -27,18 +53,6 @@ const userReducer = (state = initialState, action) => {
             return { ...state, loading: action.payload };
 
         case USER_TYPES.GET_USERS:
-            console.log('📥 GET_USERS recibido:', {
-                usersCount: action.payload.users?.length || 0,
-                firstUser: action.payload.users?.[0] ? {
-                    username: action.payload.users[0].username,
-                    channelPlan: action.payload.users[0].channelPlan,
-                    channelPlanExpiresAt: action.payload.users[0].channelPlanExpiresAt,
-                    isBlocked: action.payload.users[0].isBlocked,
-                    isActive: action.payload.users[0].isActive,
-                    isPro: action.payload.users[0].isPro,
-                    proExpiryDate: action.payload.users[0].proExpiryDate
-                } : null
-            });
             return {
                 ...state,
                 users: action.payload.users || [],
@@ -47,18 +61,7 @@ const userReducer = (state = initialState, action) => {
                 loading: false
             };
 
-        // ============ ACTUALIZACIÓN DE USUARIO (UNIFICADA) ============
         case USER_TYPES.UPDATE_USER:
-            console.log('🔄 UPDATE_USER recibido:', {
-                userId: action.payload._id,
-                username: action.payload.username,
-                channelPlan: action.payload.channelPlan,
-                channelPlanExpiresAt: action.payload.channelPlanExpiresAt,
-                isPro: action.payload.isPro,
-                isVerified: action.payload.isVerified,
-                isActive: action.payload.isActive,
-                isBlocked: action.payload.isBlocked
-            });
             return {
                 ...state,
                 users: state.users.map(user =>
@@ -85,9 +88,8 @@ const userReducer = (state = initialState, action) => {
                 result: state.result - 1
             };
 
-        // ============ ACTIVAR/DESACTIVAR USUARIO ============
+        // ============ ACTIVAR/DESACTIVAR ============
         case USER_TYPES.ACTIVATE_USER:
-            console.log('🟢 ACTIVATE_USER recibido:', action.payload);
             return {
                 ...state,
                 users: state.users.map(user =>
@@ -98,7 +100,6 @@ const userReducer = (state = initialState, action) => {
             };
 
         case USER_TYPES.DEACTIVATE_USER:
-            console.log('🔴 DEACTIVATE_USER recibido:', action.payload);
             return {
                 ...state,
                 users: state.users.map(user =>
@@ -109,7 +110,6 @@ const userReducer = (state = initialState, action) => {
             };
 
         case USER_TYPES.TOGGLE_ACTIVE_STATUS:
-            console.log('🔄 TOGGLE_ACTIVE_STATUS recibido:', action.payload);
             return {
                 ...state,
                 users: state.users.map(user =>
@@ -119,9 +119,8 @@ const userReducer = (state = initialState, action) => {
                 )
             };
 
-        // ============ BLOQUEO/DESBLOQUEO USUARIO ============
+        // ============ BLOQUEO/DESBLOQUEO ============
         case USER_TYPES.BLOCK_USER:
-            console.log('🔵 BLOCK_USER recibido:', action.payload);
             return {
                 ...state,
                 users: state.users.map(user =>
@@ -130,27 +129,20 @@ const userReducer = (state = initialState, action) => {
                             ...user, 
                             isBlocked: true,
                             isActive: false,
-                            blockDetails: action.payload.blockDetails || {
-                                reason: action.payload.reason,
-                                description: action.payload.description,
-                                blockExpiryDate: action.payload.blockExpiryDate,
-                                blockDate: action.payload.blockDate || new Date(),
-                                blockedBy: action.payload.blockedBy
-                            }
+                            blockDetails: action.payload.blockDetails
                           }
                         : user
                 ),
                 blockedUsers: state.blockedUsers.some(u => u._id === action.payload._id)
                     ? state.blockedUsers.map(user =>
                         user._id === action.payload._id
-                            ? { ...user, isBlocked: true, ...action.payload }
+                            ? { ...user, ...action.payload }
                             : user
                       )
                     : [...state.blockedUsers, action.payload]
             };
 
         case USER_TYPES.UNBLOCK_USER:
-            console.log('🟢 UNBLOCK_USER recibido:', action.payload);
             return {
                 ...state,
                 users: state.users.map(user =>
@@ -168,9 +160,22 @@ const userReducer = (state = initialState, action) => {
                 )
             };
 
-        // ============ USUARIO PRO (LEGACY) ============
+        case USER_TYPES.LOADING_BLOCKED_USERS:
+            return { ...state, loadingBlocked: action.payload };
+
+        case USER_TYPES.GET_BLOCKED_USERS:
+            return {
+                ...state,
+                blockedUsers: action.payload.page === 1
+                    ? action.payload.blockedUsers
+                    : [...state.blockedUsers, ...action.payload.blockedUsers],
+                blockedResult: action.payload.result || 0,
+                blockedPage: action.payload.page || 1,
+                loadingBlocked: false
+            };
+
+        // ============ PLANES ============
         case USER_TYPES.ACTIVATE_PRO:
-            console.log('⭐ ACTIVATE_PRO recibido:', action.payload);
             return {
                 ...state,
                 users: state.users.map(user =>
@@ -179,7 +184,6 @@ const userReducer = (state = initialState, action) => {
                             ...user, 
                             isPro: true,
                             proExpiryDate: action.payload.proExpiryDate || null,
-                            // También actualizar channelPlan para mantener consistencia
                             channelPlan: action.payload.proExpiryDate ? 'pro' : user.channelPlan,
                             channelPlanExpiresAt: action.payload.proExpiryDate || user.channelPlanExpiresAt
                           }
@@ -188,7 +192,6 @@ const userReducer = (state = initialState, action) => {
             };
 
         case USER_TYPES.DEACTIVATE_PRO:
-            console.log('🚫 DEACTIVATE_PRO recibido:', action.payload);
             return {
                 ...state,
                 users: state.users.map(user =>
@@ -197,7 +200,6 @@ const userReducer = (state = initialState, action) => {
                             ...user, 
                             isPro: false,
                             proExpiryDate: null,
-                            // No cambiar channelPlan automáticamente, solo si estaba en pro
                             channelPlan: user.channelPlan === 'pro' ? 'free' : user.channelPlan,
                             channelPlanExpiresAt: user.channelPlan === 'pro' ? null : user.channelPlanExpiresAt
                           }
@@ -205,16 +207,7 @@ const userReducer = (state = initialState, action) => {
                 )
             };
 
-        // ============ CHANNEL PLAN (NUEVO SISTEMA) ============
-        case USER_TYPES.UPDATE_USER_PLAN:
-            console.log('📦 UPDATE_USER_PLAN iniciado:', action.payload);
-            return {
-                ...state,
-                loading: true
-            };
-
         case USER_TYPES.UPDATE_USER_PLAN_SUCCESS:
-            console.log('✅ UPDATE_USER_PLAN_SUCCESS:', action.payload);
             return {
                 ...state,
                 users: state.users.map(user =>
@@ -224,7 +217,6 @@ const userReducer = (state = initialState, action) => {
                             channelPlan: action.payload.plan,
                             channelPlanExpiresAt: action.payload.expiresAt,
                             isPro: (action.payload.plan === 'pro' || action.payload.plan === 'business'),
-                            // Actualizar proExpiryDate para compatibilidad legacy
                             proExpiryDate: action.payload.expiresAt || null
                           }
                         : user
@@ -232,31 +224,72 @@ const userReducer = (state = initialState, action) => {
                 loading: false
             };
 
-        case USER_TYPES.UPDATE_USER_PLAN_FAIL:
-            console.log('❌ UPDATE_USER_PLAN_FAIL:', action.payload);
+        // ============ PERFIL DE USUARIO ============
+        case USER_TYPES.LOADING:
+            return { ...state, profileLoading: action.payload };
+
+        case USER_TYPES.GET_USER_PROFILE:
+            return { ...state, profile: action.payload, profileLoading: false };
+
+        case USER_TYPES.GET_USER_VIDEOS:
             return {
                 ...state,
-                error: action.payload,
-                loading: false
+                userVideos: action.payload.page === 1 
+                    ? action.payload.videos 
+                    : [...state.userVideos, ...action.payload.videos],
+                userVideosTotal: action.payload.total,
+                userVideosPage: action.payload.page,
+                userVideosHasMore: action.payload.hasMore
             };
 
-        // ============ USUARIOS BLOQUEADOS (para admin) ============
-        case USER_TYPES.LOADING_BLOCKED_USERS:
-            return { ...state, loadingBlocked: action.payload };
-
-        case USER_TYPES.GET_BLOCKED_USERS:
-            console.log('📥 GET_BLOCKED_USERS recibido:', {
-                blockedUsersCount: action.payload.blockedUsers?.length || 0,
-                page: action.payload.page
-            });
+        case USER_TYPES.GET_SAVED_VIDEOS:
             return {
                 ...state,
-                blockedUsers: action.payload.page === 1
-                    ? action.payload.blockedUsers
-                    : [...state.blockedUsers, ...action.payload.blockedUsers],
-                blockedResult: action.payload.result || 0,
-                blockedPage: action.payload.page || 1,
-                loadingBlocked: false
+                savedVideos: action.payload.page === 1 
+                    ? action.payload.videos 
+                    : [...state.savedVideos, ...action.payload.videos],
+                savedVideosTotal: action.payload.total,
+                savedVideosPage: action.payload.page,
+                savedVideosHasMore: action.payload.hasMore
+            };
+
+        case USER_TYPES.GET_LIKED_VIDEOS:
+            return {
+                ...state,
+                likedVideos: action.payload.page === 1 
+                    ? action.payload.videos 
+                    : [...state.likedVideos, ...action.payload.videos],
+                likedVideosTotal: action.payload.total,
+                likedVideosPage: action.payload.page,
+                likedVideosHasMore: action.payload.hasMore
+            };
+
+        case USER_TYPES.SET_ACTIVE_TAB:
+            return { ...state, activeTab: action.payload };
+
+        case USER_TYPES.FOLLOW_USER:
+            return {
+                ...state,
+                profile: state.profile ? {
+                    ...state.profile,
+                    isFollowing: action.payload.isFollowing,
+                    followersCount: action.payload.followersCount
+                } : null
+            };
+
+        case USER_TYPES.SAVE_VIDEO:
+            const updateVideoList = (videos) => 
+                videos.map(v => 
+                    v._id === action.payload.videoId 
+                        ? { ...v, isSaved: action.payload.isSaved }
+                        : v
+                );
+            
+            return {
+                ...state,
+                userVideos: updateVideoList(state.userVideos),
+                savedVideos: updateVideoList(state.savedVideos),
+                likedVideos: updateVideoList(state.likedVideos)
             };
 
         // ============ COMENTARIOS ADMIN ============
@@ -281,18 +314,30 @@ const userReducer = (state = initialState, action) => {
                 }
             };
 
-        // ============ RESET / LIMPIAR ERRORES ============
+        // ============ LIMPIAR ============
         case USER_TYPES.CLEAR_USER_ERROR:
+            return { ...state, error: null };
+
+        case USER_TYPES.CLEAR_USER_STATE:
             return {
                 ...state,
-                error: null
+                profile: null,
+                userVideos: [],
+                savedVideos: [],
+                likedVideos: [],
+                activeTab: 'videos',
+                userVideosTotal: 0,
+                savedVideosTotal: 0,
+                likedVideosTotal: 0
             };
 
         case USER_TYPES.RESET_USERS:
-            return {
-                ...initialState
-            };
-
+            return { ...initialState };
+            case USER_TYPES.GET_USER_TRANSACTIONS:
+                return {
+                    ...state,
+                    userTransactions: action.payload
+                };
         default:
             return state;
     }

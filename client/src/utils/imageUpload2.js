@@ -1,35 +1,81 @@
 // utils/imageUpload2.js
-export const imageUpload2 = async (image) => {
-  console.log('🟡 INICIANDO imageUpload2 - Subiendo una sola imagen...');
-  console.log('📸 Imagen recibida:', image);
+// Versión que procesa el formato de ImageUploadField
 
-  if (!image || !image.url) {
-    throw new Error('No se proporcionó una imagen válida para subir');
+export const imageUpload2 = async (images) => {
+  console.log('🟡 INICIANDO imageUpload2 - Subiendo', images?.length, 'imagen(es)');
+  
+  if (!images || images.length === 0) {
+    console.log('📭 No hay imágenes para subir');
+    return [];
   }
 
-  try {
-    // ✅ Si es una imagen nueva (desde File input → blob URL)
-    if (image.url.startsWith('blob:') && !image.isExisting) {
-      console.log('🔄 Convirtiendo blob URL a archivo...');
+  const uploadedImages = [];
 
-      // 1️⃣ Convertir blob URL a File
-      const response = await fetch(image.url);
-      if (!response.ok) throw new Error('No se pudo acceder al blob');
+  for (let i = 0; i < images.length; i++) {
+    const img = images[i];
+    console.log(`📸 Procesando imagen ${i + 1}:`, img);
+    
+    try {
+      let fileToUpload = null;
 
-      const blob = await response.blob();
-      const file = new File([blob], image.name || `image-${Date.now()}.jpg`, {
-        type: blob.type || 'image/jpeg',
-      });
+      // ============================================
+      // CASO 1: Objeto con propiedad 'file' (nuestro formato)
+      // ============================================
+      if (img && img.file && img.file instanceof File) {
+        console.log('📁 CASO 1: Objeto con file:', img.file.name, `${(img.file.size / 1024).toFixed(2)} KB`);
+        fileToUpload = img.file;
+      }
+      
+      // ============================================
+      // CASO 2: Es un File directamente
+      // ============================================
+      else if (img instanceof File) {
+        console.log('📁 CASO 2: File directo:', img.name, `${(img.size / 1024).toFixed(2)} KB`);
+        fileToUpload = img;
+      }
+      
+      // ============================================
+      // CASO 3: Imagen ya existente
+      // ============================================
+      else if (img && img.isExisting === true && img.url && img.url.includes('cloudinary.com')) {
+        console.log('📌 CASO 3: Imagen existente:', img.public_id);
+        uploadedImages.push({
+          public_id: img.public_id,
+          url: img.url,
+        });
+        continue;
+      }
+      
+      // ============================================
+      // CASO 4: Solo URL de Cloudinary
+      // ============================================
+      else if (img && img.url && img.url.includes('cloudinary.com')) {
+        console.log('📌 CASO 4: URL existente:', img.url);
+        uploadedImages.push({
+          public_id: img.public_id || img.url.split('/').pop().split('.')[0],
+          url: img.url,
+        });
+        continue;
+      }
+      
+      // ============================================
+      // Si no se pudo obtener un file, error
+      // ============================================
+      if (!fileToUpload) {
+        console.error('❌ No se pudo extraer un archivo de:', img);
+        continue;
+      }
 
-      console.log('📁 Blob convertido a File:', file.name, `${(file.size / 1024).toFixed(2)} KB`);
-
-      // 2️⃣ Subir a Cloudinary
+      // ============================================
+      // SUBIR A CLOUDINARY
+      // ============================================
+      console.log('📤 Subiendo a Cloudinary...');
       const formData = new FormData();
-      formData.append('file', file);
-      formData.append('upload_preset', 'vetementsdjamel');
-      formData.append('cloud_name', 'dfjipgj2o');
+      formData.append('file', fileToUpload);
+      formData.append('upload_preset', 'video_commerce');
+      formData.append('cloud_name', 'dzd58nm3l');
 
-      const res = await fetch('https://api.cloudinary.com/v1_1/dfjipgj2o/image/upload', {
+      const res = await fetch('https://api.cloudinary.com/v1_1/dzd58nm3l/image/upload', {
         method: 'POST',
         body: formData,
       });
@@ -40,35 +86,18 @@ export const imageUpload2 = async (image) => {
       }
 
       const data = await res.json();
-
-      console.log('✅ UPLOAD EXITOSO a Cloudinary:', {
+      console.log(`✅ Imagen ${i + 1} subida:`, data.public_id);
+      
+      uploadedImages.push({
         public_id: data.public_id,
         url: data.secure_url,
-        formato: data.format,
       });
-
-      return {
-        public_id: data.public_id,
-        url: data.secure_url,
-      };
+      
+    } catch (error) {
+      console.error(`❌ Error procesando imagen ${i + 1}:`, error.message);
     }
-
-    // ✅ Si la imagen ya existe en Cloudinary
-    else if (image.isExisting && image.url.includes('cloudinary.com')) {
-      console.log('✅ Imagen ya existente en Cloudinary:', image.public_id);
-      return {
-        public_id: image.public_id,
-        url: image.url,
-      };
-    }
-
-    // ⚠️ Caso no válido
-    else {
-      throw new Error('⚠️ Imagen no válida o no procesable');
-    }
-
-  } catch (error) {
-    console.error('❌ ERROR en imageUpload2:', error.message);
-    throw error;
   }
+
+  console.log(`✅ imageUpload2 completado: ${uploadedImages.length}/${images.length} imágenes subidas`);
+  return uploadedImages;
 };

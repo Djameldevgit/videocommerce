@@ -1,5 +1,4 @@
-// routes/videoRoutes.js - VERSIÓN ORDENADA Y OPTIMIZADA
-
+// routes/videoRoutes.js - VERSIÓN CORREGIDA
 const router = require('express').Router();
 const videoCtrl = require('../controllers/videoCtrl');
 const auth = require('../middleware/auth');
@@ -16,6 +15,7 @@ router.get('/videos/filter', videoCtrl.filterVideos);
 router.get('/videos/featured', videoCtrl.getFeaturedVideos);
 router.get('/videos/popular', videoCtrl.getPopularVideos);
 router.get('/videos/category/:categorySlug', videoCtrl.getVideosByCategory);
+router.get('/videos/trending', videoCtrl.getTrendingVideos);
 
 // ============================================
 // 🏪 RUTAS COMERCIALES PÚBLICAS
@@ -28,7 +28,7 @@ router.get('/videos/commercial/nearby', videoCtrl.getVideosNearby);
 // ============================================
 router.get('/videos/public/:id', videoCtrl.getVideoByIdPublic);
 router.get('/videos/private/:id', auth, videoCtrl.getVideoByIdPrivate);
-router.get('/videos/:id', videoCtrl.getVideoById);  // ← Al final de las rutas :id
+router.get('/videos/:id', videoCtrl.getVideoById);
 
 // ============================================
 // ✏️ RUTAS PROTEGIDAS DE CRUD
@@ -43,7 +43,6 @@ router.delete('/videos/:id', auth, videoCtrl.deleteVideo);
 router.patch('/videos/:id/like', auth, videoCtrl.toggleLikeVideo);
 router.patch('/videos/:id/share', auth, videoCtrl.shareVideo);
 router.post('/videos/:id/watch-time', auth, videoCtrl.trackWatchTime);
-router.post('/videos/:videoId/save', auth, videoCtrl.toggleSaveVideo);
 
 // ============================================
 // 🆕 RUTAS COMERCIALES PROTEGIDAS (USUARIO)
@@ -64,22 +63,15 @@ router.get('/users/:userId/videos', auth, videoCtrl.getChannelVideos);
 // ============================================
 router.get('/user/:userId/profile', auth, videoCtrl.getUserProfileStats);
 router.get('/user/:userId/videos', auth, videoCtrl.getUserVideos);
-router.get('/user/:userId/saved-videos', auth, videoCtrl.getUserSavedVideos);
-router.get('/user/:userId/liked-videos', auth, videoCtrl.getUserLikedVideos);
-router.post('/user/:userId/follow', auth, videoCtrl.toggleFollowUser);
 
 // ============================================
 // 👑 RUTAS DE ADMIN (PROTEGIDAS)
 // ============================================
-// Gestión de videos pendientes
 router.get('/admin/videos/pendientes', auth, videoCtrl.getVideosPendientesAdmin);
 router.patch('/admin/videos/:id/approve', auth, videoCtrl.aprobarVideoAdmin);
 router.delete('/admin/videos/:id', auth, videoCtrl.eliminarVideoAdmin);
-
-// Estadísticas y comerciales para admin
 router.get('/admin/videos/stats/overview', auth, videoCtrl.getAdminVideoStats);
 router.get('/admin/videos/commercial/stats', auth, videoCtrl.getCommercialStats);
-router.get('/admin/videos/commercial/pending', auth, videoCtrl.getVideosPendientesAdmin);
 router.patch('/admin/videos/commercial/:id/feature', auth, videoCtrl.featureCommercialVideo);
 
 module.exports = router;

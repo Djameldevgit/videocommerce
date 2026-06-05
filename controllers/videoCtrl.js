@@ -1062,37 +1062,59 @@ const getPopularVideos = async (req, res) => {
   }
 };
 
-// ✅ Videos tendencia
-// controllers/videoCtrl.js - getTrendingVideos CORREGIDO (sin isActive)
-
  
  
-
-// ✅ Like a video
-const toggleLikeVideo = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const video = await Video.findById(id);
-    if (!video) return res.status(404).json({ success: false, message: 'Video no encontrado' });
-    const { liked, likesCount } = await video.toggleLike(req.user._id);
-    res.json({ success: true, likes: likesCount, liked });
-  } catch (error) {
-    console.error('Error toggleLikeVideo:', error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-// ✅ Compartir video
 const shareVideo = async (req, res) => {
   try {
     const { id } = req.params;
+    
+    console.log('📤 shareVideo llamado para ID:', id);
+    
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'ID de vidéo invalide' 
+      });
+    }
+
     const video = await Video.findById(id);
-    if (!video) return res.status(404).json({ success: false, message: 'Video no encontrado' });
+    
+    if (!video) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Vidéo non trouvée' 
+      });
+    }
+
+    // ✅ Debug: verificar que el método existe
+    console.log('✅ Video encontrado, tipo de share:', typeof video.share);
+    console.log('✅ Métodos disponibles:', Object.keys(video.__proto__));
+
+    if (typeof video.share !== 'function') {
+      console.error('❌ ERROR: video.share NO es una función');
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Error interno: método share no disponible' 
+      });
+    }
+
     const { shared, sharesCount } = await video.share(req.user._id);
-    res.json({ success: true, shares: sharesCount, shared });
+    
+    console.log(`📤 Video ${id} - ${shared ? 'Compartido' : 'Dejó de compartir'}`);
+    console.log(`📊 Total shares: ${sharesCount}`);
+
+    res.json({ 
+      success: true, 
+      shares: sharesCount, 
+      shared 
+    });
+    
   } catch (error) {
-    console.error('Error shareVideo:', error);
-    res.status(500).json({ success: false, message: error.message });
+    console.error('❌ Error en shareVideo:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: error.message 
+    });
   }
 };
 
@@ -2257,7 +2279,322 @@ const getUserVideos = async (req, res) => {
     });
   }
 };
- 
+ // ============================================
+// 🔥 VIDEOS EN TENDENCIA (PÚBLICO)
+// ============================================
+const getTrendingVideos = async (req, res) => {
+  try {
+    const { limit = 20, days = 7 } = req.query;
+    
+    // Calcular fecha límite (últimos 'days' días)
+    const sinceDate = new Date();
+    sinceDate.setDate(sinceDate.getDate() - parseInt(days));
+    
+    console.log(`📊 Buscando videos en tendencia desde: ${sinceDate.toISOString()}`);
+    
+    const videos = await Video.aggregate([
+      // 1. Filtrar videos activos y aprobados
+      { 
+        $match: { 
+          pendiente: false, 
+          isActive: true,
+          createdAt: { $gte: sinceDate }  // Solo videos recientes
+        } 
+      },
+      
+      // 2. Calcular métricas de engagement
+      { 
+        $addFields: { 
+          likesCount: { $size: { $ifNull: ['$likes', []] } },
+          commentsCount: { $size: { $ifNull: ['$comments', []] } },
+          sharesCount: { $size: { $ifNull: ['$shares', []] } },
+          uniqueViewsCount: { $size: { $ifNull: ['$uniqueViews', []] } }
+        } 
+      },
+      
+      // 3. Calcular trending score (fórmula ponderada)
+      { 
+        $addFields: {
+          // Fórmula de trending:
+          // - Views: 1 punto
+          // - Likes: 2 puntos
+          // - Comments: 3 puntos  
+          // - Shares: 4 puntos
+          // - Mayor peso a interacciones recientes
+          trendingScore: {
+            $add: [
+              { $multiply: ['$views', 1] },
+              { $multiply: ['$likesCount', 2] },
+              { $multiply: ['$commentsCount', 3] },
+              { $multiply: ['$sharesCount', 4] },
+              { $multiply: ['$uniqueViewsCount', 1.5] }  // Usuarios únicos tienen más peso
+            ]
+          },
+          
+          // Calcular engagement rate (%)
+          engagementRate: {
+            $cond: {
+              if: { $eq: ['$views', 0] },
+              then: 0,
+              else: {
+                $multiply: [
+                  {
+                    $divide: [
+                      { $add: ['$likesCount', '$commentsCount', '$sharesCount'] },
+                      '$views'
+                    ]
+                  },
+                  100
+                ]
+              }
+            }
+          }
+        } 
+      },
+      
+      // 4. Ordenar por trending score
+      { $sort: { trendingScore: -1, createdAt: -1 } },
+      
+      // 5. Limitar resultados
+      { $limit: parseInt(limit) },
+      
+      // 6. Poblar datos del usuario
+      { 
+        $lookup: { 
+          from: 'users', 
+          localField: 'user', 
+          foreignField: '_id', 
+          as: 'userData' 
+        } 
+      },
+      { $unwind: { path: '$userData', preserveNullAndEmptyArrays: true } },
+      
+      // 7. Poblar datos del canal
+      { 
+        $lookup: { 
+          from: 'channels', 
+          localField: 'channel', 
+          foreignField: '_id', 
+          as: 'channelData' 
+        } 
+      },
+      { $unwind: { path: '$channelData', preserveNullAndEmptyArrays: true } },
+      
+      // 8. Poblar categoría
+      { 
+        $lookup: { 
+          from: 'categories', 
+          localField: 'category', 
+          foreignField: '_id', 
+          as: 'categoryData' 
+        } 
+      },
+      { $unwind: { path: '$categoryData', preserveNullAndEmptyArrays: true } },
+      
+      // 9. Transformar y limpiar datos
+      {
+        $addFields: {
+          user: {
+            _id: '$userData._id',
+            username: '$userData.username',
+            avatar: '$userData.avatar',
+            isPro: '$userData.isPro'
+          },
+          channel: {
+            _id: '$channelData._id',
+            name: '$channelData.name',
+            avatar: {
+              $cond: {
+                if: { $isArray: '$channelData.avatar' },
+                then: { $arrayElemAt: ['$channelData.avatar.url', 0] },
+                else: '$channelData.avatar'
+              }
+            },
+            isVerified: '$channelData.isVerified'
+          },
+          category: {
+            _id: '$categoryData._id',
+            name: '$categoryData.name',
+            slug: '$categoryData.slug',
+            icon: '$categoryData.icon'
+          }
+        }
+      },
+      
+      // 10. Proyectar campos finales
+      {
+        $project: {
+          userData: 0,
+          channelData: 0,
+          categoryData: 0
+        }
+      }
+    ]);
+    
+    // Calcular estadísticas adicionales
+    const stats = {
+      totalTrending: videos.length,
+      timeRange: `${days} días`,
+      averageEngagement: videos.reduce((acc, v) => acc + (v.engagementRate || 0), 0) / (videos.length || 1),
+      topCategory: getMostFrequentCategory(videos)
+    };
+    
+    console.log(`✅ Encontrados ${videos.length} videos en tendencia`);
+    console.log(`📊 Engagement promedio: ${stats.averageEngagement.toFixed(2)}%`);
+    
+    res.json({ 
+      success: true, 
+      videos,
+      stats,
+      metadata: {
+        limit: parseInt(limit),
+        days: parseInt(days),
+        timestamp: new Date().toISOString()
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Error en getTrendingVideos:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error al cargar videos en tendencia',
+      error: error.message 
+    });
+  }
+};
+
+// Función auxiliar para obtener la categoría más frecuente
+function getMostFrequentCategory(videos) {
+  const categoryCount = {};
+  videos.forEach(video => {
+    if (video.category && video.category._id) {
+      const catId = video.category._id.toString();
+      categoryCount[catId] = (categoryCount[catId] || 0) + 1;
+    }
+  });
+  
+  let maxCount = 0;
+  let topCategory = null;
+  
+  for (const [catId, count] of Object.entries(categoryCount)) {
+    if (count > maxCount) {
+      maxCount = count;
+      const videoWithCat = videos.find(v => v.category && v.category._id.toString() === catId);
+      topCategory = videoWithCat.category || null;
+    }
+  }
+  
+  return topCategory;
+}
+
+
+const toggleLikeVideo = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Validar ID
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'ID inválido' });
+    }
+
+    // ✅ Usar findOneAndUpdate en lugar de find + save para evitar conflictos de versión
+    const video = await Video.findById(id);
+    
+    if (!video) {
+      return res.status(404).json({ success: false, message: 'Video no encontrado' });
+    }
+
+    const userId = req.user._id;
+    const userIdStr = userId.toString();
+    
+    // Verificar si ya existe el like
+    const likeIndex = video.likes.findIndex(likeId => likeId && likeId.toString() === userIdStr);
+    let liked = false;
+    
+    if (likeIndex === -1) {
+      // Dar like
+      video.likes.push(userId);
+      liked = true;
+    } else {
+      // Quitar like
+      video.likes.splice(likeIndex, 1);
+      liked = false;
+    }
+    
+    // Actualizar engagement score
+    video.updateEngagementScore();
+    
+    // ✅ Usar save con opciones para manejar conflictos
+    await video.save({ 
+      validateBeforeSave: true,
+      session: null 
+    });
+    
+    // Actualizar estadísticas del canal
+    const Channel = mongoose.model('Channel');
+    const channel = await Channel.findById(video.channel);
+    if (channel) await channel.updateStats();
+    
+    res.json({ 
+      success: true, 
+      likes: video.likes.length, 
+      liked 
+    });
+    
+  } catch (error) {
+    console.error('Error toggleLikeVideo:', error);
+    
+    // ✅ Manejar error de versión
+    if (error.name === 'VersionError') {
+      // Reintentar una vez
+      try {
+        const video = await Video.findById(req.params.id);
+        if (!video) {
+          return res.status(404).json({ success: false, message: 'Video no encontrado' });
+        }
+        
+        const userId = req.user._id;
+        const userIdStr = userId.toString();
+        const likeIndex = video.likes.findIndex(likeId => likeId && likeId.toString() === userIdStr);
+        let liked = false;
+        
+        if (likeIndex === -1) {
+          video.likes.push(userId);
+          liked = true;
+        } else {
+          video.likes.splice(likeIndex, 1);
+          liked = false;
+        }
+        
+        video.updateEngagementScore();
+        await video.save();
+        
+        return res.json({ 
+          success: true, 
+          likes: video.likes.length, 
+          liked 
+        });
+      } catch (retryError) {
+        console.error('Error en reintento:', retryError);
+        return res.status(500).json({ 
+          success: false, 
+          message: 'Error al procesar el like, intenta de nuevo' 
+        });
+      }
+    }
+    
+    res.status(500).json({ 
+      success: false, 
+      message: error.message 
+    });
+  }
+}
+
+
+
+
+
+
 // ============================================
 // 📤 EXPORTACIÓN CORREGIDA
 // ============================================
@@ -2293,7 +2630,7 @@ module.exports = {
   
   // ✅ MÚSICA
   getMusicLibrary,
-  
+  shareVideo,
   // ✅ ADMIN
   getVideosPendientesAdmin,
   aprobarVideoAdmin,
@@ -2309,7 +2646,7 @@ module.exports = {
   getUserLikedVideos,
   toggleFollowUser,
   toggleSaveVideo,
-
+  getTrendingVideos,
   getUserVideos
 };
  

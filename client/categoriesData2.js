@@ -1,5 +1,7 @@
 // node categoriesData2.js
-// Crea carpetas y placeholders de iconos para TODAS las categorías (20 slugs exactos, ordenados)
+// Crea carpetas y placeholders de iconos para TODAS las categorías
+// Incluye categorías especiales: tutorials (🎓) y channels (📺) al PRINCIPIO
+
 const fs = require('fs');
 const path = require('path');
 
@@ -9,8 +11,19 @@ const basePath = path.join(process.cwd(), 'public', 'categories');
 console.log('📁 Ruta base calculada:', basePath);
 console.log('📁 Directorio actual:', process.cwd());
 
-// 📋 LISTA COMPLETA DE SLUGS - ORDEN CORRECTO (20 categorías - con Réseaux sociaux al final)
+// ============================================
+// 📋 LISTA COMPLETA DE SLUGS - ORDEN PRIORITARIO
+// ============================================
+// 🔥 Las categorías especiales van PRIMERO (Tutoriels y Chaînes)
+// Luego las categorías comerciales
+// ============================================
+
 const mainCategories = [
+  // ============ 🎓 CATEGORÍAS ESPECIALES (ALTA PRIORIDAD) ============
+  'tutorials',      // ← PRIMERA: Tutoriales para onboarding
+  'channels',       // ← SEGUNDA: Canales destacados (Chaînes)
+  
+  // ============ 🏪 CATEGORÍAS COMERCIALES ============
   'agence',
   'immobilier',
   'vehicules',
@@ -28,13 +41,16 @@ const mainCategories = [
   'alimentaires',
   'voyages',
   'services',
-  'publicite',
-  'art',
-  'reseaux-sociaux'           // ← NUEVA CATEGORÍA SOCIAL
+  'art'
 ];
 
-// Mapeo de slug a nombre legible
+// Mapeo de slug a nombre legible (con soporte multi-idioma)
 const categoryNames = {
+  // Especiales
+  'tutorials': 'Tutoriels',
+  'channels': 'Chaînes',
+  
+  // Comerciales
   'agence': 'Agence',
   'immobilier': 'Immobilier',
   'vehicules': 'Automobiles & Véhicules',
@@ -52,13 +68,88 @@ const categoryNames = {
   'alimentaires': 'Alimentaires',
   'voyages': 'Voyages',
   'services': 'Services',
-  'publicite': 'Publicité',
-  'art': 'Art',
-  'reseaux-sociaux': 'Réseaux sociaux'     // ← NUEVO
+  'art': 'Art'
+};
+
+// Nombres en francés
+const categoryNamesFr = {
+  'tutorials': 'Tutoriels',
+  'channels': 'Chaînes',
+  'agence': 'Agence',
+  'immobilier': 'Immobilier',
+  'vehicules': 'Automobiles & Véhicules',
+  'pieces-detachees': 'Pièces détachées',
+  'telephones': 'Téléphones & Accessoires',
+  'informatique': 'Informatique',
+  'electromenager': 'Électroménager & Électronique',
+  'vetements-mode': 'Vêtements & Mode',
+  'sante-beaute': 'Santé & Beauté',
+  'meubles-maison': 'Meubles & Maison',
+  'loisirs-divertissements': 'Loisirs & Divertissements',
+  'sport': 'Sport',
+  'emploi': 'Emploi',
+  'materiaux-equipement': 'Matériaux & Équipement',
+  'alimentaires': 'Alimentaires',
+  'voyages': 'Voyages',
+  'services': 'Services',
+  'art': 'Art'
+};
+
+// Nombres en árabe (para futura implementación)
+const categoryNamesAr = {
+  'tutorials': 'دروس تعليمية',
+  'channels': 'قنوات',
+  'agence': 'وكالة',
+  'immobilier': 'عقارات',
+  'vehicules': 'سيارات ومركبات',
+  'pieces-detachees': 'قطع الغيار',
+  'telephones': 'هواتف وإكسسوارات',
+  'informatique': 'معلوماتية',
+  'electromenager': 'أجهزة منزلية',
+  'vetements-mode': 'ملابس وموضة',
+  'sante-beaute': 'صحة وجمال',
+  'meubles-maison': 'أثاث ومنزل',
+  'loisirs-divertissements': 'ترفيه وتسلية',
+  'sport': 'رياضة',
+  'emploi': 'توظيف',
+  'materiaux-equipement': 'مواد ومعدات',
+  'alimentaires': 'مواد غذائية',
+  'voyages': 'سفر',
+  'services': 'خدمات',
+  'art': 'فن'
+};
+
+// Iconos para cada categoría
+const categoryIcons = {
+  'tutorials': '🎓',
+  'channels': '📺',
+  'agence': '🏢',
+  'immobilier': '🏠',
+  'vehicules': '🚗',
+  'pieces-detachees': '🔧',
+  'telephones': '📱',
+  'informatique': '💻',
+  'electromenager': '🔌',
+  'vetements-mode': '👕',
+  'sante-beaute': '💄',
+  'meubles-maison': '🛋️',
+  'loisirs-divertissements': '🎮',
+  'sport': '⚽',
+  'emploi': '💼',
+  'materiaux-equipement': '🏗️',
+  'alimentaires': '🍎',
+  'voyages': '✈️',
+  'services': '🛠️',
+  'art': '🎨'
 };
 
 // Colores asociados a cada categoría
 const categoryColors = {
+  // Especiales (alta prioridad - colores llamativos)
+  'tutorials': '#F1C40F',     // Amarillo - llama la atención
+  'channels': '#8E44AD',       // Púrpura - destaca canales
+  
+  // Comerciales
   'agence': '#4A90E2',
   'immobilier': '#50B5A9',
   'vehicules': '#E67E22',
@@ -76,9 +167,55 @@ const categoryColors = {
   'alimentaires': '#27AE60',
   'voyages': '#2980B9',
   'services': '#16A085',
-  'publicite': '#FF9800',
-  'art': '#E84393',            // Rosa/Magenta
-  'reseaux-sociaux': '#00CED1'  // Turquesa para redes sociales
+  'art': '#E84393'
+};
+
+// Prioridad (high, normal, low)
+const categoryPriority = {
+  'tutorials': 'high',
+  'channels': 'high',
+  'agence': 'normal',
+  'immobilier': 'normal',
+  'vehicules': 'normal',
+  'pieces-detachees': 'normal',
+  'telephones': 'normal',
+  'informatique': 'normal',
+  'electromenager': 'normal',
+  'vetements-mode': 'normal',
+  'sante-beaute': 'normal',
+  'meubles-maison': 'normal',
+  'loisirs-divertissements': 'normal',
+  'sport': 'normal',
+  'emploi': 'normal',
+  'materiaux-equipement': 'normal',
+  'alimentaires': 'normal',
+  'voyages': 'normal',
+  'services': 'normal',
+  'art': 'normal'
+};
+
+// Tipo de categoría (commercial, special)
+const categoryType = {
+  'tutorials': 'special',
+  'channels': 'special',
+  'agence': 'commercial',
+  'immobilier': 'commercial',
+  'vehicules': 'commercial',
+  'pieces-detachees': 'commercial',
+  'telephones': 'commercial',
+  'informatique': 'commercial',
+  'electromenager': 'commercial',
+  'vetements-mode': 'commercial',
+  'sante-beaute': 'commercial',
+  'meubles-maison': 'commercial',
+  'loisirs-divertissements': 'commercial',
+  'sport': 'commercial',
+  'emploi': 'commercial',
+  'materiaux-equipement': 'commercial',
+  'alimentaires': 'commercial',
+  'voyages': 'commercial',
+  'services': 'commercial',
+  'art': 'commercial'
 };
 
 // Función para crear carpetas y placeholders
@@ -102,7 +239,10 @@ function createCategoryIcons(basePath, slugs) {
   let orderNumber = 1;
 
   for (const slug of slugs) {
-    console.log(`${orderNumber}. 📂 Procesando: ${categoryNames[slug] || slug} (${slug})`);
+    const priorityIcon = categoryPriority[slug] === 'high' ? '🔥' : '📌';
+    const specialIcon = categoryType[slug] === 'special' ? '✨' : '  ';
+    console.log(`${orderNumber}. ${priorityIcon} ${specialIcon} Procesando: ${categoryNames[slug] || slug} (${slug})`);
+    
     const categoryPath = path.join(basePath, slug);
     
     if (!fs.existsSync(categoryPath)) {
@@ -137,17 +277,25 @@ function createCategoriesConfig(slugs) {
   const configPath = path.join(basePath, 'categories-config.json');
   
   const config = {
-    version: '2.0.0',
+    version: '3.0.0',
     lastUpdated: new Date().toISOString(),
     totalCategories: slugs.length,
     categories: slugs.map((slug, index) => ({
       order: index + 1,
       slug: slug,
       name: categoryNames[slug] || slug.charAt(0).toUpperCase() + slug.slice(1).replace(/-/g, ' '),
+      nameFr: categoryNamesFr[slug] || categoryNames[slug],
+      nameAr: categoryNamesAr[slug] || categoryNames[slug],
+      icon: categoryIcons[slug] || '📁',
       iconUrl: `/categories/${slug}/${slug}.png`,
       iconColor: categoryColors[slug] || '#666666',
       bgColor: `${categoryColors[slug] || '#666666'}15`,
-      isActive: true
+      priority: categoryPriority[slug] || 'normal',
+      type: categoryType[slug] || 'commercial',
+      isActive: true,
+      isPublic: true,
+      isAdminOnly: (slug === 'tutorials') ? false : false,  // Tutorials visible para todos
+      isSpecial: (slug === 'tutorials' || slug === 'channels')
     }))
   };
   
@@ -169,7 +317,8 @@ function verifyStructure(basePath, slugs) {
     if (!fs.existsSync(iconPath)) {
       errors.push(`❌ Icono faltante: ${slug}/${slug}.png`);
     } else {
-      console.log(`✅ ${slug}/ - OK`);
+      const priorityIcon = categoryPriority[slug] === 'high' ? '🔥' : '  ';
+      console.log(`${priorityIcon} ✅ ${slug}/ - OK`);
       successCount++;
     }
   }
@@ -185,11 +334,15 @@ function verifyStructure(basePath, slugs) {
 
 // Mostrar orden final
 function showFinalOrder(slugs) {
-  console.log('\n📋 ORDEN FINAL DE CATEGORÍAS:');
+  console.log('\n📋 ORDEN FINAL DE CATEGORÍAS (Prioridad alta primero):');
   console.log('='.repeat(60));
+  
   slugs.forEach((slug, index) => {
     const num = (index + 1).toString().padStart(2, ' ');
-    console.log(`${num}. ${categoryNames[slug] || slug}`);
+    const priorityIcon = categoryPriority[slug] === 'high' ? '🔥' : '  ';
+    const specialIcon = categoryType[slug] === 'special' ? '✨' : '  ';
+    const name = categoryNames[slug] || slug;
+    console.log(`${num}. ${priorityIcon} ${specialIcon} ${name} (${slug})`);
   });
 }
 
@@ -225,6 +378,7 @@ console.log('='.repeat(60));
 console.log('📊 RESUMEN:');
 console.log(`   • ${stats.totalCategories} carpetas/iconos procesados`);
 console.log(`   • ${stats.totalIcons} iconos creados (placeholders PNG válidos)`);
+console.log(`   • Categorías especiales (alta prioridad): Tutorials (🎓) y Chaînes (📺)`);
 
 createCategoriesConfig(mainCategories);
 verifyStructure(basePath, mainCategories);
@@ -232,8 +386,9 @@ verifyStructure(basePath, mainCategories);
 console.log('\n📂 ESTRUCTURA GENERADA:');
 console.log('/public/categories/');
 mainCategories.forEach(slug => {
-  console.log(`├── ${slug}/`);
-  console.log(`│   └── ${slug}.png`);
+  const priorityIcon = categoryPriority[slug] === 'high' ? '🔥' : '  ';
+  console.log(`${priorityIcon} ├── ${slug}/`);
+  console.log(`      └── ${slug}.png`);
 });
 
 console.log('\n✅ PROCESO COMPLETADO\n');
