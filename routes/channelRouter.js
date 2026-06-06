@@ -1,56 +1,34 @@
-// backend/routes/channelRoutes.js
+// routes/channelRouter.js
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
-const {
-  createChannel,
-  updateChannel,
-  getChannelProfile,
-  toggleFollowChannel,
-  getChannelVideos,
-  getMyChannels,
-  deleteChannel,
-  approveChannel,
-  rejectChannel,
-  getPendingChannels,
-  // NUEVAS FUNCIONES IMPORTADAS
-  reportChannel,
-  blockChannel,
-  registerShare,
-  getContactInfo,
-  getPendingChannel
-} = require('../controllers/channelCtrl');
+// ✅ CORREGIR: el nombre del controlador es 'channelCtrl'
+const channelCtrl = require('../controllers/channelCtrl');
 
+ 
+ 
 // ========== RUTAS PÚBLICAS (sin auth) ==========
-router.get('/channels/:channelId', getChannelProfile);
-router.get('/pending/:channelId', auth ,getPendingChannel);  
-
-router.get('/channels/:channelId/videos', getChannelVideos); 
+router.get('/channels/:channelId', channelCtrl.getChannelProfile);
+router.get('/channels/:channelId/videos', channelCtrl.getChannelVideos);
+router.get('/pending/:channelId', auth, channelCtrl.getPendingChannel);
 
 // ========== RUTAS CON AUTENTICACIÓN ==========
-router.post('/channels', auth, createChannel);
-router.get('/my-channels', auth, getMyChannels);
-router.get('/users/my-channels', auth, getMyChannels);
-router.patch('/channels/:channelId/follow', auth, toggleFollowChannel);
-router.patch('/channels/:channelId', auth, updateChannel);
-router.delete('/channels/:channelId', auth, deleteChannel); // ❌ DESCOMENTADA
+router.post('/channels', auth, channelCtrl.createChannel);
+router.get('/my-channels', auth, channelCtrl.getMyChannels);
+router.get('/users/my-channels', auth, channelCtrl.getMyChannels);
+router.patch('/channels/:channelId/follow', auth, channelCtrl.toggleFollowChannel);
+router.patch('/channels/:channelId', auth, channelCtrl.updateChannel);
+router.delete('/channels/:channelId', auth, channelCtrl.deleteChannel);
 
 // ========== NUEVAS RUTAS PARA DROPDOWN ==========
-// Reportar canal
-router.post('/channels/:channelId/report', auth, reportChannel);
-
-// Bloquear/Desbloquear canal
-router.patch('/channels/:channelId/block', auth, blockChannel);
-
-// Registrar compartido (analytics)
-router.post('/channels/:channelId/share', auth, registerShare);
-
-// Obtener información de contacto
-router.get('/channels/:channelId/contact', auth, getContactInfo);
+router.post('/channels/:channelId/report', auth, channelCtrl.reportChannel);
+router.patch('/channels/:channelId/block', auth, channelCtrl.blockChannel);
+router.post('/channels/:channelId/share', auth, channelCtrl.registerShare);
+router.get('/channels/:channelId/contact', auth, channelCtrl.getContactInfo);
 
 // ========== RUTAS SOLO ADMIN ==========
-router.get('/admin/channels/pending', auth, getPendingChannels);
-router.patch('/admin/channels/:channelId/approve', auth, approveChannel);
-router.patch('/admin/channels/:channelId/reject', auth, rejectChannel);
+router.get('/admin/channels/pending', auth, channelCtrl.getPendingChannels);
+router.patch('/admin/channels/:channelId/approve', auth, channelCtrl.approveChannel);
+router.patch('/admin/channels/:channelId/reject', auth, channelCtrl.rejectChannel);
 
 module.exports = router;

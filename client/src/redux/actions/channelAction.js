@@ -31,7 +31,7 @@ export const CHANNEL_TYPES = {
     // Follow/Unfollow
     FOLLOW_CHANNEL: 'FOLLOW_CHANNEL',
     UNFOLLOW_CHANNEL: 'UNFOLLOW_CHANNEL',
-    
+ 
     // Seguidores
     GET_CHANNEL_FOLLOWERS: 'GET_CHANNEL_FOLLOWERS',
     GET_USER_FOLLOWING_CHANNELS: 'GET_USER_FOLLOWING_CHANNELS',
@@ -79,7 +79,7 @@ export const CHANNEL_TYPES = {
     GET_PENDING_CHANNEL_REQUEST: 'GET_PENDING_CHANNEL_REQUEST',
   GET_PENDING_CHANNEL_SUCCESS: 'GET_PENDING_CHANNEL_SUCCESS',
   GET_PENDING_CHANNEL_ERROR: 'GET_PENDING_CHANNEL_ERROR',
-
+  UPDATE_CHANNEL_FOLLOW_STATUS: 'UPDATE_CHANNEL_FOLLOW_STATUS',
 
 };
 
@@ -413,42 +413,47 @@ export const getChannelVideos = (channelId, page = 1, limit = 12, token = null) 
         dispatch({ type: CHANNEL_TYPES.CHANNEL_LOADING, payload: false });
     }
 };
-// ==================== SEGUIR CANAL ====================
-export const toggleFollowChannel = (channelId, auth, socket) => async (dispatch) => {
-    try {
-        const res = await patchDataAPI(`channels/${channelId}/follow`, {}, auth.token);
-        
-        if (res.data.success) {
-            dispatch({
-                type: res.data.isFollowing ? CHANNEL_TYPES.FOLLOW_CHANNEL : CHANNEL_TYPES.UNFOLLOW_CHANNEL,
-                payload: { channelId, followersCount: res.data.followersCount }
-            });
-            
-            // Notificar al dueño del canal
-            if (res.data.isFollowing && socket && res.data.channelOwner) {
-                const msg = {
-                    id: auth.user._id,
-                    text: `started following your channel.`,
-                    recipients: [res.data.channelOwner],
-                    url: `/channel/${channelId}`,
-                    content: res.data.channelName || '',
-                    image: auth.user.avatar
-                };
-                
-                if (msg.recipients.length > 0) {
-                    dispatch(createNotify({ msg, auth, socket }));
-                }
-            }
-        }
-        
-        return res.data;
-        
-    } catch (err) {
-        console.error('❌ Error toggleFollowChannel:', err);
-        return null;
-    }
-};
+ 
 
+export const toggleFollowChannel = (channelId, token) => async (dispatch) => {
+    try {
+      console.log('📥 toggleFollowChannel - channelId:', channelId);
+      
+      const res = await patchDataAPI(`channels/${channelId}/follow`, {}, token);
+      
+      console.log('📥 toggleFollowChannel - respuesta:', res.data);
+      
+      if (res.data.success) {
+        // ✅ ACTUALIZAR DIRECTAMENTE EL ESTADO DEL CANAL
+        dispatch({
+          type: CHANNEL_TYPES.UPDATE_CHANNEL_FOLLOW_STATUS,
+          payload: {
+            isFollowing: res.data.isFollowing,
+            followersCount: res.data.followersCount
+          }
+        });
+        
+        // ✅ También actualizar followingChannels
+        dispatch({
+          type: CHANNEL_TYPES.FOLLOW_CHANNEL,
+          payload: { 
+            channelId, 
+            followersCount: res.data.followersCount 
+          }
+        });
+      }
+      
+      return {
+        success: true,
+        isFollowing: res.data.isFollowing,
+        followersCount: res.data.followersCount
+      };
+      
+    } catch (err) {
+      console.error('❌ Error toggleFollowChannel:', err);
+      return { success: false, error: err.response?.data?.msg || err.message };
+    }
+  };
 // ==================== ADMIN: OBTENER CANALES PENDIENTES ====================
 export const getPendingChannels = (token, page = 1, limit = 20) => async (dispatch) => {
     try {

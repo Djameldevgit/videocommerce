@@ -543,37 +543,44 @@ export const getVideoById = (id) => async (dispatch) => {
 };
 
 // ✅ Dar like a video CON NOTIFICACIÓN
-export const likeVideo = (id, token, auth, socket, videoData) => async (dispatch) => {
+// redux/actions/videoAction.js
+
+export const likeVideo = (videoId, token, auth, socket, videoData) => async (dispatch) => {
   try {
-    const res = await patchDataAPI(`videos/${id}/like`, {}, token);
+    console.log('📥 likeVideo - videoId:', videoId);
     
-    dispatch({
-      type: VIDEO_TYPES.LIKE_VIDEO,
-      payload: { id, likes: res.data.likes, liked: res.data.liked }
-    });
+    const res = await patchDataAPI(`videos/${videoId}/like`, {}, token);
     
-    // ✅ Notificar al dueño del video que recibió un like (solo si no es el mismo usuario)
-    if (res.data.liked && videoData && videoData.user?._id && videoData.user._id !== auth.user._id) {
-      const msg = {
-        id: auth.user._id,
-        text: `❤️ @${auth.user.username} a aimé votre vidéo`,
-        recipients: [videoData.user._id],
-        url: `/video/${id}`,
-        content: videoData.title,
-        image: videoData.thumbnail,
-        type: 'video'
-      };
+    console.log('📥 likeVideo - respuesta:', res.data);
+    
+    if (res.data.success) {
+      // Crear notificación si es un like nuevo y no es su propio video
+      if (res.data.isLiked && videoData && videoData.user?._id !== auth.user?._id) {
+        const msg = {
+          id: auth.user._id,
+          text: `❤️ @${auth.user.username} a aimé votre vidéo`,
+          recipients: [videoData.user._id],
+          url: `/video/${videoId}`,
+          content: videoData.title,
+          image: videoData.thumbnail,
+          type: 'video'
+        };
+        dispatch(createNotify({ msg, auth, socket }));
+      }
       
-      dispatch(createNotify({ msg, auth, socket }));
+      // ✅ Devolver la respuesta correcta
+      return { 
+        liked: res.data.isLiked, 
+        likes: res.data.likesCount || res.data.totalLikes 
+      };
     }
     
-    return { liked: res.data.liked, likes: res.data.likes };
+    return { liked: false, likes: 0 };
   } catch (err) {
-    console.error('Error likeVideo:', err);
+    console.error('❌ Error likeVideo:', err);
     return { liked: false, likes: 0 };
   }
 };
-
  
  
  // redux/actions/videoAction.js

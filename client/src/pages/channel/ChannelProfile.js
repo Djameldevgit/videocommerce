@@ -1,5 +1,5 @@
 // frontend/src/pages/channel/ChannelProfile.jsx
-// 🔥 VERSIÓN CORREGIDA - TABS VISIBLES Y SIN BUCLE
+// 🔥 VERSIÓN FINAL - BOTÓN FOLLOW SINCRONIZADO CON REDUX
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
@@ -23,8 +23,8 @@ import {
   registerChannelShare,
   getChannelContact
 } from '../../redux/actions/channelAction';
- import { toggleSaveVideo   } from '../../redux/actions/videoAction';
- import { getSavedVideos,getLikedVideos } from '../../redux/actions/userAction';
+import { toggleSaveVideo } from '../../redux/actions/videoAction';
+import { getSavedVideos, getLikedVideos } from '../../redux/actions/userAction';
 
 import LoadMoreBtn from '../../components/LoadMoreBtn';
 import VideoCardVertical from '../../components/VideoCardVertical';
@@ -159,7 +159,7 @@ const ChannelProfile = () => {
   const { channelId } = useParams();
   const history = useHistory();
   const dispatch = useDispatch();
-  const { auth } = useSelector(state => state);
+  const { auth, channel: channelState } = useSelector(state => state);
   const { planName, planLimits, canUploadVideo, planColor } = useUserPlan();
   const { channel, loading, videos = [], hasMore = false, totalVideos = 0, error } = useSelector(state => state.channel);
 
@@ -189,8 +189,11 @@ const ChannelProfile = () => {
   const [reportDescription, setReportDescription] = useState('');
   const [contactInfo, setContactInfo] = useState(null);
   const [isBlocked, setIsBlocked] = useState(false);
-  const [following, setFollowing] = useState(false);
-  const [followersCount, setFollowersCount] = useState(0);
+  const [followLoading, setFollowLoading] = useState(false);
+
+  // ✅ OBTENER ESTADO DE FOLLOW DESDE REDUX (no estado local)
+  const isFollowing = channel?.isFollowing || false;
+  const followersCount = channel?.followersCount || 0;
 
   const isOwner = auth.user?._id && channel?.owner?._id && auth.user._id.toString() === channel.owner._id.toString();
   const isPending = channel?.pending === true;
@@ -216,17 +219,8 @@ const ChannelProfile = () => {
     loadChannelData();
   }, [dispatch, channelId, auth]);
 
-  // Actualizar estado de follow cuando cambia el canal
-  useEffect(() => {
-    if (channel) {
-      setFollowing(channel.isFollowing || false);
-      setFollowersCount(channel.followersCount || 0);
-    }
-  }, [channel]);
-
   // ==================== CARGAR VIDEOS GUARDADOS (SOLO UNA VEZ) ====================
   const loadSavedVideos = useCallback(async (page = 1) => {
-    // ✅ Verificar usando refs para evitar múltiples llamadas
     if (!token || !isOwner) return;
     if (savedLoadedRef.current || savedErrorRef.current) return;
     if (savedLoading) return;
@@ -255,7 +249,6 @@ const ChannelProfile = () => {
 
   // ==================== CARGAR VIDEOS CON LIKE (SOLO UNA VEZ) ====================
   const loadLikedVideos = useCallback(async (page = 1) => {
-    // ✅ Verificar usando refs para evitar múltiples llamadas
     if (!token || !isOwner) return;
     if (likedLoadedRef.current || likedErrorRef.current) return;
     if (likedLoading) return;
@@ -285,7 +278,6 @@ const ChannelProfile = () => {
   // ==================== CAMBIO DE TAB (SIN USEEFFECT) ====================
   const handleTabChange = useCallback((tab) => {
     setActiveTab(tab);
-    // ✅ Cargar datos SOLO cuando se hace clic en el tab
     if (tab === 'saved' && !savedLoadedRef.current && !savedErrorRef.current && !savedLoading) {
       loadSavedVideos(1);
     }
@@ -367,19 +359,36 @@ const ChannelProfile = () => {
     }
   };
 
-  // ==================== FOLLOW ====================
-  const handleFollow = useCallback(async () => {
-    if (!token) {
-      history.push('/login');
-      return;
-    }
-    const result = await dispatch(toggleFollowChannel(channelId, { token, user: auth.user }));
+  // ==================== FOLLOW - SINCRONIZADO CON REDUX ====================
+  // ChannelProfile.jsx - handleFollow corregido
+
+// ChannelProfile.jsx - handleFollow simplificado
+const handleFollow = useCallback(async () => {
+  if (!token) {
+    dispatch({ type: GLOBALTYPES.ALERT, payload: { error: "Connectez-vous pour suivre" } });
+    history.push('/login');
+    return;
+  }
+  
+  if (followLoading) return;
+  setFollowLoading(true);
+  
+  try {
+    const result = await dispatch(toggleFollowChannel(channelId, token));
+    
     if (result?.success) {
-      setFollowing(result.isFollowing);
-      setFollowersCount(result.followersCount);
-      dispatch({ type: GLOBALTYPES.ALERT, payload: { success: result.isFollowing ? '✓ Abonné' : '✓ Désabonné' } });
+      // ✅ La UI se actualizará automáticamente por Redux
+      dispatch({ 
+        type: GLOBALTYPES.ALERT, 
+        payload: { success: result.isFollowing ? '✓ Abonné' : '✓ Désabonné' } 
+      });
     }
-  }, [channelId, token, auth.user, history, dispatch]);
+  } catch (error) {
+    console.error('Error en handleFollow:', error);
+  } finally {
+    setFollowLoading(false);
+  }
+}, [channelId, token, dispatch, history, followLoading]);
 
   // ==================== SAVE VIDEO ====================
   const handleSaveVideo = useCallback(async (videoId) => {
@@ -388,14 +397,11 @@ const ChannelProfile = () => {
       return { success: false };
     }
     const result = await dispatch(toggleSaveVideo(videoId, token, auth));
-    // Actualizar la lista si estamos en el tab de saved
     if (result?.success && activeTab === 'saved') {
       if (result.isSaved) {
-        // Si se guardó, recargar la lista
         savedLoadedRef.current = false;
         loadSavedVideos(1);
       } else {
-        // Si se quitó, filtrar de la lista
         setSavedVideos(prev => prev.filter(v => v._id !== videoId));
       }
     }
@@ -548,9 +554,20 @@ const ChannelProfile = () => {
         <div className="channel-actions">
           {!isOwner ? (
             <>
-              <button className={`btn-follow ${following ? 'following' : ''}`} onClick={handleFollow}>
-                <FontAwesomeIcon icon={following ? faCheck : faUserPlus} />
-                <span>{following ? 'Abonné' : "S'abonner"}</span>
+              {/* ✅ BOTÓN DE FOLLOW - DOS CARAS EN FRANCÉS, SINCRONIZADO CON REDUX */}
+              <button 
+                className={`btn-follow ${isFollowing ? 'following' : ''}`} 
+                onClick={handleFollow}
+                disabled={followLoading}
+              >
+                {followLoading ? (
+                  <FontAwesomeIcon icon={faSpinner} spin />
+                ) : (
+                  <>
+                    <FontAwesomeIcon icon={isFollowing ? faCheck : faUserPlus} />
+                    <span>{isFollowing ? 'Abonné' : "S'abonner"}</span>
+                  </>
+                )}
               </button>
               <button className="btn-message" onClick={handleMessage}><FontAwesomeIcon icon={faEnvelope} /> Message</button>
             </>
@@ -563,14 +580,13 @@ const ChannelProfile = () => {
         </div>
       </div>
 
-      {/* ==================== TABS - VISIBLES Y SIN BUCLE ==================== */}
+      {/* ==================== TABS ==================== */}
       <div className="channel-tabs-container">
         <div className="channel-tabs">
           <button className={`tab-btn ${activeTab === 'videos' ? 'active' : ''}`} onClick={() => handleTabChange('videos')}>
             <FontAwesomeIcon icon={faFilm} /> Vidéos {totalVideos > 0 && <span className="tab-count">{totalVideos}</span>}
           </button>
           
-          {/* ✅ TABS VISIBLES - SOLO PARA EL DUEÑO */}
           {isOwner && token && (
             <>
               <button className={`tab-btn ${activeTab === 'saved' ? 'active' : ''}`} onClick={() => handleTabChange('saved')}>

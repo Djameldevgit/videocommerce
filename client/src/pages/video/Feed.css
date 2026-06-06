@@ -888,3 +888,46 @@
   video {
     touch-action: manipulation;
   }
+  /* Botones con efecto activo */
+.vr-action-btn {
+  transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.vr-action-btn.active-like {
+  background: rgba(255, 59, 92, 0.2);
+  border-radius: 50%;
+  box-shadow: 0 0 10px rgba(255, 59, 92, 0.5);
+}
+
+.vr-action-btn.active-save {
+  background: rgba(255, 215, 0, 0.2);
+  border-radius: 50%;
+  box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+}
+
+.vr-action-btn:active {
+  transform: scale(0.9);
+}
+
+/* Heart animation */
+.vr-floating-heart {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 3rem;
+  pointer-events: none;
+  animation: floatHeart 0.8s ease-out forwards;
+  z-index: 1000;
+}
+
+@keyframes floatHeart {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(0.5);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -150%) scale(1.5);
+  }
+}

@@ -49,14 +49,39 @@ const SocketClient = () => {
         return () => socket.off('unLikeVideoToClient')
     },[socket, dispatch])
 
-    // ============================================
-    // COMENTARIOS EN VIDEOS (cambiado de comentarios en posts)
-    // ============================================
- // ✅ Los eventos en SocketClient.js ya están correctos:
-// - 'createCommentVideoToClient'
-// - 'deleteCommentVideoToClient'
-
-// Verificar que estos useEffect existen:
+    useEffect(() => {
+        socket.on('newVideoNotification', (data) => {
+          console.log('📹 Nueva notificación de video:', data);
+          
+          // Mostrar alerta
+          dispatch({
+            type: GLOBALTYPES.ALERT,
+            payload: { info: data.text }
+          });
+          
+          // También crear notificación en el sistema
+          dispatch({
+            type: NOTIFY_TYPES.CREATE_NOTIFY,
+            payload: {
+              ...data,
+              user: { username: data.sender?.username, avatar: data.sender?.avatar }
+            }
+          });
+          
+          // Notificación de escritorio
+          if (notify.sound) {
+            audioRef.current?.play();
+          }
+          spawnNotification(
+            data.text,
+            data.image,
+            data.url,
+            'Nouvelle vidéo'
+          );
+        });
+      
+        return () => socket.off('newVideoNotification');
+      }, [socket, dispatch, notify.sound]);
 useEffect(() => {
     socket.on('createCommentVideoToClient', newVideo =>{
         dispatch({type: VIDEO_TYPES.UPDATE_VIDEO, payload: newVideo})

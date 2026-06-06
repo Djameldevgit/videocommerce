@@ -53,10 +53,12 @@ export const USER_TYPES = {
   GET_USER_VIDEOS: 'GET_USER_VIDEOS',
   GET_SAVED_VIDEOS: 'GET_SAVED_VIDEOS',
   GET_LIKED_VIDEOS: 'GET_LIKED_VIDEOS',
+
   SET_ACTIVE_TAB: 'SET_ACTIVE_TAB',
   FOLLOW_USER: 'FOLLOW_USER',
   SAVE_VIDEO: 'SAVE_VIDEO',
-  CLEAR_USER_STATE: 'CLEAR_USER_STATE'
+  CLEAR_USER_STATE: 'CLEAR_USER_STATE',
+  LIKE_VIDEO: 'LIKE_VIDEO',  // ✅ NUEVO
 };
 
 // ============================================
@@ -353,104 +355,14 @@ export const getUserProfile = (userId, token) => async (dispatch) => {
 };
 
 // Obtener videos del usuario
-export const getUserVideos = (userId, page = 1, token, isOwner = false) => async (dispatch) => {
-  try {
-    const res = await getDataAPI(`users/${userId}/videos?page=${page}&limit=12`, token);
-    
-    dispatch({
-      type: USER_TYPES.GET_USER_VIDEOS,
-      payload: {
-        videos: res.data.videos,
-        total: res.data.total,
-        page: res.data.page,
-        totalPages: res.data.totalPages,
-        hasMore: res.data.hasMore
-      }
-    });
-    
-    return res.data;
-  } catch (err) {
-    console.error('Error getUserVideos:', err);
-    return null;
-  }
-};
+// ============================================
+// ✅ VERIFICAR - userAction.js
+// ============================================
 
-// Obtener videos guardados
-export const getSavedVideos = (token, page = 1, limit = 12) => async (dispatch) => {
-  try {
-    if (!token) {
-      console.error('❌ getSavedVideos: No token');
-      return { success: false, error: 'No token' };
-    }
-    
-    console.log('📥 getSavedVideos - llamando a API...');
-    
-    const url = `user/saved-videos?page=${page}&limit=${limit}`;
-    const res = await getDataAPI(url, token);
-    
-    console.log('✅ getSavedVideos - respuesta:', res.data);
-    
-    dispatch({
-      type: USER_TYPES.GET_SAVED_VIDEOS,
-      payload: {
-        videos: res.data.videos || [],
-        total: res.data.total || 0,
-        page: res.data.page || page,
-        totalPages: res.data.totalPages || 1,
-        hasMore: res.data.hasMore || false
-      }
-    });
-    
-    return { 
-      success: true, 
-      videos: res.data.videos || [],
-      hasMore: res.data.hasMore || false,
-      total: res.data.total || 0
-    };
-  } catch (err) {
-    console.error('❌ getSavedVideos error:', err);
-    return { success: false, error: err.message };
-  }
-};
-
-// Obtener videos con like
-export const getLikedVideos = (token, page = 1, limit = 12) => async (dispatch) => {
-  try {
-    if (!token) {
-      console.error('❌ getLikedVideos: No token');
-      return { success: false, error: 'No token' };
-    }
-    
-    console.log('📥 getLikedVideos - llamando a API...');
-    
-    const url = `user/liked-videos?page=${page}&limit=${limit}`;
-    const res = await getDataAPI(url, token);
-    
-    console.log('✅ getLikedVideos - respuesta:', res.data);
-    
-    dispatch({
-      type: USER_TYPES.GET_LIKED_VIDEOS,
-      payload: {
-        videos: res.data.videos || [],
-        total: res.data.total || 0,
-        page: res.data.page || page,
-        totalPages: res.data.totalPages || 1,
-        hasMore: res.data.hasMore || false
-      }
-    });
-    
-    return { 
-      success: true, 
-      videos: res.data.videos || [],
-      hasMore: res.data.hasMore || false,
-      total: res.data.total || 0
-    };
-  } catch (err) {
-    console.error('❌ getLikedVideos error:', err);
-    return { success: false, error: err.message };
-  }
-};
-
+// El orden debe ser: (userId, token, page, limit)
+ 
+// Obtener videos con like - con userId
+ 
 // Seguir/Dejar de seguir usuario
 export const toggleFollow = (userId, token, auth) => async (dispatch) => {
   try {
@@ -549,3 +461,143 @@ export const setActiveTab = (tab) => ({
 export const clearUserState = () => ({
   type: USER_TYPES.CLEAR_USER_STATE
 });
+
+// redux/actions/userAction.js
+
+// ✅ CORREGIDO - Sin userId (el token identifica al usuario)
+export const getSavedVideos = (token, page = 1, limit = 12) => async (dispatch) => {
+  try {
+    if (!token) {
+      console.error('❌ getSavedVideos: No token');
+      return { success: false, error: 'No token' };
+    }
+    
+    console.log('📥 getSavedVideos - token exists, page:', page, 'limit:', limit);
+    
+    // ✅ Verificar que page y limit sean números, no strings enormes
+    const pageNum = parseInt(page) || 1;
+    const limitNum = parseInt(limit) || 50;
+    
+    const url = `users/saved-videos?page=${pageNum}&limit=${limitNum}`;
+    console.log('📥 getSavedVideos - URL:', url);
+    
+    const res = await getDataAPI(url, token);
+    
+    console.log('✅ getSavedVideos - respuesta:', res.data);
+    
+    dispatch({
+      type: USER_TYPES.GET_SAVED_VIDEOS,
+      payload: {
+        videos: res.data.videos || [],
+        total: res.data.total || 0,
+        page: res.data.page || pageNum,
+        totalPages: res.data.totalPages || 1,
+        hasMore: res.data.hasMore || false
+      }
+    });
+    
+    return { 
+      success: true, 
+      videos: res.data.videos || [],
+      hasMore: res.data.hasMore || false,
+      total: res.data.total || 0
+    };
+  } catch (err) {
+    console.error('❌ getSavedVideos error:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+// ✅ CORREGIDO - El ORDEN correcto es (token, page, limit)
+export const getLikedVideos = (token, page = 1, limit = 12) => async (dispatch) => {
+  try {
+    if (!token) {
+      console.error('❌ getLikedVideos: No token');
+      return { success: false, error: 'No token' };
+    }
+    
+    console.log('📥 getLikedVideos - token exists, page:', page, 'limit:', limit);
+    
+    // ✅ Verificar que page y limit sean números
+    const pageNum = parseInt(page) || 1;
+    const limitNum = parseInt(limit) || 50;
+    
+    const url = `users/liked-videos?page=${pageNum}&limit=${limitNum}`;
+    console.log('📥 getLikedVideos - URL:', url);
+    
+    const res = await getDataAPI(url, token);
+    
+    console.log('✅ getLikedVideos - respuesta:', res.data);
+    
+    dispatch({
+      type: USER_TYPES.GET_LIKED_VIDEOS,
+      payload: {
+        videos: res.data.videos || [],
+        total: res.data.total || 0,
+        page: res.data.page || pageNum,
+        totalPages: res.data.totalPages || 1,
+        hasMore: res.data.hasMore || false
+      }
+    });
+    
+    return { 
+      success: true, 
+      videos: res.data.videos || [],
+      hasMore: res.data.hasMore || false,
+      total: res.data.total || 0
+    };
+  } catch (err) {
+    console.error('❌ getLikedVideos error:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+export const toggleLikeVideo = (videoId, token, auth, socket, videoData) => async (dispatch) => {
+  try {
+    const isLiked = auth?.user?.likedVideos?.includes(videoId) || false;
+    
+    console.log('📥 toggleLikeVideo - videoId:', videoId, 'isLiked:', isLiked);
+    
+    // Optimistic update (actualización optimista)
+    dispatch({
+      type: USER_TYPES.LIKE_VIDEO,
+      payload: { videoId, isLiked: !isLiked }
+    });
+    
+    // Llamar a la API
+    const res = await patchDataAPI(`videos/${videoId}/like`, {}, token);
+    
+    console.log('📥 toggleLikeVideo - respuesta:', res.data);
+    
+    if (res.data.success) {
+      // Crear notificación si es un like nuevo y no es su propio video
+      if (!isLiked && videoData && videoData.user?._id && videoData.user._id !== auth?.user?._id) {
+        const msg = {
+          id: auth.user._id,
+          text: `❤️ @${auth.user.username} a aimé votre vidéo`,
+          recipients: [videoData.user._id],
+          url: `/video/${videoId}`,
+          content: videoData.title,
+          image: videoData.thumbnail,
+          type: 'video'
+        };
+        dispatch(createNotify({ msg, auth, socket }));
+      }
+      
+      dispatch({
+        type: GLOBALTYPES.ALERT,
+        payload: { success: !isLiked ? '✓ Video liked' : '✓ Like removed' }
+      });
+    }
+    
+    return { success: true, isLiked: !isLiked, likesCount: res.data.likesCount };
+  } catch (err) {
+    console.error('❌ Error toggleLikeVideo:', err);
+    // Revertir optimistic update
+    dispatch({
+      type: USER_TYPES.LIKE_VIDEO,
+      payload: { videoId, isLiked: isLiked }
+    });
+    return { success: false, error: err.message };
+  }
+};

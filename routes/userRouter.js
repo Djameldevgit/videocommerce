@@ -78,13 +78,16 @@ router.get('/users/:userId/transactions', auth, userCtrl.getUserTransactions)
 // ============================================
 router.patch('/user/save-video/:videoId', auth, userCtrl.saveVideo)
 router.get('/user/check-saved/:videoId', auth, userCtrl.checkSavedVideo)
-router.get('/user/saved-videos', auth, userCtrl.getSavedVideos)  // ✅ GET - VIDEOS GUARDADOS
+// ✅ GET - VIDEOS GUARDADOS
 router.post('/videos/:videoId/save', auth, userCtrl.toggleSaveVideo)
-
+router.get('/users/saved-videos', auth, userCtrl.getSavedVideos)  
+router.get('/users/liked-videos', auth, userCtrl.getLikedVideos)
+// videoRoutes.js
+router.patch('/videos/:videoId/like', auth, userCtrl.likeVideo);
 // ============================================
 // 🆕 1️⃣2️⃣ RUTAS DE VIDEOS CON LIKE (FALTANTES)
 // ============================================
-router.get('/user/liked-videos', auth, userCtrl.getLikedVideos)  // ✅ NUEVA - VIDEOS CON LIKE
+   // ✅ NUEVA - VIDEOS CON LIKE
 
 // ============================================
 // 🆕 1️⃣3️⃣ RUTAS DE VIDEOS DEL USUARIO

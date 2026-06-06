@@ -1,4 +1,4 @@
-// components/Feed/Feed.jsx - VERSIÓN CORREGIDA
+// components/Feed/Feed.jsx - VERSIÓN FINAL CON FOLLOW SINCRONIZADO
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useHistory } from 'react-router-dom';
@@ -10,7 +10,7 @@ import {
   faMusic, faXmark, faArrowLeft, faEllipsisVertical,
   faPen, faTrash, faFlag, faBan, faCheckCircle,
   faUserSlash, faExclamationTriangle,
-  faChevronUp, faChevronDown, faSpinner
+  faChevronUp, faChevronDown, faSpinner, faUserPlus
 } from '@fortawesome/free-solid-svg-icons';
 import {
   faHeart as faHeartRegular,
@@ -21,7 +21,7 @@ import Hls from 'hls.js';
 import { likeVideo, shareVideo, deleteVideo, toggleSaveVideo } from '../../redux/actions/videoAction';
 import { aprobarVideo, eliminarVideo } from '../../redux/actions/videoApproveAction';
 import { GLOBALTYPES } from '../../redux/actions/globalTypes';
-import { getChannelProfile } from '../../redux/actions/channelAction';
+import { getChannelProfile, toggleFollowChannel } from '../../redux/actions/channelAction';
 
 import VideoComments from './VideoComments';
 import moment from 'moment';
@@ -44,7 +44,7 @@ const getVideoWithExternalAudio = (videoUrl, audioUrl) => {
   return `${base}${transformation}/${rest}`;
 };
 
-// ✅ Función para extraer avatar (maneja array y string)
+// ✅ Función para extraer avatar
 const extractAvatar = (avatarData) => {
   if (!avatarData) return '/default-avatar.png';
   if (typeof avatarData === 'string') return avatarData;
@@ -53,6 +53,14 @@ const extractAvatar = (avatarData) => {
   }
   if (avatarData?.url) return avatarData.url;
   return '/default-avatar.png';
+};
+
+// ✅ Formateador de números
+const formatNumber = n => {
+  if (!n && n !== 0) return '0';
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
+  return n.toString();
 };
 
 const Feed = ({
@@ -67,7 +75,7 @@ const Feed = ({
 }) => {
   const dispatch = useDispatch();
   const history = useHistory();
-  const { auth, socket } = useSelector(state => state);
+  const { auth, socket, channel: channelState } = useSelector(state => state);
   const videoRef = useRef(null);
   const drawerRef = useRef(null);
   let hlsRef = useRef(null);
@@ -75,30 +83,34 @@ const Feed = ({
   const hasFetchedRef = useRef(false);
   const lastVideoIdRef = useRef(null);
 
-  // ✅ ESTADO INICIAL CORREGIDO - Verificar si el video ya está guardado
+  // ✅ ESTADOS MEJORADOS
   const [liked, setLiked] = useState(video.liked || false);
   const [likesCount, setLikesCount] = useState(video.likes?.length || 0);
-  // ✅ CORREGIDO: Inicializar 'saved' verificando si el video está en savedVideos del usuario
   const [saved, setSaved] = useState(() => {
     if (auth.user?.savedVideos && Array.isArray(auth.user.savedVideos)) {
       return auth.user.savedVideos.includes(video._id);
     }
     return false;
   });
+  const [savesCount, setSavesCount] = useState(video.savesCount || video.savedCount || video.savedBy?.length || 0);
+  const [sharesCount, setSharesCount] = useState(video.sharesCount || video.sharedCount || 0);
   const [saving, setSaving] = useState(false);
   const [commentsCount, setCommentsCount] = useState(video.comments?.length || 0);
   const [showComments, setShowComments] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [isFollowing, setIsFollowing] = useState(false);
+  
+  // ✅ ESTADOS PARA FOLLOW (usando Redux, no estado local)
+  const [followLoading, setFollowLoading] = useState(false);
+  
   const [showMenu, setShowMenu] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [startY, setStartY] = useState(0);
   const [isLargeScreen, setIsLargeScreen] = useState(window.innerWidth > 1024);
-  
+ 
   const [fetchedChannel, setFetchedChannel] = useState(null);
   const [fetchingChannel, setFetchingChannel] = useState(false);
   const [fetchError, setFetchError] = useState(false);
@@ -168,12 +180,63 @@ const Feed = ({
     fetchChannel();
   }, [initialChannelId, video._id, video.channel, dispatch, auth.token]);
 
-  // ✅ DATOS FINALES DEL CANAL CON AVATAR EXTRAÍDO
+  // DATOS FINALES DEL CANAL
   const finalChannel = fetchedChannel || (video.channel && typeof video.channel === 'object' ? video.channel : {});
   const channelId = finalChannel._id || initialChannelId;
   const channelName = finalChannel.name || initialChannelName || video.user?.username || 'Canal';
   const channelAvatar = extractAvatar(finalChannel.avatar || initialChannelAvatar);
   const isChannelVerified = finalChannel.isVerified || false;
+
+  // ✅ OBTENER ESTADO DE FOLLOW DESDE REDUX (no estado local)
+  const isFollowing = channelState?.followingChannels?.includes(channelId) || 
+                      (channelState?.channel?._id === channelId && channelState?.channel?.isFollowing) || 
+                      false;
+  
+  const followersCount = channelState?.channel?._id === channelId 
+    ? channelState.channel.followersCount 
+    : finalChannel?.followersCount || video.channel?.followersCount || 0;
+
+  // ✅ HANDLE FOLLOW CHANNEL - Usa la acción de Redux
+  const handleFollowChannel = async () => {
+    if (!auth.token) {
+      dispatch({ type: GLOBALTYPES.ALERT, payload: { error: "Connectez-vous pour suivre" } });
+      history.push('/login');
+      return;
+    }
+    
+    if (!channelId || channelId === 'null' || channelId === 'undefined') {
+      dispatch({ type: GLOBALTYPES.ALERT, payload: { error: "Canal invalide" } });
+      return;
+    }
+    
+    if (followLoading) return;
+    
+    setFollowLoading(true);
+    try {
+      const res = await dispatch(toggleFollowChannel(channelId, auth.token));
+      
+      if (res?.success) {
+        // ✅ No necesitas setear estado local, Redux ya actualiza
+        dispatch({
+          type: GLOBALTYPES.ALERT,
+          payload: { success: res.isFollowing ? '✓ Canal suivi' : '✓ Canal abandonné' }
+        });
+      } else if (res?.error) {
+        dispatch({
+          type: GLOBALTYPES.ALERT,
+          payload: { error: res.error }
+        });
+      }
+    } catch (error) {
+      console.error('❌ Error en handleFollowChannel:', error);
+      dispatch({
+        type: GLOBALTYPES.ALERT,
+        payload: { error: "Erreur lors du suivi du canal" }
+      });
+    } finally {
+      setFollowLoading(false);
+    }
+  };
 
   const goToChannel = useCallback((e) => {
     e?.stopPropagation();
@@ -321,52 +384,76 @@ const Feed = ({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // ACTIONS
   const guardPending = () => {
     if (!isPending) return false;
     dispatch({ type: GLOBALTYPES.ALERT, payload: { error: "Cette vidéo est en attente d'approbation" } });
     return true;
   };
 
+  // ✅ HANDLE LIKE
   const handleLike = async () => {
     if (!auth.token) return history.push('/login');
     if (guardPending()) return;
-    const res = await dispatch(likeVideo(video._id, auth.token, auth, socket, video));
-    if (res?.liked !== undefined) {
-      setLiked(res.liked);
-      setLikesCount(res.likes);
-      if (res.liked) createHeartEffect();
+    
+    setActionLoading(true);
+    try {
+      const res = await dispatch(likeVideo(video._id, auth.token, auth, socket, video));
+      if (res?.liked !== undefined) {
+        setLiked(res.liked);
+        setLikesCount(res.likes);
+        if (res.liked) createHeartEffect();
+      }
+    } catch (error) {
+      console.error('Error en handleLike:', error);
+    } finally {
+      setActionLoading(false);
     }
   };
 
-  // ✅ CORREGIDO: handleSave con todos los parámetros y usando 'isSaved'
+  // ✅ HANDLE SAVE
   const handleSave = async () => {
     if (!auth.token) return history.push('/login');
     if (guardPending()) return;
     if (saving) return;
+    
     setSaving(true);
-    
-    // ✅ Pasar todos los parámetros necesarios
-    const result = await dispatch(toggleSaveVideo(
-      video._id,      // videoId
-      auth.token,     // token
-      auth,           // auth
-      socket,         // socket
-      video           // videoData
-    ));
-    
-    // ✅ CORREGIDO: usar 'isSaved' en lugar de 'saved'
-    if (result?.isSaved !== undefined) {
-      setSaved(result.isSaved);
-      dispatch({
-        type: GLOBALTYPES.ALERT,
-        payload: { success: result.isSaved ? '✓ Ajouté aux favoris' : '✓ Retiré des favoris' }
-      });
-    } else if (result?.success && result?.isSaved !== undefined) {
-      setSaved(result.isSaved);
+    try {
+      const result = await dispatch(toggleSaveVideo(video._id, auth.token, auth, socket, video));
+      
+      if (result?.isSaved !== undefined) {
+        const newSavedState = result.isSaved;
+        setSaved(newSavedState);
+        setSavesCount(prev => newSavedState ? prev + 1 : prev - 1);
+        
+        dispatch({
+          type: GLOBALTYPES.ALERT,
+          payload: { success: newSavedState ? '✓ Ajouté aux favoris' : '✓ Retiré des favoris' }
+        });
+      }
+    } catch (error) {
+      console.error('Error en handleSave:', error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ✅ HANDLE SHARE
+  const handleShare = async () => {
+    if (!auth.token) {
+      history.push('/login');
+      return;
     }
     
-    setSaving(false);
+    const url = `${window.location.origin}/video/${video._id}`;
+    if (navigator.share) {
+      try { await navigator.share({ title: video.title, text: video.description, url }); } catch { }
+    } else {
+      navigator.clipboard.writeText(url);
+      dispatch({ type: GLOBALTYPES.ALERT, payload: { success: 'Lien copié !' } });
+    }
+    
+    setSharesCount(prev => prev + 1);
+    await dispatch(shareVideo(video._id, auth.token, auth, socket, video));
   };
 
   const createHeartEffect = () => {
@@ -380,21 +467,6 @@ const Feed = ({
   const handleDoubleClick = e => {
     e.stopPropagation();
     if (!liked && !isPending) handleLike();
-  };
-
-  const handleShare = async () => {
-    if (!auth.token) {
-      history.push('/login');
-      return;
-    }
-    const url = `${window.location.origin}/video/${video._id}`;
-    if (navigator.share) {
-      try { await navigator.share({ title: video.title, text: video.description, url }); } catch { }
-    } else {
-      navigator.clipboard.writeText(url);
-      dispatch({ type: GLOBALTYPES.ALERT, payload: { success: 'Lien copié !' } });
-    }
-    await dispatch(shareVideo(video._id, auth.token, auth, socket, video));
   };
 
   const toggleMute = e => {
@@ -477,13 +549,6 @@ const Feed = ({
     dispatch({ type: GLOBALTYPES.ALERT, payload: { info: 'Merci pour votre retour !' } });
     onVideoDeleted?.(video._id);
   });
-
-  const formatNumber = n => {
-    if (!n) return '0';
-    if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
-    if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
-    return n.toString();
-  };
 
   const videoScale = !showComments ? 1 : 0.7 + 0.3 * Math.min(dragOffset / (window.innerHeight * 0.6), 1);
   const videoTranslateY = !showComments ? 0 : -15 * (1 - Math.min(dragOffset / (window.innerHeight * 0.6), 1));
@@ -645,8 +710,16 @@ const Feed = ({
 
             {/* Like */}
             <div className="vr-action-group">
-              <button className="vr-action-btn" onClick={handleLike}>
-                <FontAwesomeIcon icon={liked ? faHeart : faHeartRegular} className="vr-action-icon" style={{ color: liked ? '#ff3b5c' : 'white' }} />
+              <button 
+                className={`vr-action-btn ${liked ? 'active-like' : ''}`} 
+                onClick={handleLike}
+                disabled={actionLoading}
+              >
+                <FontAwesomeIcon 
+                  icon={liked ? faHeart : faHeartRegular} 
+                  className="vr-action-icon" 
+                  style={{ color: liked ? '#ff3b5c' : 'white' }} 
+                />
               </button>
               <span className="vr-action-count">{formatNumber(likesCount)}</span>
             </div>
@@ -659,9 +732,13 @@ const Feed = ({
               <span className="vr-action-count">{formatNumber(commentsCount)}</span>
             </div>
 
-            {/* Save - CORREGIDO: usar 'saved' en lugar de 'isSaved' */}
+            {/* Save */}
             <div className="vr-action-group">
-              <button className="vr-action-btn" onClick={handleSave} disabled={saving}>
+              <button 
+                className={`vr-action-btn ${saved ? 'active-save' : ''}`} 
+                onClick={handleSave} 
+                disabled={saving}
+              >
                 {saving ? (
                   <FontAwesomeIcon icon={faSpinner} spin />
                 ) : (
@@ -672,7 +749,7 @@ const Feed = ({
                   />
                 )}
               </button>
-              <span className="vr-action-count">Favoris</span>
+              <span className="vr-action-count">{formatNumber(savesCount)}</span>
             </div>
 
             {/* Share */}
@@ -680,7 +757,7 @@ const Feed = ({
               <button className="vr-action-btn" onClick={handleShare}>
                 <FontAwesomeIcon icon={faShare} className="vr-action-icon" />
               </button>
-              <span className="vr-action-count">Partager</span>
+              <span className="vr-action-count">{formatNumber(sharesCount)}</span>
             </div>
 
             {/* Details */}
@@ -719,7 +796,7 @@ const Feed = ({
           </button>
         )}
 
-        {/* Video info */}
+        {/* Video info - BOTÓN DE FOLLOW AQUÍ */}
         {!showComments && (
           <div className="vr-video-info">
             {isPending && isAdmin && <span className="vr-pending-badge">⏳ En attente</span>}
@@ -736,11 +813,29 @@ const Feed = ({
                 <div className="vr-stats">
                   <span><FontAwesomeIcon icon={faEye} />{formatNumber(video.views)}</span>
                   <span><FontAwesomeIcon icon={faClock} />{moment(video.createdAt).fromNow()}</span>
+                  {followersCount > 0 && (
+                    <span><FontAwesomeIcon icon={faUserPlus} />{formatNumber(followersCount)}</span>
+                  )}
                 </div>
               </div>
-              {!isPending && (
-                <button className={`vr-follow-btn ${isFollowing ? 'following' : ''}`} onClick={() => setIsFollowing(f => !f)}>
-                  {isFollowing ? 'Suivi ✓' : 'Suivre'}
+              {/* ✅ BOTÓN DE FOLLOW - DOS CARAS EN FRANCÉS */}
+              {!isPending && !isOwner && (
+                <button 
+                  className={`vr-follow-btn ${isFollowing ? 'following' : ''}`} 
+                  onClick={handleFollowChannel}
+                  disabled={followLoading}
+                >
+                  {followLoading ? (
+                    <FontAwesomeIcon icon={faSpinner} spin />
+                  ) : (
+                    isFollowing ? 'Abonné ✓' : "S'abonner"
+                  )}
+                </button>
+              )}
+              {/* Si es dueño del video, mostrar botón deshabilitado o diferente */}
+              {!isPending && isOwner && (
+                <button className="vr-follow-btn owner" disabled>
+                  Votre canal
                 </button>
               )}
             </div>

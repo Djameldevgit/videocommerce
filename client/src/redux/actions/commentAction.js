@@ -14,9 +14,7 @@ const getActionType = (targetType) => {
 }
 
 export const createComment = ({target, newComment, auth, socket, targetType, videoData}) => async (dispatch) => {
-    console.log('🎬 createComment action - targetType:', targetType);
-    console.log('🎬 createComment action - target._id:', target?._id);
-    console.log('🎬 createComment action - auth.token existe:', !!auth.token);
+ 
     
     if (!auth.token) {
         console.error('❌ No hay token en createComment');

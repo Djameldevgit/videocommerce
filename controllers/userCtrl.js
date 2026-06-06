@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+ 
 const Users = require('../models/userModel');
 const Comments = require('../models/commentModel');
 const Notifications = require('../models/notifyModel');
@@ -259,25 +260,34 @@ const userCtrl = {
     }
   },
 
-  // ==================== VIDEOS GUARDADOS ====================
+  // ==================== VIDEOS GUARDADOS Y LIKED ====================
+  
   toggleSaveVideo: async (req, res) => {
     try {
       const { videoId } = req.params;
       const userId = req.user._id;
+      
+      // ✅ CORREGIDO: usar "Users"
       const user = await Users.findById(userId);
+      
+      if (!user) {
+        return res.status(404).json({ success: false, message: 'User does not exist.' });
+      }
+      
       const isSaved = user.savedVideos.includes(videoId) || false;
+      
       if (isSaved) {
         await Users.findByIdAndUpdate(userId, { $pull: { savedVideos: videoId } });
       } else {
         await Users.findByIdAndUpdate(userId, { $addToSet: { savedVideos: videoId } });
       }
+      
       res.json({ success: true, isSaved: !isSaved });
     } catch (err) {
+      console.error('❌ toggleSaveVideo error:', err);
       res.status(500).json({ success: false, message: err.message });
     }
   },
-
-   
 
   checkSavedVideo: async (req, res) => {
     try {
@@ -290,8 +300,114 @@ const userCtrl = {
     }
   },
 
-   
+  getSavedVideos: async (req, res) => {
+    try {
+     
 
+      const userId = req.user._id;
+      const { page = 1, limit = 12 } = req.query;
+      
+      const pageNum = parseInt(page);
+      const limitNum = parseInt(limit);
+      const skip = (pageNum - 1) * limitNum;
+      
+      console.log('📥 getSavedVideos - userId:', userId);
+      
+      // ✅ CORREGIDO: usar "Users" en lugar de "User"
+      const user = await Users.findById(userId)
+        .select('savedVideos')
+        .populate({
+          path: 'savedVideos',
+          populate: [
+            { path: 'channel', select: 'name avatar' },
+            { path: 'user', select: 'username fullname avatar' }
+          ],
+          options: {
+            skip: skip,
+            limit: limitNum,
+            sort: { createdAt: -1 }
+          }
+        });
+      
+      if (!user) {
+        console.error('❌ Usuario no encontrado:', userId);
+        return res.status(404).json({
+          success: false,
+          message: 'User does not exist.'
+        });
+      }
+      
+      const total = user.savedVideos.length || 0;
+      const videos = user.savedVideos || [];
+      const totalPages = Math.ceil(total / limitNum);
+      const hasMore = pageNum < totalPages;
+      
+      res.status(200).json({
+        success: true,
+        videos: videos,
+        total: total,
+        page: pageNum,
+        totalPages: totalPages,
+        hasMore: hasMore
+      });
+    } catch (err) {
+      console.error('❌ getSavedVideos error:', err);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+  getLikedVideos: async (req, res) => {
+    try {
+      const userId = req.user._id;
+      const { page = 1, limit = 12 } = req.query;
+      
+      const pageNum = parseInt(page);
+      const limitNum = parseInt(limit);
+      const skip = (pageNum - 1) * limitNum;
+      
+      console.log('📥 getLikedVideos - userId:', userId);
+      
+      // ✅ CORREGIDO: usar "Users" en lugar de "User"
+      const user = await Users.findById(userId)
+        .select('likedVideos')
+        .populate({
+          path: 'likedVideos',
+          populate: [
+            { path: 'channel', select: 'name avatar' },
+            { path: 'user', select: 'username fullname avatar' }
+          ],
+          options: {
+            skip: skip,
+            limit: limitNum,
+            sort: { createdAt: -1 }
+          }
+        });
+      
+      if (!user) {
+        console.error('❌ Usuario no encontrado:', userId);
+        return res.status(404).json({
+          success: false,
+          message: 'User does not exist.'
+        });
+      }
+      
+      const total = user.likedVideos.length || 0;
+      const videos = user.likedVideos || [];
+      const totalPages = Math.ceil(total / limitNum);
+      const hasMore = pageNum < totalPages;
+      
+      res.status(200).json({
+        success: true,
+        videos: videos,
+        total: total,
+        page: pageNum,
+        totalPages: totalPages,
+        hasMore: hasMore
+      });
+    } catch (err) {
+      console.error('❌ getLikedVideos error:', err);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
   // ==================== FUNCIONES DE USUARIO ====================
   assignCategoriesToModerator: async (req, res) => {
     try {
@@ -324,6 +440,8 @@ const userCtrl = {
       if (!user) {
         return res.status(404).json({ success: false, message: "Utilisateur non trouvé" });
       }
+
+
       if (user.role !== 'moderator') {
         return res.status(400).json({ success: false, message: "Cet utilisateur n'est pas un modérateur" });
       }
@@ -902,406 +1020,241 @@ const userCtrl = {
       res.status(500).json({ error: err.message });
     }
   },
-  // controllers/userCtrl.js
 
-   
+  // ==================== VIDEOS DEL USUARIO ====================
+  getUserVideos: async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { page = 1, limit = 12, filter = 'all' } = req.query;
+      const skip = (parseInt(page) - 1) * parseInt(limit);
+      const limitNum = parseInt(limit);
+      
+      let match = { user: new mongoose.Types.ObjectId(userId), isActive: true };
+      
+      if (filter === 'pending') {
+        match.pendiente = true;
+      } else if (filter === 'approved') {
+        match.pendiente = false;
+      }
+      
+      const videos = await Video.find(match)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .populate('user', 'username avatar')
+        .populate('channel', 'name avatar')
+        .lean();
+      
+      const total = await Video.countDocuments(match);
+      const pendingCount = await Video.countDocuments({ user: new mongoose.Types.ObjectId(userId), pendiente: true, isActive: true });
+      const approvedCount = await Video.countDocuments({ user: new mongoose.Types.ObjectId(userId), pendiente: false, isActive: true });
+      
+      const currentUserId = req.user._id;
+      const videosWithStatus = videos.map(v => ({
+        ...v,
+        liked: v.likes.some(id => id.toString() === currentUserId.toString()) || false
+      }));
+      
+      res.json({
+        success: true,
+        videos: videosWithStatus,
+        total,
+        pendingCount,
+        approvedCount,
+        page: parseInt(page),
+        totalPages: Math.ceil(total / limitNum),
+        hasMore: skip + videos.length < total
+      });
+    } catch (err) {
+      console.error('Error getUserVideos:', err);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
 
-getUserVideos: async (req, res) => {
+  // ==================== SEGUIR/DEJAR DE SEGUIR USUARIO ====================
+  toggleFollow: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const currentUserId = req.user._id;
+      
+      if (id === currentUserId.toString()) {
+        return res.status(400).json({ success: false, message: "No puedes seguirte a ti mismo" });
+      }
+      
+      const userToFollow = await Users.findById(id);
+      const currentUser = await Users.findById(currentUserId);
+      
+      if (!userToFollow || !currentUser) {
+        return res.status(404).json({ success: false, message: "Usuario no encontrado" });
+      }
+      
+      const isFollowing = currentUser.following.includes(id) || false;
+      
+      if (isFollowing) {
+        await Users.findByIdAndUpdate(currentUserId, { $pull: { following: id } });
+        await Users.findByIdAndUpdate(id, { $pull: { followers: currentUserId } });
+      } else {
+        await Users.findByIdAndUpdate(currentUserId, { $addToSet: { following: id } });
+        await Users.findByIdAndUpdate(id, { $addToSet: { followers: currentUserId } });
+      }
+      
+      const updatedUser = await Users.findById(id);
+      const followersCount = updatedUser.followers.length || 0;
+      
+      res.json({
+        success: true,
+        isFollowing: !isFollowing,
+        followersCount
+      });
+    } catch (err) {
+      console.error('Error toggleFollow:', err);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+
+  // ==================== ACTUALIZAR ROL DE USUARIO ====================
+  updateUserRole: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { role } = req.body;
+      
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({ success: false, message: 'Accès non autorisé' });
+      }
+      
+      const validRoles = ['user', 'moderator', 'admin'];
+      if (!validRoles.includes(role)) {
+        return res.status(400).json({ success: false, message: 'Rôle invalide' });
+      }
+      
+      const user = await Users.findByIdAndUpdate(
+        id,
+        { role },
+        { new: true }
+      ).select('-password');
+      
+      if (!user) {
+        return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
+      }
+      
+      res.json({ success: true, user });
+    } catch (err) {
+      console.error('Error updateUserRole:', err);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+  likeVideo : async (req, res) => {
   try {
-    const { userId } = req.params;
-    const { page = 1, limit = 12, filter = 'all' } = req.query;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const limitNum = parseInt(limit);
-    
-    let match = { user: new mongoose.Types.ObjectId(userId), isActive: true };
-    
-    if (filter === 'pending') {
-      match.pendiente = true;
-    } else if (filter === 'approved') {
-      match.pendiente = false;
-    }
-    // 'all' no añade filtro adicional
-    
-    const videos = await Video.find(match)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limitNum)
-      .populate('user', 'username avatar')
-      .populate('channel', 'name avatar')
-      .lean();
-    
-    const total = await Video.countDocuments(match);
-    const pendingCount = await Video.countDocuments({ user: new mongoose.Types.ObjectId(userId), pendiente: true, isActive: true });
-    const approvedCount = await Video.countDocuments({ user: new mongoose.Types.ObjectId(userId), pendiente: false, isActive: true });
-    
-    // Marcar si el usuario ya dio like
-    const currentUserId = req.user._id;
-    const videosWithStatus = videos.map(v => ({
-      ...v,
-      liked: v.likes.some(id => id.toString() === currentUserId.toString()) || false
-    }));
-    
-    res.json({
-      success: true,
-      videos: videosWithStatus,
-      total,
-      pendingCount,
-      approvedCount,
-      page: parseInt(page),
-      totalPages: Math.ceil(total / limitNum),
-      hasMore: skip + videos.length < total
-    });
-  } catch (err) {
-    console.error('Error getUserVideos:', err);
-    res.status(500).json({ success: false, message: err.message });
-  }
-},
-
-// ==================== SEGUIR/DEJAR DE SEGUIR USUARIO ====================
-toggleFollow: async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const currentUserId = req.user._id;
-    
-    if (userId === currentUserId.toString()) {
-      return res.status(400).json({ success: false, message: "Vous ne pouvez pas vous suivre vous-même" });
-    }
-    
-    const userToFollow = await Users.findById(userId);
-    const currentUser = await Users.findById(currentUserId);
-    
-    if (!userToFollow || !currentUser) {
-      return res.status(404).json({ success: false, message: "Utilisateur non trouvé" });
-    }
-    
-    const isFollowing = currentUser.following.includes(userId);
-    
-    if (isFollowing) {
-      // Dejar de seguir
-      await Users.findByIdAndUpdate(currentUserId, { $pull: { following: userId } });
-      await Users.findByIdAndUpdate(userId, { $pull: { followers: currentUserId } });
-    } else {
-      // Seguir
-      await Users.findByIdAndUpdate(currentUserId, { $addToSet: { following: userId } });
-      await Users.findByIdAndUpdate(userId, { $addToSet: { followers: currentUserId } });
-    }
-    
-    const updatedUser = await Users.findById(userId);
-    const followersCount = updatedUser.followers.length;
-    
-    res.json({
-      success: true,
-      isFollowing: !isFollowing,
-      followersCount
-    });
-  } catch (err) {
-    console.error('Error toggleFollow:', err);
-    res.status(500).json({ success: false, message: err.message });
-  }
-},
-// controllers/userCtrl.js
-// ============================================
-// ✅ FUNCIONES FALTANTES - AGREGAR
-// ============================================
-
-// ==================== ACTUALIZAR ROL DE USUARIO ====================
-updateUserRole: async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { role } = req.body;
-    
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ success: false, message: 'Accès non autorisé' });
-    }
-    
-    const validRoles = ['user', 'moderator', 'admin'];
-    if (!validRoles.includes(role)) {
-      return res.status(400).json({ success: false, message: 'Rôle invalide' });
-    }
-    
-    const user = await Users.findByIdAndUpdate(
-      id,
-      { role },
-      { new: true }
-    ).select('-password');
-    
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
-    }
-    
-    res.json({ success: true, user });
-  } catch (err) {
-    console.error('Error updateUserRole:', err);
-    res.status(500).json({ success: false, message: err.message });
-  }
-},
-
-// ==================== VERIFICAR/DESVERIFICAR USUARIO ====================
-toggleVerification: async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const { isVerified } = req.body;
-    
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ success: false, message: 'Accès non autorisé' });
-    }
-    
-    const user = await Users.findByIdAndUpdate(
-      userId,
-      { isVerified },
-      { new: true }
-    ).select('-password');
-    
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
-    }
-    
-    res.json({ 
-      success: true, 
-      message: isVerified ? 'Utilisateur vérifié' : 'Vérification retirée',
-      isVerified: user.isVerified 
-    });
-  } catch (err) {
-    console.error('Error toggleVerification:', err);
-    res.status(500).json({ success: false, message: err.message });
-  }
-},
-
-// ==================== OBTENER VIDEOS DEL USUARIO ====================
-getUserVideos: async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const { page = 1, limit = 12, filter = 'all' } = req.query;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const limitNum = parseInt(limit);
-    
-    let match = { user: new mongoose.Types.ObjectId(userId), isActive: true };
-    
-    if (filter === 'pending') {
-      match.pendiente = true;
-    } else if (filter === 'approved') {
-      match.pendiente = false;
-    }
-    
-    const videos = await Video.find(match)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limitNum)
-      .populate('user', 'username avatar')
-      .populate('channel', 'name avatar')
-      .lean();
-    
-    const total = await Video.countDocuments(match);
-    const pendingCount = await Video.countDocuments({ user: new mongoose.Types.ObjectId(userId), pendiente: true, isActive: true });
-    const approvedCount = await Video.countDocuments({ user: new mongoose.Types.ObjectId(userId), pendiente: false, isActive: true });
-    
-    const currentUserId = req.user._id;
-    const videosWithStatus = videos.map(v => ({
-      ...v,
-      liked: v.likes.some(id => id.toString() === currentUserId.toString()) || false
-    }));
-    
-    res.json({
-      success: true,
-      videos: videosWithStatus,
-      total,
-      pendingCount,
-      approvedCount,
-      page: parseInt(page),
-      totalPages: Math.ceil(total / limitNum),
-      hasMore: skip + videos.length < total
-    });
-  } catch (err) {
-    console.error('Error getUserVideos:', err);
-    res.status(500).json({ success: false, message: err.message });
-  }
-},
-
-// ==================== SEGUIR/DEJAR DE SEGUIR USUARIO (toggle) ====================
- 
-
-// ==================== OBTENER VIDEOS GUARDADOS DE OTRO USUARIO (ADMIN) ====================
-getUserSavedVideos: async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const { page = 1, limit = 12 } = req.query;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    // Solo admin puede ver saved videos de otros
-    if (req.user.role !== 'admin' && req.user._id.toString() !== userId) {
-      return res.status(403).json({ success: false, message: 'Accès non autorisé' });
-    }
-
-    const user = await Users.findById(userId).populate({
-      path: 'savedVideos',
-      populate: { path: 'user', select: 'username avatar' },
-      options: { skip, limit: parseInt(limit), sort: { createdAt: -1 } }
-    });
-
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
-    }
-
-    const total = await Users.findById(userId).select('savedVideos');
-    const totalSaved = total.savedVideos.length || 0;
-
-    res.json({
-      success: true,
-      videos: user.savedVideos || [],
-      total: totalSaved,
-      page: parseInt(page),
-      totalPages: Math.ceil(totalSaved / parseInt(limit)),
-      hasMore: skip + (user.savedVideos.length || 0) < totalSaved
-    });
-  } catch (err) {
-    console.error('❌ Error getUserSavedVideos:', err);
-    res.status(500).json({ success: false, message: err.message });
-  }
-},
-// controllers/userCtrl.js
-
-// ==================== SEGUIR/DEJAR DE SEGUIR USUARIO (TOGGLE) ====================
-toggleFollow: async (req, res) => {
-  try {
-    const { id } = req.params;
-    const currentUserId = req.user._id;
-    
-    if (id === currentUserId.toString()) {
-      return res.status(400).json({ success: false, message: "No puedes seguirte a ti mismo" });
-    }
-    
-    const userToFollow = await Users.findById(id);
-    const currentUser = await Users.findById(currentUserId);
-    
-    if (!userToFollow || !currentUser) {
-      return res.status(404).json({ success: false, message: "Usuario no encontrado" });
-    }
-    
-    const isFollowing = currentUser.following.includes(id) || false;
-    
-    if (isFollowing) {
-      // Dejar de seguir
-      await Users.findByIdAndUpdate(currentUserId, { $pull: { following: id } });
-      await Users.findByIdAndUpdate(id, { $pull: { followers: currentUserId } });
-    } else {
-      // Seguir
-      await Users.findByIdAndUpdate(currentUserId, { $addToSet: { following: id } });
-      await Users.findByIdAndUpdate(id, { $addToSet: { followers: currentUserId } });
-    }
-    
-    const updatedUser = await Users.findById(id);
-    const followersCount = updatedUser.followers.length || 0;
-    
-    res.json({
-      success: true,
-      isFollowing: !isFollowing,
-      followersCount
-    });
-  } catch (err) {
-    console.error('Error toggleFollow:', err);
-    res.status(500).json({ success: false, message: err.message });
-  }
-},
-// controllers/userCtrl.js
-
- 
-// ==================== VIDEOS DEL USUARIO ====================
- 
-// controllers/userCtrl.js
-
-// ==================== VIDEOS GUARDADOS ====================
-getSavedVideos: async (req, res) => {
-  try {
-    // ✅ USAR req.user._id (NO req.params.id)
+    const { videoId } = req.params;
     const userId = req.user._id;
     
-    console.log('📥 getSavedVideos - Usuario ID:', userId);
+    console.log(`📥 likeVideo - videoId: ${videoId}, userId: ${userId}`);
     
-    if (!userId) {
-      return res.status(401).json({ success: false, message: 'Usuario no autenticado' });
+    // Buscar el video
+    const video = await Video.findById(videoId);
+    if (!video) {
+      return res.status(404).json({ success: false, msg: "Video no encontrado" });
     }
     
-    const { page = 1, limit = 12 } = req.query;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const limitNum = parseInt(limit);
-
-    const user = await Users.findById(userId).populate({
-      path: 'savedVideos',
-      populate: { path: 'user', select: 'username avatar' },
-      options: { skip, limit: limitNum, sort: { createdAt: -1 } }
-    });
-
+    // Buscar el usuario (importar Users)
+    const Users = require('../models/userModel');
+    const user = await Users.findById(userId);
     if (!user) {
-      return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+      return res.status(404).json({ success: false, msg: "Usuario no encontrado" });
     }
-
-    const total = user.savedVideos.length || 0;
-
-    res.json({
-      success: true,
-      videos: user.savedVideos || [],
-      total: total,
-      page: parseInt(page),
-      totalPages: Math.ceil(total / limitNum),
-      hasMore: skip + (user.savedVideos.length || 0) < total
-    });
+    
+    // Verificar si ya tiene like
+    const isLiked = video.likes.includes(userId);
+    
+    if (isLiked) {
+      // ========== UNLIKE (Quitar like) ==========
+      console.log('📥 Quitando like...');
+      
+      // 1. Quitar like del video
+      await Video.findByIdAndUpdate(videoId, { $pull: { likes: userId } });
+      
+      // 2. Quitar video de likedVideos del usuario
+      await Users.findByIdAndUpdate(userId, { $pull: { likedVideos: videoId } });
+      
+      console.log('✅ Like removido correctamente');
+      
+      res.json({
+        success: true,
+        isLiked: false,
+        likesCount: (video.likes.length - 1),
+        message: "Like removed"
+      });
+      
+    } else {
+      // ========== LIKE (Agregar like) ==========
+      console.log('📥 Agregando like...');
+      
+      // 1. Agregar like al video
+      await Video.findByIdAndUpdate(videoId, { $push: { likes: userId } });
+      
+      // 2. Agregar video a likedVideos del usuario
+      await Users.findByIdAndUpdate(userId, { $addToSet: { likedVideos: videoId } });
+      
+      console.log('✅ Like agregado correctamente');
+      
+      // 3. Crear notificación (solo si no es su propio video)
+      if (video.user.toString() !== userId.toString()) {
+        const Notifications = require('../models/notifyModel');
+        const notification = new Notifications({
+          recipients: [video.user],
+          sender: userId,
+          text: `❤️ ${user.username} a aimé votre vidéo`,
+          url: `/video/${videoId}`,
+          type: 'video',
+          content: video.title
+        });
+        await notification.save();
+        console.log('✅ Notificación enviada');
+      }
+      
+      res.json({
+        success: true,
+        isLiked: true,
+        likesCount: (video.likes.length + 1),
+        message: "Like added"
+      });
+    }
+    
   } catch (err) {
-    console.error('❌ Error getSavedVideos:', err);
-    res.status(500).json({ success: false, message: err.message });
+    console.error('❌ Error en likeVideo:', err);
+    res.status(500).json({ success: false, msg: err.message });
   }
 },
-
-// ==================== VIDEOS CON LIKE ====================
-getLikedVideos: async (req, res) => {
-  try {
-    // ✅ USAR req.user._id (NO req.params.id)
-    const userId = req.user._id;
-    
-    console.log('📥 getLikedVideos - Usuario ID:', userId);
-    
-    if (!userId) {
-      return res.status(401).json({ success: false, message: 'Usuario no autenticado' });
+  // ==================== VERIFICAR/DESVERIFICAR USUARIO ====================
+  toggleVerification: async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { isVerified } = req.body;
+      
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({ success: false, message: 'Accès non autorisé' });
+      }
+      
+      const user = await Users.findByIdAndUpdate(
+        userId,
+        { isVerified },
+        { new: true }
+      ).select('-password');
+      
+      if (!user) {
+        return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
+      }
+      
+      res.json({ 
+        success: true, 
+        message: isVerified ? 'Utilisateur vérifié' : 'Vérification retirée',
+        isVerified: user.isVerified 
+      });
+    } catch (err) {
+      console.error('Error toggleVerification:', err);
+      res.status(500).json({ success: false, message: err.message });
     }
-    
-    const { page = 1, limit = 12 } = req.query;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const limitNum = parseInt(limit);
-
-    const videos = await Video.find({
-      likes: { $in: [userId] },
-      isActive: true,
-      pendiente: false
-    })
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limitNum)
-      .populate('user', 'username avatar')
-      .populate('channel', 'name avatar')
-      .lean();
-
-    const total = await Video.countDocuments({
-      likes: { $in: [userId] },
-      isActive: true,
-      pendiente: false
-    });
-
-    const videosWithLiked = videos.map(v => ({ ...v, liked: true }));
-
-    res.json({
-      success: true,
-      videos: videosWithLiked,
-      total,
-      page: parseInt(page),
-      totalPages: Math.ceil(total / limitNum),
-      hasMore: skip + videos.length < total
-    });
-  } catch (err) {
-    console.error('❌ Error getLikedVideos:', err);
-    res.status(500).json({ success: false, message: err.message });
   }
-}
-
-
 };
 
 module.exports = userCtrl;

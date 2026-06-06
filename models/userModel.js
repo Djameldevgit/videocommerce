@@ -77,6 +77,7 @@ const userSchema = new mongoose.Schema({
     
     // ============ INTERACCIONES ============
     savedVideos: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Video' }],
+    likedVideos: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Video' }],  // ✅ NUEVO
     followingChannels: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Channel' }],
     
     // ✅ UNIFICADO: Solo usar estos dos campos para seguir usuarios

@@ -37,6 +37,8 @@ const deleteFromCloudinary = async (publicId, resourceType = 'video') => {
 // ============================================
 // CREATE VIDEO - VERSIÓN ACTUALIZADA
 // ============================================
+// backend/controllers/videoController.js - createVideo modificado
+
 const createVideo = async (req, res) => {
   try {
     console.log("🔴 BODY RECIBIDO:", JSON.stringify(req.body, null, 2));
@@ -51,12 +53,10 @@ const createVideo = async (req, res) => {
       thumbnail,
       duration,
       music,
-      // Campos comerciales
       isCommercial,
-      saleType,      // 'retail', 'wholesale', 'both'
+      saleType,
       address,
       mapUrl,
-      // Canal
       channelId
     } = req.body;
 
@@ -73,8 +73,7 @@ const createVideo = async (req, res) => {
     const isAdmin = user.role === 'admin';
     const isProValid = user.isPro && (!user.proExpiryDate || new Date(user.proExpiryDate) > new Date());
 
-    // ✅ LÍMITE DE DURACIÓN: 60 SEGUNDOS PARA TODOS
-    const MAX_VIDEO_DURATION = 60; // 1 minuto máximo
+    const MAX_VIDEO_DURATION = 60;
     
     console.log(`📊 Validando duración: ${duration}s / Máximo: ${MAX_VIDEO_DURATION}s`);
     console.log(`👤 Usuario: ${user.email}, Role: ${user.role}, isPro: ${isProValid}, isAdmin: ${isAdmin}`);
@@ -87,7 +86,6 @@ const createVideo = async (req, res) => {
       });
     }
 
-    // Validar título
     const finalTitle = titre || receivedTitle;
     if (!finalTitle || !finalTitle.trim()) {
       return res.status(400).json({ 
@@ -96,7 +94,6 @@ const createVideo = async (req, res) => {
       });
     }
 
-    // Validar categoría
     if (!category) {
       return res.status(400).json({ 
         success: false, 
@@ -112,7 +109,6 @@ const createVideo = async (req, res) => {
       });
     }
 
-    // Validar videoUrl
     if (!videoUrl) {
       return res.status(400).json({ 
         success: false, 
@@ -120,7 +116,6 @@ const createVideo = async (req, res) => {
       });
     }
 
-    // Obtener el canal
     let channel;
     if (channelId) {
       channel = await Channel.findById(channelId);
@@ -152,9 +147,7 @@ const createVideo = async (req, res) => {
       owner: channel.owner
     });
 
-    // Validar campos comerciales (si es video comercial)
     if (isCommercial === true || isCommercial === 'true') {
-      // Validar wilaya y commune
       if (!channel.wilaya || !channel.commune) {
         return res.status(400).json({
           success: false,
@@ -162,7 +155,6 @@ const createVideo = async (req, res) => {
         });
       }
       
-      // Validar contacto
       if (!channel.phone && !channel.email) {
         return res.status(400).json({
           success: false,
@@ -170,7 +162,6 @@ const createVideo = async (req, res) => {
         });
       }
       
-      // Validar tipo de venta
       if (!saleType || !['retail', 'wholesale', 'both'].includes(saleType)) {
         return res.status(400).json({
           success: false,
@@ -179,7 +170,6 @@ const createVideo = async (req, res) => {
       }
     }
 
-    // Procesar música (mezcla de audio)
     let finalVideoUrl = videoUrl;
     let finalThumbnail = thumbnail;
     let musicData = null;
@@ -213,7 +203,6 @@ const createVideo = async (req, res) => {
       musicData = { ...music, processed: false };
     }
 
-    // ✅ CREAR EL VIDEO
     const newVideo = new Video({
       title: finalTitle.trim(),
       description: description || '',
@@ -228,7 +217,6 @@ const createVideo = async (req, res) => {
       music: musicData,
       tags: req.body.tags || [],
       isCommercial: isCommercial === true || isCommercial === 'true' ? true : false,
-      // Campos comerciales
       saleType: (isCommercial === true || isCommercial === 'true') ? saleType : null,
       address: address || '',
       mapUrl: mapUrl || '',
@@ -238,10 +226,8 @@ const createVideo = async (req, res) => {
     await newVideo.save();
     console.log('✅ Vidéo sauvegardée avec canal:', newVideo.channel);
 
-    // Incrementar contador de videos en la categoría
     await Category.findByIdAndUpdate(categoryDoc._id, { $inc: { videoCount: 1 } });
     
-    // Actualizar totalVideos del canal
     channel.totalVideos = await Video.countDocuments({ 
       channel: channel._id, 
       pendiente: false, 
@@ -249,7 +235,41 @@ const createVideo = async (req, res) => {
     });
     await channel.save();
 
-    // Poblar respuesta con datos relacionados
+    // ✅ NOTIFICAR A LOS SEGUIDORES DEL CANAL
+    const io = req.app.get('io');
+    
+    if (io && channel.followers && channel.followers.length > 0 && !isAdmin) {
+      const followersIds = channel.followers.map(f => f.toString());
+      
+      const notificationData = {
+        recipients: followersIds,
+        sender: userId,
+        text: `📹 ${user.username} a publié une nouvelle vidéo: "${newVideo.title}"`,
+        url: `/video/${newVideo._id}`,
+        content: newVideo.title,
+        image: newVideo.thumbnail,
+        type: 'new_video'
+      };
+      
+      followersIds.forEach(recipientId => {
+        io.to(`user_${recipientId}`).emit('newVideoNotification', notificationData);
+      });
+      
+      const Notifications = require('../models/notifyModel');
+      const notifications = followersIds.map(recipientId => ({
+        recipients: [recipientId],
+        sender: userId,
+        text: `📹 ${user.username} a publié une nouvelle vidéo: "${newVideo.title}"`,
+        url: `/video/${newVideo._id}`,
+        content: newVideo.title,
+        image: newVideo.thumbnail,
+        type: 'new_video'
+      }));
+      
+      await Notifications.insertMany(notifications);
+      console.log(`✅ Notificaciones enviadas a ${followersIds.length} seguidores`);
+    }
+
     const populatedVideo = await Video.findById(newVideo._id)
       .populate('channel', 'name avatar isVerified _id owner wilaya commune phone email')
       .populate('category', 'name slug icon')
@@ -273,6 +293,7 @@ const createVideo = async (req, res) => {
   }
 };
 
+ 
 
     // Resto del código igual...
 // ============================================

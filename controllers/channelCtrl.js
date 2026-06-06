@@ -665,45 +665,83 @@ const getChannelVideos = async (req, res) => {
     }
 };
 
-// ==================== SEGUIR CANAL ====================
 const toggleFollowChannel = async (req, res) => {
+    console.log('🔥🔥🔥 toggleFollowChannel EJECUTÁNDOSE 🔥🔥🔥');
+    
     try {
-        const { channelId } = req.params;
-        const userId = req.user._id;
-
-        if (!mongoose.Types.ObjectId.isValid(channelId)) {
-            return res.status(400).json({ success: false, message: 'ID de canal inválido' });
-        }
-
-        const channel = await Channel.findById(channelId);
-        if (!channel) {
-            return res.status(404).json({ success: false, message: 'Canal no encontrado' });
-        }
-
-        const isFollowing = channel.followers.includes(userId);
-        
-        if (isFollowing) {
-            await Channel.findByIdAndUpdate(channelId, { $pull: { followers: userId } });
-            await User.findByIdAndUpdate(userId, { $pull: { followingChannels: channelId } });
-        } else {
-            await Channel.findByIdAndUpdate(channelId, { $addToSet: { followers: userId } });
-            await User.findByIdAndUpdate(userId, { $addToSet: { followingChannels: channelId } });
-        }
-
-        const updatedChannel = await Channel.findById(channelId);
-        
-        res.json({
-            success: true,
-            isFollowing: !isFollowing,
-            followersCount: updatedChannel.followersCount,
-            channelOwner: channel.owner,
-            channelName: channel.name
-        });
+      const { channelId } = req.params;
+      const userId = req.user._id;
+      
+      console.log('📌 channelId:', channelId);
+      console.log('📌 userId:', userId);
+      
+      // Validar IDs
+      if (!channelId || !userId) {
+        console.log('❌ IDs inválidos');
+        return res.status(400).json({ success: false, message: 'IDs inválidos' });
+      }
+      
+      // Importar modelos
+      const Channel = require('../models/channelModel');
+      const User = require('../models/userModel');
+      
+      // Buscar canal
+      const channel = await Channel.findById(channelId);
+      if (!channel) {
+        console.log('❌ Canal no encontrado');
+        return res.status(404).json({ success: false, message: 'Canal no encontrado' });
+      }
+      console.log('✅ Canal encontrado:', channel.name);
+      
+      // Buscar usuario
+      const user = await User.findById(userId);
+      if (!user) {
+        console.log('❌ Usuario no encontrado');
+        return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+      }
+      console.log('✅ Usuario encontrado:', user.username);
+      
+      // Verificar si ya sigue
+      const isFollowing = user.followingChannels && user.followingChannels.includes(channelId);
+      console.log('📌 isFollowing:', isFollowing);
+      
+      if (isFollowing) {
+        // Dejar de seguir
+        await User.findByIdAndUpdate(userId, { $pull: { followingChannels: channelId } });
+        await Channel.findByIdAndUpdate(channelId, { $pull: { followers: userId } });
+        console.log('✅ Dejó de seguir');
+      } else {
+        // Seguir
+        await User.findByIdAndUpdate(userId, { $addToSet: { followingChannels: channelId } });
+        await Channel.findByIdAndUpdate(channelId, { $addToSet: { followers: userId } });
+        console.log('✅ Ahora sigue');
+      }
+      
+      // Obtener canal actualizado
+      const updatedChannel = await Channel.findById(channelId);
+      const followersCount = updatedChannel.followers ? updatedChannel.followers.length : 0;
+      
+      // Guardar el contador
+      updatedChannel.followersCount = followersCount;
+      await updatedChannel.save();
+      
+      console.log('📌 Nuevo followersCount:', followersCount);
+      
+      res.json({
+        success: true,
+        isFollowing: !isFollowing,
+        followersCount: followersCount
+      });
+      
     } catch (error) {
-        console.error('❌ Error toggleFollowChannel:', error);
-        res.status(500).json({ success: false, message: error.message });
+      console.error('❌ ERROR en toggleFollowChannel:', error);
+      console.error('❌ Stack:', error.stack);
+      res.status(500).json({ 
+        success: false, 
+        message: error.message 
+      });
     }
-};
+  };
 const approveChannel = async (req, res) => {
   try {
     const { channelId } = req.params;
@@ -1197,3 +1235,5 @@ module.exports = {
     registerShare,
     getContactInfo
 };
+
+ 

@@ -1,6 +1,6 @@
 // redux/reducers/userReducer.js
 // ============================================
-// 📦 REDUCER DE USUARIO - FUSIONADO CON userVideoReducer
+// 📦 REDUCER DE USUARIO - ACTUALIZADO CON LIKE_VIDEO
 // ============================================
 
 import { USER_TYPES } from '../actions/userAction';
@@ -277,6 +277,7 @@ const userReducer = (state = initialState, action) => {
                 } : null
             };
 
+        // ============ SAVE VIDEO (GUARDAR) ============
         case USER_TYPES.SAVE_VIDEO:
             const updateVideoList = (videos) => 
                 videos.map(v => 
@@ -290,6 +291,22 @@ const userReducer = (state = initialState, action) => {
                 userVideos: updateVideoList(state.userVideos),
                 savedVideos: updateVideoList(state.savedVideos),
                 likedVideos: updateVideoList(state.likedVideos)
+            };
+
+        // ============ LIKE VIDEO (NUEVO) ============
+        case USER_TYPES.LIKE_VIDEO:
+            const updateLikeInList = (videos) => 
+                videos.map(v => 
+                    v._id === action.payload.videoId 
+                        ? { ...v, liked: action.payload.isLiked }
+                        : v
+                );
+            
+            return {
+                ...state,
+                userVideos: updateLikeInList(state.userVideos),
+                savedVideos: updateLikeInList(state.savedVideos),
+                likedVideos: updateLikeInList(state.likedVideos)
             };
 
         // ============ COMENTARIOS ADMIN ============
@@ -314,6 +331,13 @@ const userReducer = (state = initialState, action) => {
                 }
             };
 
+        // ============ TRANSACCIONES ============
+        case USER_TYPES.GET_USER_TRANSACTIONS:
+            return {
+                ...state,
+                userTransactions: action.payload
+            };
+
         // ============ LIMPIAR ============
         case USER_TYPES.CLEAR_USER_ERROR:
             return { ...state, error: null };
@@ -333,11 +357,7 @@ const userReducer = (state = initialState, action) => {
 
         case USER_TYPES.RESET_USERS:
             return { ...initialState };
-            case USER_TYPES.GET_USER_TRANSACTIONS:
-                return {
-                    ...state,
-                    userTransactions: action.payload
-                };
+            
         default:
             return state;
     }

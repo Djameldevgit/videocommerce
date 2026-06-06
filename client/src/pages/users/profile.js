@@ -1,4 +1,4 @@
-// src/pages/Profile.jsx - VERSIÓN CORREGIDA CON LIKES Y DROPDOWN MEJORADO
+// src/pages/Profile.jsx - VERSIÓN FINAL CORREGIDA
 
 import React, { useEffect, useState, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
@@ -38,14 +38,11 @@ import {
   Eye,
   Heart,
   Bookmark,
-  People,
-  PersonPlus,
-  BoxArrowUpRight
+  People
 } from 'react-bootstrap-icons';
 import { getProfileUsers } from '../../redux/actions/profileAction';
 import { getMyChannels, deleteChannel, CHANNEL_TYPES } from '../../redux/actions/channelAction';
-//import { getSavedVideos, getLikedVideos } from '../../redux/actions/videoUserAction';
-import { getSavedVideos,getLikedVideos } from '../../redux/actions/userAction';
+import { getSavedVideos, getLikedVideos } from '../../redux/actions/userAction';
 import useUserPlan from '../../components/useUserPlan';
 import { GLOBALTYPES } from '../../redux/actions/globalTypes';
 import VideoCardVertical from '../../components/VideoCardVertical';
@@ -244,7 +241,7 @@ const ChannelsTab = ({ channels = [], loading, onViewChannel, onEditChannel, onD
 };
 
 // ==================== TAB VIDEOS ====================
-const VideosTab = ({ userId, isOwner, userRole }) => {
+const VideosTab = ({ userId, isOwner }) => {
   const dispatch = useDispatch();
   const { auth } = useSelector(state => state);
   const { userVideos } = useSelector(state => state.video || { userVideos: { videos: [], loading: false } });
@@ -386,25 +383,53 @@ const VideosTab = ({ userId, isOwner, userRole }) => {
   );
 };
 
-// ==================== TAB SAVED VIDEOS ====================
-const SavedVideosTab = ({ userId, token }) => {
+// ==================== TAB SAVED VIDEOS - CORREGIDO (SOLO TOKEN) ====================
+const SavedVideosTab = ({ token }) => {
   const dispatch = useDispatch();
   const [savedVideos, setSavedVideos] = useState([]);
   const [loading, setLoading] = useState(false);
-  const savedLoadedRef = useRef(false);
+  const [error, setError] = useState(null);
+  const hasLoadedRef = useRef(false);
 
   useEffect(() => {
-    const loadSaved = async () => {
-      if (!token || savedLoadedRef.current) return;
-      setLoading(true);
-      savedLoadedRef.current = true;
-      const result = await dispatch(getSavedVideos(token, 1, 50));
-      if (result?.success) {
-        setSavedVideos(result.videos || []);
+    const loadSavedVideos = async () => {
+      if (!token) {
+        console.log('⏳ SavedVideosTab: No token disponible');
+        return;
       }
-      setLoading(false);
+      
+      if (hasLoadedRef.current) {
+        console.log('⏳ SavedVideosTab: Ya cargado, omitiendo');
+        return;
+      }
+      
+      console.log('📥 SavedVideosTab: Cargando videos guardados...');
+      setLoading(true);
+      setError(null);
+      hasLoadedRef.current = true;
+      
+      try {
+        // ✅ CORRECTO: Solo pasar token (el backend usa el token para identificar al usuario)
+        const result = await dispatch(getSavedVideos(token, 1, 50));
+        
+        console.log('📥 SavedVideosTab - Resultado:', result);
+        
+        if (result?.success) {
+          setSavedVideos(result.videos || []);
+          console.log('✅ SavedVideosTab: Cargados', result.videos?.length, 'videos');
+        } else {
+          console.error('❌ SavedVideosTab: Error en respuesta:', result?.error);
+          setError(result?.error || 'Error al cargar videos guardados');
+        }
+      } catch (error) {
+        console.error('❌ SavedVideosTab: Excepción:', error);
+        setError(error.message);
+      } finally {
+        setLoading(false);
+      }
     };
-    loadSaved();
+    
+    loadSavedVideos();
   }, [token, dispatch]);
 
   if (loading) {
@@ -412,6 +437,16 @@ const SavedVideosTab = ({ userId, token }) => {
       <div className="text-center py-5">
         <Spinner animation="border" variant="primary" size="sm" />
         <p className="mt-2 text-muted">Chargement des vidéos enregistrées...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-5">
+        <Alert variant="danger" className="mx-auto" style={{ maxWidth: '400px' }}>
+          <p className="mb-0">❌ {error}</p>
+        </Alert>
       </div>
     );
   }
@@ -428,6 +463,11 @@ const SavedVideosTab = ({ userId, token }) => {
 
   return (
     <div className="videos-tab">
+      <div className="mb-3">
+        <Badge bg="secondary" className="rounded-pill">
+          {savedVideos.length} vidéo{savedVideos.length > 1 ? 's' : ''} enregistrée{savedVideos.length > 1 ? 's' : ''}
+        </Badge>
+      </div>
       <Row xs={2} sm={2} md={3} lg={4} className="g-2">
         {savedVideos.map(video => (
           <Col key={video._id}>
@@ -439,25 +479,53 @@ const SavedVideosTab = ({ userId, token }) => {
   );
 };
 
-// ==================== TAB LIKED VIDEOS ====================
-const LikedVideosTab = ({ userId, token }) => {
+// ==================== TAB LIKED VIDEOS - CORREGIDO (SOLO TOKEN) ====================
+const LikedVideosTab = ({ token }) => {
   const dispatch = useDispatch();
   const [likedVideos, setLikedVideos] = useState([]);
   const [loading, setLoading] = useState(false);
-  const likedLoadedRef = useRef(false);
+  const [error, setError] = useState(null);
+  const hasLoadedRef = useRef(false);
 
   useEffect(() => {
-    const loadLiked = async () => {
-      if (!token || likedLoadedRef.current) return;
-      setLoading(true);
-      likedLoadedRef.current = true;
-      const result = await dispatch(getLikedVideos(token, 1, 50));
-      if (result?.success) {
-        setLikedVideos(result.videos || []);
+    const loadLikedVideos = async () => {
+      if (!token) {
+        console.log('⏳ LikedVideosTab: No token disponible');
+        return;
       }
-      setLoading(false);
+      
+      if (hasLoadedRef.current) {
+        console.log('⏳ LikedVideosTab: Ya cargado, omitiendo');
+        return;
+      }
+      
+      console.log('📥 LikedVideosTab: Cargando videos con like...');
+      setLoading(true);
+      setError(null);
+      hasLoadedRef.current = true;
+      
+      try {
+        // ✅ CORRECTO: Solo pasar token (el backend usa el token para identificar al usuario)
+        const result = await dispatch(getLikedVideos(token, 1, 50));
+        
+        console.log('📥 LikedVideosTab - Resultado:', result);
+        
+        if (result?.success) {
+          setLikedVideos(result.videos || []);
+          console.log('✅ LikedVideosTab: Cargados', result.videos?.length, 'videos');
+        } else {
+          console.error('❌ LikedVideosTab: Error en respuesta:', result?.error);
+          setError(result?.error || 'Error al cargar videos con like');
+        }
+      } catch (error) {
+        console.error('❌ LikedVideosTab: Excepción:', error);
+        setError(error.message);
+      } finally {
+        setLoading(false);
+      }
     };
-    loadLiked();
+    
+    loadLikedVideos();
   }, [token, dispatch]);
 
   if (loading) {
@@ -465,6 +533,16 @@ const LikedVideosTab = ({ userId, token }) => {
       <div className="text-center py-5">
         <Spinner animation="border" variant="primary" size="sm" />
         <p className="mt-2 text-muted">Chargement des vidéos aimées...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-5">
+        <Alert variant="danger" className="mx-auto" style={{ maxWidth: '400px' }}>
+          <p className="mb-0">❌ {error}</p>
+        </Alert>
       </div>
     );
   }
@@ -481,6 +559,11 @@ const LikedVideosTab = ({ userId, token }) => {
 
   return (
     <div className="videos-tab">
+      <div className="mb-3">
+        <Badge bg="danger" className="rounded-pill">
+          {likedVideos.length} vidéo{likedVideos.length > 1 ? 's' : ''} aimée{likedVideos.length > 1 ? 's' : ''}
+        </Badge>
+      </div>
       <Row xs={2} sm={2} md={3} lg={4} className="g-2">
         {likedVideos.map(video => (
           <Col key={video._id}>
@@ -515,7 +598,6 @@ const InfoModal = ({ show, onClose, user }) => {
           <button className="btn-close-custom" onClick={onClose}>✕</button>
         </div>
         <div className="modal-body-custom">
-          {/* À propos */}
           <div className="info-section mb-4">
             <h6 className="section-subtitle">
               <InfoCircle size={14} className="me-2" />
@@ -528,7 +610,6 @@ const InfoModal = ({ show, onClose, user }) => {
             )}
           </div>
           
-          {/* Contact */}
           <div className="info-section mb-4">
             <h6 className="section-subtitle mb-3">
               <Envelope size={14} className="me-2" />
@@ -576,7 +657,6 @@ const InfoModal = ({ show, onClose, user }) => {
             </div>
           </div>
           
-          {/* Statistiques */}
           <div className="info-section">
             <h6 className="section-subtitle mb-3">
               <People size={14} className="me-2" />
@@ -606,6 +686,68 @@ const InfoModal = ({ show, onClose, user }) => {
           <button className="btn-cancel-custom" onClick={onClose}>Fermer</button>
         </div>
       </div>
+    </div>
+  );
+};
+
+// ==================== TAB PLAN ====================
+const PlanInfoTab = ({ planData }) => {
+  const { 
+    planName, 
+    planLimits, 
+    isUserPro, 
+    hasActivePlan,
+    getDaysRemaining,
+    isExpired,
+    planColor,
+    planIcon
+  } = planData;
+  
+  const planFeatures = [
+    { label: 'Canaux max', value: planLimits?.maxChannels === 'unlimited' ? 'Illimité' : planLimits?.maxChannels },
+    { label: 'Vidéos max', value: planLimits?.maxVideos === 'unlimited' ? 'Illimité' : planLimits?.maxVideos },
+    { label: 'Durée max vidéo', value: `${planLimits?.maxDuration || 20} secondes` },
+    { label: 'Upload HD', value: planLimits?.canUpload ? '✅ Oui' : '❌ Non' },
+    { label: 'Analytiques', value: planLimits?.canAccessAnalytics ? '✅ Oui' : '❌ Non' }
+  ];
+  
+  return (
+    <div className="plan-info-tab">
+      <Card className="border-0 shadow-sm">
+        <Card.Body>
+          <div className="plan-header" style={{ borderBottomColor: planColor }}>
+            <div className="plan-icon" style={{ backgroundColor: `${planColor}15`, color: planColor }}>
+              {planIcon || (planName === 'Gratuit' ? '🆓' : '⭐')}
+            </div>
+            <div className="plan-details">
+              <h5 className="mb-1">Plan {planName || 'Gratuit'}</h5>
+              {isUserPro && hasActivePlan && getDaysRemaining() > 0 && (
+                <Badge bg="info" className="rounded-pill">
+                  <Clock size={10} className="me-1" />
+                  {getDaysRemaining()} jours restants
+                </Badge>
+              )}
+              {isExpired && (
+                <Badge bg="danger" className="rounded-pill">
+                  ⚠️ Expiré
+                </Badge>
+              )}
+            </div>
+          </div>
+          
+          <div className="plan-features mt-4">
+            <h6 className="section-subtitle mb-3">Caractéristiques incluses</h6>
+            <div className="features-list">
+              {planFeatures.map((feature, idx) => (
+                <div className="feature-row" key={idx}>
+                  <span className="feature-label">{feature.label}</span>
+                  <span className="feature-value">{feature.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Card.Body>
+      </Card>
     </div>
   );
 };
@@ -805,7 +947,7 @@ const Profile = () => {
     <div className="profile-page">
       <Container className="py-4">
         
-        {/* Avatar + Dropdown - INFO MOVED TO DROPDOWN */}
+        {/* Avatar + Dropdown */}
         <div className="profile-header">
           <div className="avatar-section">
             <div className="avatar-container">
@@ -827,7 +969,6 @@ const Profile = () => {
               </Dropdown.Toggle>
               
               <Dropdown.Menu align="end">
-                {/* ✅ Información del perfil - MOVIDA AQUÍ */}
                 <Dropdown.Item onClick={handleShowInfo}>
                   <InfoCircle size={14} className="me-2" /> Informations
                 </Dropdown.Item>
@@ -870,7 +1011,7 @@ const Profile = () => {
           )}
         </div>
         
-        {/* Tabs - CON LIKES AÑADIDO */}
+        {/* Tabs */}
         <div className="profile-tabs mt-4">
           <Tabs
             activeKey={activeTab}
@@ -900,29 +1041,28 @@ const Profile = () => {
                 <VideosTab 
                   userId={id} 
                   isOwner={isOwnProfile}
-                  userRole={userRole}
                 />
               </div>
             </Tab>
             
-            {/* ✅ NUEVO TAB SAVED - Solo visible para el dueño */}
+            {/* ✅ TAB SAVED - Solo para el dueño (SOLO TOKEN) */}
             {isOwnProfile && (
               <Tab eventKey="saved" title={
                 <span><Bookmark size={16} className="me-2" />Enregistrés</span>
               }>
                 <div className="tab-content-wrapper">
-                  <SavedVideosTab userId={id} token={auth.token} />
+                  <SavedVideosTab token={auth.token} />
                 </div>
               </Tab>
             )}
             
-            {/* ✅ NUEVO TAB LIKED - Solo visible para el dueño */}
+            {/* ✅ TAB LIKED - Solo para el dueño (SOLO TOKEN) */}
             {isOwnProfile && (
               <Tab eventKey="liked" title={
                 <span><Heart size={16} className="me-2" />J'aime</span>
               }>
                 <div className="tab-content-wrapper">
-                  <LikedVideosTab userId={id} token={auth.token} />
+                  <LikedVideosTab token={auth.token} />
                 </div>
               </Tab>
             )}
@@ -973,68 +1113,6 @@ const Profile = () => {
         />
         
       </Container>
-    </div>
-  );
-};
-
-// ==================== TAB PLAN ====================
-const PlanInfoTab = ({ planData }) => {
-  const { 
-    planName, 
-    planLimits, 
-    isUserPro, 
-    hasActivePlan,
-    getDaysRemaining,
-    isExpired,
-    planColor,
-    planIcon
-  } = planData;
-  
-  const planFeatures = [
-    { label: 'Canaux max', value: planLimits?.maxChannels === 'unlimited' ? 'Illimité' : planLimits?.maxChannels },
-    { label: 'Vidéos max', value: planLimits?.maxVideos === 'unlimited' ? 'Illimité' : planLimits?.maxVideos },
-    { label: 'Durée max vidéo', value: `${planLimits?.maxDuration || 20} secondes` },
-    { label: 'Upload HD', value: planLimits?.canUpload ? '✅ Oui' : '❌ Non' },
-    { label: 'Analytiques', value: planLimits?.canAccessAnalytics ? '✅ Oui' : '❌ Non' }
-  ];
-  
-  return (
-    <div className="plan-info-tab">
-      <Card className="border-0 shadow-sm">
-        <Card.Body>
-          <div className="plan-header" style={{ borderBottomColor: planColor }}>
-            <div className="plan-icon" style={{ backgroundColor: `${planColor}15`, color: planColor }}>
-              {planIcon || (planName === 'Gratuit' ? '🆓' : '⭐')}
-            </div>
-            <div className="plan-details">
-              <h5 className="mb-1">Plan {planName || 'Gratuit'}</h5>
-              {isUserPro && hasActivePlan && getDaysRemaining() > 0 && (
-                <Badge bg="info" className="rounded-pill">
-                  <Clock size={10} className="me-1" />
-                  {getDaysRemaining()} jours restants
-                </Badge>
-              )}
-              {isExpired && (
-                <Badge bg="danger" className="rounded-pill">
-                  ⚠️ Expiré
-                </Badge>
-              )}
-            </div>
-          </div>
-          
-          <div className="plan-features mt-4">
-            <h6 className="section-subtitle mb-3">Caractéristiques incluses</h6>
-            <div className="features-list">
-              {planFeatures.map((feature, idx) => (
-                <div className="feature-row" key={idx}>
-                  <span className="feature-label">{feature.label}</span>
-                  <span className="feature-value">{feature.value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </Card.Body>
-      </Card>
     </div>
   );
 };

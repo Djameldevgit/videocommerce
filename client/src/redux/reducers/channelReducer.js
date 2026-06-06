@@ -57,9 +57,8 @@ const initialState = {
   isBlocked: false,
   // Errores
   error: null,
-  pendingChannel: null,  // ✅ NUEVO: para canal pendiente
-  pendingLoading: false,  // ✅ NUEVO: loading específico
-
+  pendingChannel: null,
+  pendingLoading: false,
 };
 
 // ✅ FUNCIÓN HELPER PARA EXTRAER URL DE IMAGEN
@@ -133,37 +132,36 @@ const channelReducer = (state = initialState, action) => {
       return { ...state, loading: false, error: action.payload };
     
     // ==================== OBTENER CANAL ACTUAL ====================
-    // frontend/src/redux/reducers/channelReducer.js
-case CHANNEL_TYPES.GET_CHANNEL:
-  const payloadData = action.payload;
-  
-  // ✅ Función para extraer URL (igual que en el componente)
-  const extractUrl = (data) => {
-      if (!data) return '';
-      if (typeof data === 'string') return data;
-      if (Array.isArray(data) && data.length > 0) return data[0]?.url || '';
-      if (data.url) return data.url;
-      return '';
-  };
-  
-  return {
-      ...state,
-      channel: {
+    case CHANNEL_TYPES.GET_CHANNEL:
+      const payloadData = action.payload;
+      
+      const extractUrl = (data) => {
+        if (!data) return '';
+        if (typeof data === 'string') return data;
+        if (Array.isArray(data) && data.length > 0) return data[0]?.url || '';
+        if (data.url) return data.url;
+        return '';
+      };
+      
+      return {
+        ...state,
+        channel: {
           ...payloadData,
-          // ✅ FORZAR que avatar y cover sean strings
           avatar: extractUrl(payloadData.avatar),
-          cover: extractUrl(payloadData.cover),  // ← CLAVE
+          cover: extractUrl(payloadData.cover),
           wilaya: payloadData?.wilaya || '',
           commune: payloadData?.commune || '',
           email: payloadData?.email || '',
           phone: payloadData?.phone || '',
           website: payloadData?.website || '',
           activity: payloadData?.activity || '',
-          description: payloadData?.description || ''
-      },
-      loading: false,
-      error: null
-  };
+          description: payloadData?.description || '',
+          followersCount: payloadData?.followersCount || 0,
+          isFollowing: payloadData?.isFollowing || false
+        },
+        loading: false,
+        error: null
+      };
     
     case CHANNEL_TYPES.CLEAR_CHANNEL:
       return { ...state, channel: null };
@@ -198,25 +196,22 @@ case CHANNEL_TYPES.GET_CHANNEL:
       };
     
     // ==================== VIDEOS DEL CANAL ====================
-   // frontend/src/redux/reducers/channelReducer.js
-
-// ==================== VIDEOS DEL CANAL ====================
-case CHANNEL_TYPES.GET_CHANNEL_VIDEOS:
-  return {
-    ...state,
-    // ✅ ACTUALIZAR TAMBIÉN state.videos para compatibilidad
-    videos: action.payload.videos || [],
-    totalVideos: action.payload.total || 0,
-    hasMore: action.payload.hasMore || false,
-    channelVideos: {
-      videos: action.payload.videos || [],
-      total: action.payload.total || 0,
-      page: action.payload.page || 1,
-      totalPages: action.payload.totalPages || 1,
-      hasMore: action.payload.hasMore || false
-    },
-    loading: false
-  };
+    case CHANNEL_TYPES.GET_CHANNEL_VIDEOS:
+      return {
+        ...state,
+        videos: action.payload.videos || [],
+        totalVideos: action.payload.total || 0,
+        hasMore: action.payload.hasMore || false,
+        channelVideos: {
+          videos: action.payload.videos || [],
+          total: action.payload.total || 0,
+          page: action.payload.page || 1,
+          totalPages: action.payload.totalPages || 1,
+          hasMore: action.payload.hasMore || false
+        },
+        loading: false
+      };
+    
     case CHANNEL_TYPES.CLEAR_CHANNEL_VIDEOS:
       return {
         ...state,
@@ -254,25 +249,99 @@ case CHANNEL_TYPES.GET_CHANNEL_VIDEOS:
         }
       };
     
-    // ==================== SEGUIR / DEJAR DE SEGUIR ====================
+    // ==================== SEGUIR / DEJAR DE SEGUIR (ACTUALIZADO) ====================
     case CHANNEL_TYPES.FOLLOW_CHANNEL:
+      const { channelId, followersCount } = action.payload;
+      
       return {
         ...state,
-        channel: state.channel ? {
+        // Actualizar canal actual
+        channel: state.channel && state.channel._id === channelId ? {
           ...state.channel,
-          followersCount: (state.channel.followersCount || 0) + 1,
+          followersCount: followersCount,
           isFollowing: true
-        } : null
+        } : state.channel,
+        
+        // Actualizar en la lista de canales del usuario
+        userChannels: state.userChannels.map(ch =>
+          ch._id === channelId
+            ? { ...ch, followersCount: followersCount, isFollowing: true }
+            : ch
+        ),
+        
+        // Actualizar en la lista general de canales
+        channels: state.channels.map(ch =>
+          ch._id === channelId
+            ? { ...ch, followersCount: followersCount, isFollowing: true }
+            : ch
+        ),
+        
+        // Agregar a followingChannels si no está
+        followingChannels: state.followingChannels.some(ch => ch._id === channelId)
+          ? state.followingChannels
+          : [...state.followingChannels, { _id: channelId, followersCount }],
+          
+        // Actualizar en pendingChannels si existe
+        pendingChannels: {
+          ...state.pendingChannels,
+          channels: state.pendingChannels.channels.map(ch =>
+            ch._id === channelId
+              ? { ...ch, followersCount: followersCount, isFollowing: true }
+              : ch
+          )
+        }
       };
-    
+     // redux/reducers/channelReducer.js
+
+// Añade este CASE después de FOLLOW_CHANNEL y UNFOLLOW_CHANNEL
+case CHANNEL_TYPES.UPDATE_CHANNEL_FOLLOW_STATUS:
+ 
+  return {
+    ...state,
+    channel: state.channel ? {
+      ...state.channel,
+      isFollowing: action.payload.isFollowing,
+      followersCount: action.payload.followersCount
+    } : state.channel
+  };
     case CHANNEL_TYPES.UNFOLLOW_CHANNEL:
+      const { channelId: unfollowId, followersCount: unfollowCount } = action.payload;
+      
       return {
         ...state,
-        channel: state.channel ? {
+        // Actualizar canal actual
+        channel: state.channel && state.channel._id === unfollowId ? {
           ...state.channel,
-          followersCount: Math.max(0, (state.channel.followersCount || 0) - 1),
+          followersCount: unfollowCount,
           isFollowing: false
-        } : null
+        } : state.channel,
+        
+        // Actualizar en la lista de canales del usuario
+        userChannels: state.userChannels.map(ch =>
+          ch._id === unfollowId
+            ? { ...ch, followersCount: unfollowCount, isFollowing: false }
+            : ch
+        ),
+        
+        // Actualizar en la lista general de canales
+        channels: state.channels.map(ch =>
+          ch._id === unfollowId
+            ? { ...ch, followersCount: unfollowCount, isFollowing: false }
+            : ch
+        ),
+        
+        // Remover de followingChannels
+        followingChannels: state.followingChannels.filter(ch => ch._id !== unfollowId),
+        
+        // Actualizar en pendingChannels si existe
+        pendingChannels: {
+          ...state.pendingChannels,
+          channels: state.pendingChannels.channels.map(ch =>
+            ch._id === unfollowId
+              ? { ...ch, followersCount: unfollowCount, isFollowing: false }
+              : ch
+          )
+        }
       };
     
     // ==================== SEGUIDORES ====================
@@ -409,6 +478,80 @@ case CHANNEL_TYPES.GET_CHANNEL_VIDEOS:
         }
       };
     
+    // ==================== ELIMINAR CANAL ====================
+    case CHANNEL_TYPES.DELETE_CHANNEL_SUCCESS:
+      return {
+        ...state,
+        userChannels: state.userChannels.filter(ch => ch._id !== action.payload),
+        channels: state.channels.filter(ch => ch._id !== action.payload),
+        channel: state.channel?._id === action.payload ? null : state.channel,
+        loading: false,
+        error: null
+      };
+    
+    case CHANNEL_TYPES.DELETE_CHANNEL_FAIL:
+      return {
+        ...state,
+        loading: false,
+        error: action.payload
+      };
+    
+    // ==================== REPORTAR CANAL ====================
+    case CHANNEL_TYPES.REPORT_CHANNEL_SUCCESS:
+      return {
+        ...state,
+        channel: state.channel ? {
+          ...state.channel,
+          reportCount: action.payload.reportCount
+        } : null
+      };
+    
+    case CHANNEL_TYPES.BLOCK_CHANNEL_SUCCESS:
+      return {
+        ...state,
+        isBlocked: action.payload.isBlocked
+      };
+    
+    // ==================== CONTACTO ====================
+    case CHANNEL_TYPES.GET_CHANNEL_CONTACT:
+      return {
+        ...state,
+        contactInfo: action.payload
+      };
+    
+    case CHANNEL_TYPES.REGISTER_CHANNEL_SHARE:
+      return {
+        ...state,
+        channel: state.channel ? {
+          ...state.channel,
+          shareCount: action.payload.shareCount
+        } : null
+      };
+    
+    // ==================== CANAL PENDIENTE ====================
+    case CHANNEL_TYPES.GET_PENDING_CHANNEL_REQUEST:
+      return {
+        ...state,
+        pendingLoading: true,
+        error: null
+      };
+      
+    case CHANNEL_TYPES.GET_PENDING_CHANNEL_SUCCESS:
+      return {
+        ...state,
+        pendingChannel: action.payload,
+        channel: action.payload,
+        pendingLoading: false,
+        error: null
+      };
+      
+    case CHANNEL_TYPES.GET_PENDING_CHANNEL_ERROR:
+      return {
+        ...state,
+        pendingLoading: false,
+        error: action.payload
+      };
+    
     // ==================== ERROR ====================
     case CHANNEL_TYPES.CHANNEL_ERROR:
       return {
@@ -416,75 +559,7 @@ case CHANNEL_TYPES.GET_CHANNEL_VIDEOS:
         error: action.payload,
         loading: false
       };
- // Añadir a tu channelReducer.js
-case CHANNEL_TYPES.DELETE_CHANNEL_SUCCESS:
-  return {
-    ...state,
-    userChannels: state.userChannels.filter(ch => ch._id !== action.payload),
-    channels: state.channels.filter(ch => ch._id !== action.payload),
-    channel: state.channel?._id === action.payload ? null : state.channel,
-    loading: false,
-    error: null
-  };
     
-    case CHANNEL_TYPES.DELETE_CHANNEL_FAIL:
-        return {
-            ...state,
-            loading: false,
-            error: action.payload
-        };
-    
-    case CHANNEL_TYPES.REPORT_CHANNEL_SUCCESS:
-        return {
-            ...state,
-            channel: state.channel ? {
-                ...state.channel,
-                reportCount: action.payload.reportCount
-            } : null
-        };
-    
-    case CHANNEL_TYPES.BLOCK_CHANNEL_SUCCESS:
-        return {
-            ...state,
-            isBlocked: action.payload.isBlocked
-        };
-    
-    case CHANNEL_TYPES.GET_CHANNEL_CONTACT:
-        return {
-            ...state,
-            contactInfo: action.payload
-        };
-    
-    case CHANNEL_TYPES.REGISTER_CHANNEL_SHARE:
-        return {
-            ...state,
-            channel: state.channel ? {
-                ...state.channel,
-                shareCount: action.payload.shareCount
-            } : null
-        };
-        case CHANNEL_TYPES.GET_PENDING_CHANNEL_REQUEST:
-          return {
-            ...state,
-            pendingLoading: true,
-            error: null
-          };
-          
-        case CHANNEL_TYPES.GET_PENDING_CHANNEL_SUCCESS:
-          return {
-            ...state,
-            pendingChannel: action.payload,
-            channel: action.payload,  // También actualizar channel principal
-            pendingLoading: false,
-            error: null
-          };
-          
-        case CHANNEL_TYPES.GET_PENDING_CHANNEL_ERROR:
-          return {
-            ...state,
-            pendingLoading: false,
-            error: action.payload
-          };
     default:
       return state;
   }
