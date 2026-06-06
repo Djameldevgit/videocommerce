@@ -931,3 +931,52 @@
     transform: translate(-50%, -150%) scale(1.5);
   }
 }
+
+/* Estilos para el botón Follow con dos caras */
+.vr-follow-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #fe2c55, #ff6b8b);
+  color: white;
+  border: none;
+  border-radius: 24px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.vr-follow-btn:hover:not(:disabled) {
+  transform: scale(1.02);
+  opacity: 0.9;
+}
+
+.vr-follow-btn.following {
+  background: #2c2c2c;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.vr-follow-btn.following:hover:not(:disabled) {
+  background: #3a3a3a;
+}
+
+.vr-follow-btn.owner {
+  background: #1a1a1a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #888;
+  cursor: default;
+  opacity: 0.7;
+}
+
+.vr-follow-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.me-1 {
+  margin-right: 4px;
+}
+

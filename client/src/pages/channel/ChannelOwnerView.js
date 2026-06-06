@@ -1,6 +1,6 @@
 // frontend/src/pages/channel/ChannelOwnerView.jsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useParams, useHistory } from 'react-router-dom';
 import { 
@@ -17,7 +17,6 @@ import {
   ArrowLeft, 
   Pencil, 
   Trash3, 
-   
   Share,
   Clock, 
   CheckCircle,
@@ -26,13 +25,12 @@ import {
   GeoAlt,
   Briefcase,
   Film,
-  Heart,
-  p
+  Heart
 } from 'react-bootstrap-icons';
 import { 
-  getPendingChannelOwner,  // ✅ No necesita token como parámetro
-  getChannelVideos, 
-  clearChannelState 
+  getChannelProfile,
+  getChannelVideos,
+  clearChannelState
 } from '../../redux/actions/channelAction';
 import { GLOBALTYPES } from '../../redux/actions/globalTypes';
 import './ChannelOwnerView.css';
@@ -54,6 +52,18 @@ const formatNumber = (num) => {
   return num.toString();
 };
 
+// ✅ Función para obtener token correctamente
+const getAuthToken = (auth) => {
+  if (!auth) return null;
+  if (typeof auth.token === 'string' && auth.token) return auth.token;
+  if (typeof auth.token === 'object' && auth.token !== null) {
+    return auth.token.token || auth.token.access_token || null;
+  }
+  const localToken = localStorage.getItem('access_token') || localStorage.getItem('token');
+  if (localToken) return localToken;
+  return null;
+};
+
 const ChannelOwnerView = () => {
   const { channelId } = useParams();
   const history = useHistory();
@@ -62,56 +72,99 @@ const ChannelOwnerView = () => {
   const { 
     channel, 
     videos = [], 
-    pendingLoading,  // Loading específico para canal pendiente
+    loading,
     error 
   } = useSelector(state => state.channel);
- 
-   
+  
   const [activeTab, setActiveTab] = useState('videos');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // ✅ Ref para evitar peticiones duplicadas
+  const hasLoadedRef = useRef(false);
+  const loadingRef = useRef(false);
   
   const isOwner = auth.user?._id === channel?.owner?._id;
   const isAdmin = auth.user?.role === 'admin';
   const canEdit = isOwner || isAdmin;
   const isPending = channel?.pending === true;
 
- // ChannelOwnerView.jsx - CORREGIDO
+  // ✅ Limpiar estado al desmontar
+  useEffect(() => {
+    return () => {
+      dispatch(clearChannelState());
+      hasLoadedRef.current = false;
+      loadingRef.current = false;
+    };
+  }, [dispatch]);
 
-useEffect(() => {
-  if (!channelId) {
-    console.log('❌ No channelId');
-    return;
-  }
-  
-  const loadData = async () => {
-    try {
-      console.log('📺 Cargando canal pendiente:', channelId);
-      console.log('🔐 Token disponible:', auth?.token ? 'Sí' : 'No');
-      
-      // ✅ PASAR EL TOKEN EXPLÍCITAMENTE
-      await dispatch(getPendingChannelOwner(channelId, auth.token));
-      await dispatch(getChannelVideos(channelId, 1, 12, auth.token));
-      
-    } catch (err) {
-      console.error('❌ Error loading pending channel:', err);
-    }
+  // ✅ Cargar datos del canal con control de duplicados
+  useEffect(() => {
+    if (!channelId) return;
+    if (hasLoadedRef.current) return;
+    if (loadingRef.current) return;
+    
+    const loadData = async () => {
+      try {
+        loadingRef.current = true;
+        setIsLoading(true);
+        
+        const token = getAuthToken(auth);
+        
+        console.log('📺 ChannelOwnerView - Cargando canal ID:', channelId);
+        console.log('🔑 Token disponible:', !!token);
+        console.log('👤 Usuario:', auth.user?.username, 'Role:', auth.user?.role);
+        
+        if (!token) {
+          console.error('❌ No hay token de autenticación');
+          // Intentar cargar sin token (solo para debugging)
+          await dispatch(getChannelProfile(channelId, null));
+          await dispatch(getChannelVideos(channelId, 1, 12, null));
+        } else {
+          await dispatch(getChannelProfile(channelId, token));
+          await dispatch(getChannelVideos(channelId, 1, 12, token));
+        }
+        
+        hasLoadedRef.current = true;
+        
+      } catch (err) {
+        console.error('❌ Error loading channel:', err);
+      } finally {
+        setIsLoading(false);
+        loadingRef.current = false;
+      }
+    };
+    
+    // Pequeño delay para evitar race conditions
+    const timer = setTimeout(loadData, 100);
+    return () => clearTimeout(timer);
+    
+  }, [channelId, auth, dispatch]);
+
+  const handleBack = () => {
+    hasLoadedRef.current = false;
+    history.goBack();
   };
   
-  loadData();
-}, [channelId, auth?.token, dispatch]); // ✅ Asegurar que auth.token está en dependencias
-
-  const handleBack = () => history.goBack();
-  const handleEdit = () => history.push(`/channel/${channelId}/edit`);
-  const handleViewPublic = () => window.open(`/channel/${channelId}`, '_blank');
+  const handleEdit = () => {
+    hasLoadedRef.current = false;
+    history.push(`/channel/${channelId}/edit`);
+  };
+  
+  const handleViewPublic = () => {
+    window.open(`/channel/${channelId}`, '_blank');
+  };
+  
   const handleDelete = () => setShowDeleteConfirm(true);
   
   const confirmDelete = async () => {
     try {
+      const token = getAuthToken(auth);
       const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/channels/${channelId}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${auth.token}`
+          'Authorization': `Bearer ${token}`
         }
       });
       
@@ -119,6 +172,7 @@ useEffect(() => {
       
       if (data.success) {
         dispatch({ type: GLOBALTYPES.ALERT, payload: { success: "Canal supprimé avec succès" } });
+        hasLoadedRef.current = false;
         history.push('/my-channels');
       } else {
         throw new Error(data.message);
@@ -135,8 +189,8 @@ useEffect(() => {
     dispatch({ type: GLOBALTYPES.ALERT, payload: { success: "Lien copié !" } });
   };
 
-  // Estados de carga
-  if ((pendingLoading) && !channel) {
+  // ✅ Estado de carga mejorado
+  if ((loading || isLoading) && !channel) {
     return (
       <div className="owner-view-loading">
         <Spinner animation="border" variant="primary" />
@@ -145,14 +199,19 @@ useEffect(() => {
     );
   }
 
-  if (error) {
+  if (error && !channel) {
     return (
       <Container className="py-5">
         <Alert variant="danger">
           <ExclamationTriangle size={20} className="me-2" />
-          {error}
+          <strong>Erreur :</strong> {error}
         </Alert>
-        <Button variant="primary" onClick={handleBack}>Retour</Button>
+        <p className="mt-3 text-muted">
+          Si votre canal est en attente d'approbation, vous pourrez le voir une fois approuvé.
+        </p>
+        <Button variant="primary" onClick={handleBack}>
+          <ArrowLeft size={16} className="me-2" /> Retour
+        </Button>
       </Container>
     );
   }
@@ -261,7 +320,7 @@ useEffect(() => {
               <Share size={14} className="me-1" /> Partager
             </Button>
             <Button variant="outline-secondary" onClick={handleViewPublic}>
-              <p size={14} className="me-1" /> Vue publique
+              <Building size={14} className="me-1" /> Vue publique
             </Button>
             <Button variant="primary" onClick={handleEdit}>
               <Pencil size={14} className="me-1" /> Modifier
@@ -305,7 +364,7 @@ useEffect(() => {
 
       {/* Grid de videos */}
       <div className="videos-grid">
-        {videos.length === 0 && !pendingLoading ? (
+        {videos.length === 0 && !loading ? (
           <div className="empty-state">
             <Film size={48} className="empty-icon" />
             <h4>Aucune vidéo</h4>
@@ -337,7 +396,7 @@ useEffect(() => {
                   <Card.Body>
                     <Card.Title className="video-title">{video.title}</Card.Title>
                     <div className="video-stats">
-                      <span><p size={12} /> {formatNumber(video.views || 0)}</span>
+                      <span><Heart size={12} /> {formatNumber(video.views || 0)}</span>
                       <span><Heart size={12} /> {formatNumber(video.likes?.length || 0)}</span>
                     </div>
                   </Card.Body>

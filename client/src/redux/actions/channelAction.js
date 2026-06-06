@@ -3,7 +3,7 @@ import { GLOBALTYPES } from './globalTypes';
  import { imageUpload2 } from '../../utils/imageUpload2';
  
 import { postDataAPI, getDataAPI, patchDataAPI, deleteDataAPI } from '../../utils/fetchData';
-import { createNotify } from './notifyAction';
+ 
 
 export const CHANNEL_TYPES = {
     // Loading
@@ -56,6 +56,11 @@ export const CHANNEL_TYPES = {
     REJECT_CHANNEL_SUCCESS: 'REJECT_CHANNEL_SUCCESS',
     REJECT_CHANNEL_FAIL: 'REJECT_CHANNEL_FAIL',
     
+    // ✅ Nuevos tipos para RESUBMIT (reenviar canal rechazado)
+    RESUBMIT_CHANNEL_REQUEST: 'RESUBMIT_CHANNEL_REQUEST',
+    RESUBMIT_CHANNEL_SUCCESS: 'RESUBMIT_CHANNEL_SUCCESS',
+    RESUBMIT_CHANNEL_FAIL: 'RESUBMIT_CHANNEL_FAIL',
+    
     CLEAR_PENDING_CHANNELS: 'CLEAR_PENDING_CHANNELS',
     
     // Error general
@@ -77,12 +82,13 @@ export const CHANNEL_TYPES = {
     GET_CHANNEL_CONTACT: 'GET_CHANNEL_CONTACT',
 
     GET_PENDING_CHANNEL_REQUEST: 'GET_PENDING_CHANNEL_REQUEST',
-  GET_PENDING_CHANNEL_SUCCESS: 'GET_PENDING_CHANNEL_SUCCESS',
-  GET_PENDING_CHANNEL_ERROR: 'GET_PENDING_CHANNEL_ERROR',
-  UPDATE_CHANNEL_FOLLOW_STATUS: 'UPDATE_CHANNEL_FOLLOW_STATUS',
-
+    GET_PENDING_CHANNEL_SUCCESS: 'GET_PENDING_CHANNEL_SUCCESS',
+    GET_PENDING_CHANNEL_ERROR: 'GET_PENDING_CHANNEL_ERROR',
+    
+    UPDATE_CHANNEL_FOLLOW_STATUS: 'UPDATE_CHANNEL_FOLLOW_STATUS',
+    SET_FOLLOWING_CHANNELS: 'SET_FOLLOWING_CHANNELS',
 };
-
+import { createNotify } from './notifyAction';
  
 // ==================== CREAR CANAL (como createPost) ====================
 // redux/actions/channelAction.js
@@ -415,45 +421,143 @@ export const getChannelVideos = (channelId, page = 1, limit = 12, token = null) 
 };
  
 
-export const toggleFollowChannel = (channelId, token) => async (dispatch) => {
+// frontend/src/redux/actions/channelAction.js
+
+
+export const toggleFollowChannel = (channelId, token) => async (dispatch, getState) => {
     try {
-      console.log('📥 toggleFollowChannel - channelId:', channelId);
-      
-      const res = await patchDataAPI(`channels/${channelId}/follow`, {}, token);
-      
-      console.log('📥 toggleFollowChannel - respuesta:', res.data);
-      
-      if (res.data.success) {
-        // ✅ ACTUALIZAR DIRECTAMENTE EL ESTADO DEL CANAL
-        dispatch({
-          type: CHANNEL_TYPES.UPDATE_CHANNEL_FOLLOW_STATUS,
-          payload: {
+        console.log('📥 toggleFollowChannel - channelId:', channelId);
+        
+        const res = await patchDataAPI(`channels/${channelId}/follow`, {}, token);
+        
+        console.log('📥 toggleFollowChannel - respuesta:', res.data);
+        
+        if (res.data.success) {
+            // ✅ Obtener followingChannels actuales del estado o localStorage
+            const currentState = getState();
+            let currentFollowing = currentState.channel?.followingChannels || [];
+            
+            // Si el estado está vacío, intentar cargar desde localStorage
+            if (currentFollowing.length === 0) {
+                const saved = localStorage.getItem('user_following_channels');
+                if (saved) {
+                    currentFollowing = JSON.parse(saved);
+                }
+            }
+            
+            let newFollowing;
+            if (res.data.isFollowing) {
+                // Agregar a la lista si no existe
+                if (!currentFollowing.includes(channelId)) {
+                    newFollowing = [...currentFollowing, channelId];
+                } else {
+                    newFollowing = currentFollowing;
+                }
+            } else {
+                // Remover de la lista
+                newFollowing = currentFollowing.filter(id => id !== channelId);
+            }
+            
+            // ✅ Guardar en localStorage
+            localStorage.setItem('user_following_channels', JSON.stringify(newFollowing));
+            console.log('💾 Saved to localStorage:', newFollowing);
+            
+            // ✅ Disparar acciones de Redux
+            if (res.data.isFollowing) {
+                dispatch({
+                    type: CHANNEL_TYPES.FOLLOW_CHANNEL,
+                    payload: {
+                        channelId: channelId,
+                        followersCount: res.data.followersCount
+                    }
+                });
+            } else {
+                dispatch({
+                    type: CHANNEL_TYPES.UNFOLLOW_CHANNEL,
+                    payload: {
+                        channelId: channelId,
+                        followersCount: res.data.followersCount
+                    }
+                });
+            }
+            
+            dispatch({
+                type: CHANNEL_TYPES.UPDATE_CHANNEL_FOLLOW_STATUS,
+                payload: {
+                    isFollowing: res.data.isFollowing,
+                    followersCount: res.data.followersCount
+                }
+            });
+            
+            // ✅ También guardar en sessionStorage como backup
+            sessionStorage.setItem('user_following_channels', JSON.stringify(newFollowing));
+        }
+        
+        return {
+            success: true,
             isFollowing: res.data.isFollowing,
             followersCount: res.data.followersCount
-          }
+        };
+        
+    } catch (err) {
+        console.error('❌ Error toggleFollowChannel:', err);
+        return { success: false, error: err.response?.data?.msg || err.message };
+    }
+};
+// frontend/src/redux/actions/channelAction.js
+
+// Añadir esta función al final del archivo
+// frontend/src/redux/actions/channelAction.js
+
+// Reemplaza loadUserFollowingChannels con esta versión que solo usa localStorage
+export const loadFollowingFromStorage = () => async (dispatch) => {
+    try {
+        // Intentar cargar desde localStorage
+        const saved = localStorage.getItem('user_following_channels');
+        
+        if (saved) {
+            const followingChannels = JSON.parse(saved);
+            console.log('📦 Loaded following channels from localStorage:', followingChannels);
+            
+            dispatch({
+                type: CHANNEL_TYPES.SET_FOLLOWING_CHANNELS,
+                payload: followingChannels
+            });
+            
+            return { success: true, followingChannels };
+        }
+        
+        // Backup desde sessionStorage
+        const savedSession = sessionStorage.getItem('user_following_channels');
+        if (savedSession) {
+            const followingChannels = JSON.parse(savedSession);
+            console.log('📦 Loaded following channels from sessionStorage:', followingChannels);
+            
+            dispatch({
+                type: CHANNEL_TYPES.SET_FOLLOWING_CHANNELS,
+                payload: followingChannels
+            });
+            
+            return { success: true, followingChannels };
+        }
+        
+        console.log('⚠️ No following channels found in storage, initializing empty array');
+        // Inicializar con array vacío
+        localStorage.setItem('user_following_channels', JSON.stringify([]));
+        dispatch({
+            type: CHANNEL_TYPES.SET_FOLLOWING_CHANNELS,
+            payload: []
         });
         
-        // ✅ También actualizar followingChannels
-        dispatch({
-          type: CHANNEL_TYPES.FOLLOW_CHANNEL,
-          payload: { 
-            channelId, 
-            followersCount: res.data.followersCount 
-          }
-        });
-      }
-      
-      return {
-        success: true,
-        isFollowing: res.data.isFollowing,
-        followersCount: res.data.followersCount
-      };
-      
+        return { success: true, followingChannels: [] };
+        
     } catch (err) {
-      console.error('❌ Error toggleFollowChannel:', err);
-      return { success: false, error: err.response?.data?.msg || err.message };
+        console.error('❌ Error loading from storage:', err);
+        return { success: false, followingChannels: [] };
     }
-  };
+};
+
+
 // ==================== ADMIN: OBTENER CANALES PENDIENTES ====================
 export const getPendingChannels = (token, page = 1, limit = 20) => async (dispatch) => {
     try {
@@ -484,9 +588,13 @@ export const getPendingChannels = (token, page = 1, limit = 20) => async (dispat
 };
 
 // ==================== ADMIN: APROBAR CANAL ====================
-export const approveChannel = (channelId, token, socket) => async (dispatch) => {
+// frontend/src/redux/actions/channelAction.js
+
+// ==================== ADMIN: APROBAR CANAL CON NOTIFICACIÓN ====================
+export const approveChannel = (channelId, token, auth, socket) => async (dispatch) => {
     try {
         dispatch({ type: CHANNEL_TYPES.APPROVE_CHANNEL_REQUEST });
+        dispatch({ type: GLOBALTYPES.ALERT, payload: { loading: true } });
         
         const res = await patchDataAPI(`admin/channels/${channelId}/approve`, {}, token);
         
@@ -494,6 +602,23 @@ export const approveChannel = (channelId, token, socket) => async (dispatch) => 
             type: CHANNEL_TYPES.APPROVE_CHANNEL_SUCCESS,
             payload: res.data.channel
         });
+        
+        const channel = res.data.channel;
+        
+        // ✅ Notificar al dueño del canal que fue aprobado (en francés)
+        if (channel && channel.owner && channel.owner._id) {
+            const msg = {
+                id: auth?.user?._id || 'admin',
+                text: `✅ Félicitations ! Votre canal "${channel.name}" a été approuvé et est maintenant visible sur la plateforme. Vous pouvez dès à présent publier vos vidéos et commencer à partager votre contenu avec la communauté. 🎉`,
+                recipients: [channel.owner._id], // Enviar solo al dueño del canal
+                url: `/channel/${channel._id}`,
+                content: channel.name,
+                image: channel.avatar || channel.cover,
+                type: 'channel_approved'
+            };
+            
+            await dispatch(createNotify({ msg, auth, socket }));
+        }
         
         dispatch({
             type: GLOBALTYPES.ALERT,
@@ -508,14 +633,27 @@ export const approveChannel = (channelId, token, socket) => async (dispatch) => 
             type: CHANNEL_TYPES.APPROVE_CHANNEL_FAIL,
             payload: err.response?.data?.message || 'Error al aprobar el canal'
         });
-        return { success: false };
+        dispatch({
+            type: GLOBALTYPES.ALERT,
+            payload: { error: err.response?.data?.message || 'Erreur lors de l\'approbation du canal' }
+        });
+        return { success: false, error: err.response?.data?.message };
+    } finally {
+        dispatch({ type: GLOBALTYPES.ALERT, payload: { loading: false } });
     }
 };
 
 // ==================== ADMIN: RECHAZAR CANAL ====================
-export const rejectChannel = (channelId, reason, token, socket) => async (dispatch) => {
+// frontend/src/redux/actions/channelAction.js
+
+// ==================== ADMIN: RECHAZAR CANAL CON NOTIFICACIÓN ====================
+// frontend/src/redux/actions/channelAction.js
+
+// ==================== RECHAZAR CANAL (NO ELIMINAR) ====================
+export const rejectChannel = (channelId, reason, token, auth, socket) => async (dispatch) => {
     try {
         dispatch({ type: CHANNEL_TYPES.REJECT_CHANNEL_REQUEST });
+        dispatch({ type: GLOBALTYPES.ALERT, payload: { loading: true } });
         
         const res = await patchDataAPI(`admin/channels/${channelId}/reject`, { reason }, token);
         
@@ -524,9 +662,28 @@ export const rejectChannel = (channelId, reason, token, socket) => async (dispat
             payload: res.data.channel
         });
         
+        const channel = res.data.channel;
+        
+        // ✅ Notificar al dueño del canal que fue rechazado (en francés)
+        if (channel && channel.owner && channel.owner._id) {
+            const reasonText = reason ? ` Motif : ${reason}` : '';
+            const msg = {
+                id: auth?.user?._id || 'admin',
+                text: `❌ Votre canal "${channel.name}" n'a pas été approuvé.${reasonText}\n\nVeuillez corriger les problèmes et soumettre à nouveau votre canal depuis la page de modification.`,
+                recipients: [channel.owner._id],
+                url: `/channel/${channel._id}/edit`,
+                content: channel.name,
+                image: channel.avatar || channel.cover,
+                type: 'channel_rejected'
+            };
+            
+            const { createNotify } = await import('./notifyAction');
+            await dispatch(createNotify({ msg, auth, socket }));
+        }
+        
         dispatch({
             type: GLOBALTYPES.ALERT,
-            payload: { success: res.data.message || 'Canal rejeté' }
+            payload: { success: res.data.message || 'Canal rejeté avec succès' }
         });
         
         return { success: true };
@@ -537,9 +694,50 @@ export const rejectChannel = (channelId, reason, token, socket) => async (dispat
             type: CHANNEL_TYPES.REJECT_CHANNEL_FAIL,
             payload: err.response?.data?.message || 'Error al rechazar el canal'
         });
-        return { success: false };
+        dispatch({
+            type: GLOBALTYPES.ALERT,
+            payload: { error: err.response?.data?.message || 'Erreur lors du rejet du canal' }
+        });
+        return { success: false, error: err.response?.data?.message };
+    } finally {
+        dispatch({ type: GLOBALTYPES.ALERT, payload: { loading: false } });
     }
 };
+
+// ==================== REENVIAR CANAL (para el dueño) ====================
+ 
+export const resubmitChannel = (channelId, token) => async (dispatch) => {
+    try {
+        dispatch({ type: GLOBALTYPES.ALERT, payload: { loading: true } });
+        
+        const res = await patchDataAPI(`channels/${channelId}/resubmit`, {}, token);
+        
+        if (res.data.success) {
+            dispatch({
+                type: CHANNEL_TYPES.UPDATE_CHANNEL,
+                payload: res.data.channel
+            });
+            
+            dispatch({
+                type: GLOBALTYPES.ALERT,
+                payload: { success: res.data.message || 'Canal renvoyé pour approbation' }
+            });
+        }
+        
+        return { success: true };
+        
+    } catch (err) {
+        console.error('❌ Error resubmitChannel:', err);
+        dispatch({
+            type: GLOBALTYPES.ALERT,
+            payload: { error: err.response?.data?.message || 'Erreur lors du renvoi' }
+        });
+        return { success: false };
+    } finally {
+        dispatch({ type: GLOBALTYPES.ALERT, payload: { loading: false } });
+    }
+};
+
 
 // ==================== LIMPIAR CANALES PENDIENTES ====================
 export const clearPendingChannels = () => (dispatch) => {
@@ -814,35 +1012,7 @@ export const getChannelContact = (channelId, auth) => async (dispatch) => {
 };
 
 // channelAction.js - Versión que obtiene el token del store
-export const getPendingChannelOwner = (channelId) => async (dispatch) => {
-    try {
-        dispatch({ type: CHANNEL_TYPES.GET_PENDING_CHANNEL_REQUEST });
-        
-        console.log('📺 getPendingChannelOwner llamado:', channelId);
-        
-        // ✅ USAR getDataAPI - NO necesitas pasar token manualmente
-        const res = await getDataAPI(`pending/${channelId}`);
-        
-        console.log('✅ Canal pendiente recibido:', res.data);
-        
-        if (res.data.success) {
-            dispatch({ 
-                type: CHANNEL_TYPES.GET_PENDING_CHANNEL_SUCCESS, 
-                payload: res.data.profile || res.data.channel 
-            });
-        }
-        
-        return res.data;
-        
-    } catch (err) {
-        console.error('❌ Error getPendingChannelOwner:', err.response?.data || err);
-        dispatch({ 
-            type: CHANNEL_TYPES.GET_PENDING_CHANNEL_ERROR, 
-            payload: err.response?.data?.message || 'Error al cargar el canal pendiente'
-        });
-        throw err;
-    }
-};
+ 
 // frontend/src/redux/actions/channelAction.js
 
 // Añadir esta nueva acción
@@ -882,5 +1052,44 @@ export const getPendingChannelById = (token, channelId) => async (dispatch) => {
             success: false, 
             error: error.response?.data?.message || error.message 
         };
+    }
+};
+
+// frontend/src/redux/actions/channelAction.js
+
+// ✅ CORREGIR getPendingChannelOwner para usar la ruta correcta
+export const getPendingChannelOwner = (channelId, token) => async (dispatch) => {
+    try {
+        dispatch({ type: CHANNEL_TYPES.GET_PENDING_CHANNEL_REQUEST });
+        
+        console.log('📺 getPendingChannelOwner - channelId:', channelId);
+        
+        // ✅ USAR LA RUTA CORRECTA: channels/pending/:channelId
+        const url = `channels/pending/${channelId}`;
+        
+        console.log('📡 Llamando a:', url);
+        
+        const res = await getDataAPI(url, token);
+        
+        console.log('✅ Respuesta:', res.data);
+        
+        if (res.data.success) {
+            dispatch({ 
+                type: CHANNEL_TYPES.GET_PENDING_CHANNEL_SUCCESS, 
+                payload: res.data.profile 
+            });
+        }
+        
+        return res.data;
+        
+    } catch (err) {
+        console.error('❌ Error getPendingChannelOwner:', err);
+        
+        dispatch({ 
+            type: CHANNEL_TYPES.GET_PENDING_CHANNEL_ERROR, 
+            payload: err.response?.data?.message || 'Error al cargar el canal pendiente'
+        });
+        
+        return { success: false, error: err.response?.data?.message };
     }
 };

@@ -1,15 +1,16 @@
 // frontend/src/components/adminitration/adminApove/ChannelsTable.jsx
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useHistory } from 'react-router-dom';
 import { Table, Button, Badge, Card, Pagination, Image, Alert, Spinner } from 'react-bootstrap';
 import { FaCheck, FaTrash, FaEye, FaUsers, FaStore, FaClock, FaTimes } from 'react-icons/fa';
-import { getPendingChannels, approveChannel } from '../../../redux/actions/channelAction';
+import { getPendingChannels, approveChannel, rejectChannel } from '../../../redux/actions/channelAction';
 
 const ChannelsTable = ({ onLoadingChange, onPaginationUpdate }) => {
   const dispatch = useDispatch();
   const history = useHistory();
-  const { auth, socket } = useSelector(state => state);
+  const { auth, socket } = useSelector(state => state); // ✅ auth contiene la información del admin
   const { pendingChannels = { channels: [], total: 0, page: 1, totalPages: 1, loading: false } } = useSelector(state => state.channel || {});
 
   const [selectedItems, setSelectedItems] = useState([]);
@@ -93,10 +94,13 @@ const ChannelsTable = ({ onLoadingChange, onPaginationUpdate }) => {
     setTimeout(() => setMessage({ show: false, text: '', type: '' }), 3000);
   };
 
+  // ✅ APROBAR CANAL - Pasando auth correctamente
   const handleApprove = async (channel) => {
     if (!window.confirm(`Approuver le canal "${channel.name}" ? Il sera visible sur le site.`)) return;
 
-    const result = await dispatch(approveChannel(channel._id, auth.token, socket));
+    // ✅ Pasar auth completo (contiene el _id del admin)
+    const result = await dispatch(approveChannel(channel._id, auth.token, auth, socket));
+    
     if (result?.success) {
       showMessage('Canal approuvé avec succès', 'success');
       loadChannels(currentPage);
@@ -105,7 +109,19 @@ const ChannelsTable = ({ onLoadingChange, onPaginationUpdate }) => {
     }
   };
 
+  // ✅ RECHAZAR CANAL - Nueva función con notificación
+  const handleReject = async (channel, reason) => {
+    if (!window.confirm(`Rejeter le canal "${channel.name}" ? Cette action est irréversible.`)) return;
 
+    const result = await dispatch(rejectChannel(channel._id, reason, auth.token, auth, socket));
+    
+    if (result?.success) {
+      showMessage('Canal rejeté avec succès', 'success');
+      loadChannels(currentPage);
+    } else {
+      showMessage(result?.error || 'Erreur lors du rejet', 'danger');
+    }
+  };
 
   const openRejectModal = (channel) => {
     setSelectedChannel(channel);
@@ -121,16 +137,11 @@ const ChannelsTable = ({ onLoadingChange, onPaginationUpdate }) => {
       setRejectReason('');
     }
   };
-  // frontend/src/components/adminitration/adminApove/ChannelsTable.jsx
 
   const handleViewChannel = (channelId) => {
     // ✅ Navegar a la ruta de ADMIN (no a la pública)
     history.push(`/admin/channel-preview/${channelId}`);
   };
-
-  // En el JSX, mantener el onClick:
-
-
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= pendingChannels.totalPages && newPage !== currentPage) {
@@ -234,11 +245,13 @@ const ChannelsTable = ({ onLoadingChange, onPaginationUpdate }) => {
                 <Button
                   size="sm"
                   variant="success"
-                  onClick={() => {
-                    selectedItems.forEach(id => {
+                  onClick={async () => {
+                    for (const id of selectedItems) {
                       const channel = channels.find(ch => ch._id === id);
-                      if (channel) handleApprove(channel);
-                    });
+                      if (channel) {
+                        await handleApprove(channel);
+                      }
+                    }
                   }}
                 >
                   <FaCheck className="me-1" /> Approuver sélection
@@ -247,10 +260,19 @@ const ChannelsTable = ({ onLoadingChange, onPaginationUpdate }) => {
                   size="sm"
                   variant="danger"
                   onClick={() => {
-                    selectedItems.forEach(id => {
-                      const channel = channels.find(ch => ch._id === id);
+                    // Abrir modal para el primer canal seleccionado o mostrar modal masivo
+                    if (selectedItems.length === 1) {
+                      const channel = channels.find(ch => ch._id === selectedItems[0]);
                       if (channel) openRejectModal(channel);
-                    });
+                    } else {
+                      // Opción: mostrar modal masivo o procesar uno por uno
+                      if (window.confirm(`Rejeter ${selectedItems.length} canaux ?`)) {
+                        selectedItems.forEach(id => {
+                          const channel = channels.find(ch => ch._id === id);
+                          if (channel) handleReject(channel, 'Rejeté par admin');
+                        });
+                      }
+                    }
                   }}
                 >
                   <FaTimes className="me-1" /> Rejeter sélection
@@ -300,7 +322,6 @@ const ChannelsTable = ({ onLoadingChange, onPaginationUpdate }) => {
                           onClick={() => handleViewChannel(channel._id)}
                           style={{ cursor: 'pointer' }}
                         >
-
                           {channel.avatar ? (
                             <Image
                               src={channel.avatar}

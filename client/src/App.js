@@ -44,6 +44,7 @@ import { getDataAPI } from './utils/fetchData';
 import CreateChannelWizard from './pages/channel/createChannelWizard';
 import ChannelOwnerView from './pages/channel/ChannelOwnerView';
 import AdminChannelPreview from './pages/channel/AdminChannelPreview';
+import { loadFollowingFromStorage } from './redux/actions/channelAction';
 
 let audioElement = null;
 let audioUnlocked = false;
@@ -179,8 +180,16 @@ function AppContent() {
     window.addEventListener('focus', checkPlanUpdate);
     return () => window.removeEventListener('focus', checkPlanUpdate);
   }, [auth.token]);
-
-  // ✅ Inicializar audio al montar
+ 
+  useEffect(() => {
+    // ✅ Cargar following channels desde localStorage AL INICIAR
+    const loadStoredFollowing = async () => {
+        await dispatch(loadFollowingFromStorage());
+    };
+    
+    loadStoredFollowing();
+    
+}, [dispatch]); 
   useEffect(() => {
     initAudio();
     setIsReady(true);

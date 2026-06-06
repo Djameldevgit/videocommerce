@@ -1,4 +1,5 @@
 // frontend/src/redux/reducers/channelReducer.js
+
 import { CHANNEL_TYPES } from '../actions/channelAction';
 
 const initialState = {
@@ -13,6 +14,8 @@ const initialState = {
   
   // Videos del canal actual
   videos: [],
+  totalVideos: 0,
+  hasMore: false,
   
   // Videos paginados del canal
   channelVideos: {
@@ -26,7 +29,7 @@ const initialState = {
   // Seguidores del canal
   followers: [],
   
-  // Canales que sigue el usuario
+  // ✅ CRÍTICO: Canales que sigue el usuario (array de IDs)
   followingChannels: [],
   
   // Estadísticas del canal
@@ -55,6 +58,7 @@ const initialState = {
   feedLoading: false,
   contactInfo: null,
   isBlocked: false,
+  
   // Errores
   error: null,
   pendingChannel: null,
@@ -94,7 +98,14 @@ const normalizeChannel = (channel) => {
     totalVideos: channel.totalVideos || 0,
     totalViews: channel.totalViews || 0,
     totalLikes: channel.totalLikes || 0,
-    isFollowing: channel.isFollowing || false
+    isFollowing: channel.isFollowing || false,
+    // ✅ Nuevos campos para canales rechazados
+    status: channel.status || (channel.pending ? 'pending' : channel.isActive ? 'approved' : 'rejected'),
+    rejectionReason: channel.rejectionReason || '',
+    rejectedAt: channel.rejectedAt || null,
+    rejectedBy: channel.rejectedBy || null,
+    resubmittedAt: channel.resubmittedAt || null,
+    resubmittedCount: channel.resubmittedCount || 0
   };
 };
 
@@ -157,7 +168,9 @@ const channelReducer = (state = initialState, action) => {
           activity: payloadData?.activity || '',
           description: payloadData?.description || '',
           followersCount: payloadData?.followersCount || 0,
-          isFollowing: payloadData?.isFollowing || false
+          isFollowing: payloadData?.isFollowing || false,
+          status: payloadData?.status || (payloadData?.pending ? 'pending' : 'approved'),
+          rejectionReason: payloadData?.rejectionReason || ''
         },
         loading: false,
         error: null
@@ -249,91 +262,70 @@ const channelReducer = (state = initialState, action) => {
         }
       };
     
-    // ==================== SEGUIR / DEJAR DE SEGUIR (ACTUALIZADO) ====================
+    // ==================== ✅ SEGUIR CANAL (FOLLOW) ====================
     case CHANNEL_TYPES.FOLLOW_CHANNEL:
-      const { channelId, followersCount } = action.payload;
+      const { channelId: followId, followersCount: followCount } = action.payload;
       
       return {
         ...state,
-        // Actualizar canal actual
-        channel: state.channel && state.channel._id === channelId ? {
+        channel: state.channel && state.channel._id === followId ? {
           ...state.channel,
-          followersCount: followersCount,
+          followersCount: followCount,
           isFollowing: true
         } : state.channel,
         
-        // Actualizar en la lista de canales del usuario
-        userChannels: state.userChannels.map(ch =>
-          ch._id === channelId
-            ? { ...ch, followersCount: followersCount, isFollowing: true }
-            : ch
-        ),
-        
-        // Actualizar en la lista general de canales
-        channels: state.channels.map(ch =>
-          ch._id === channelId
-            ? { ...ch, followersCount: followersCount, isFollowing: true }
-            : ch
-        ),
-        
-        // Agregar a followingChannels si no está
-        followingChannels: state.followingChannels.some(ch => ch._id === channelId)
+        followingChannels: state.followingChannels.includes(followId)
           ? state.followingChannels
-          : [...state.followingChannels, { _id: channelId, followersCount }],
-          
-        // Actualizar en pendingChannels si existe
+          : [...state.followingChannels, followId],
+        
+        userChannels: state.userChannels.map(ch =>
+          ch._id === followId
+            ? { ...ch, followersCount: followCount, isFollowing: true }
+            : ch
+        ),
+        
+        channels: state.channels.map(ch =>
+          ch._id === followId
+            ? { ...ch, followersCount: followCount, isFollowing: true }
+            : ch
+        ),
+        
         pendingChannels: {
           ...state.pendingChannels,
           channels: state.pendingChannels.channels.map(ch =>
-            ch._id === channelId
-              ? { ...ch, followersCount: followersCount, isFollowing: true }
+            ch._id === followId
+              ? { ...ch, followersCount: followCount, isFollowing: true }
               : ch
           )
         }
       };
-     // redux/reducers/channelReducer.js
-
-// Añade este CASE después de FOLLOW_CHANNEL y UNFOLLOW_CHANNEL
-case CHANNEL_TYPES.UPDATE_CHANNEL_FOLLOW_STATUS:
- 
-  return {
-    ...state,
-    channel: state.channel ? {
-      ...state.channel,
-      isFollowing: action.payload.isFollowing,
-      followersCount: action.payload.followersCount
-    } : state.channel
-  };
+    
+    // ==================== ✅ DEJAR DE SEGUIR CANAL (UNFOLLOW) ====================
     case CHANNEL_TYPES.UNFOLLOW_CHANNEL:
       const { channelId: unfollowId, followersCount: unfollowCount } = action.payload;
       
       return {
         ...state,
-        // Actualizar canal actual
         channel: state.channel && state.channel._id === unfollowId ? {
           ...state.channel,
           followersCount: unfollowCount,
           isFollowing: false
         } : state.channel,
         
-        // Actualizar en la lista de canales del usuario
+        followingChannels: state.followingChannels.filter(id => id !== unfollowId),
+        
         userChannels: state.userChannels.map(ch =>
           ch._id === unfollowId
             ? { ...ch, followersCount: unfollowCount, isFollowing: false }
             : ch
         ),
         
-        // Actualizar en la lista general de canales
         channels: state.channels.map(ch =>
           ch._id === unfollowId
             ? { ...ch, followersCount: unfollowCount, isFollowing: false }
             : ch
         ),
         
-        // Remover de followingChannels
-        followingChannels: state.followingChannels.filter(ch => ch._id !== unfollowId),
-        
-        // Actualizar en pendingChannels si existe
         pendingChannels: {
           ...state.pendingChannels,
           channels: state.pendingChannels.channels.map(ch =>
@@ -342,6 +334,40 @@ case CHANNEL_TYPES.UPDATE_CHANNEL_FOLLOW_STATUS:
               : ch
           )
         }
+      };
+    
+    // ==================== ✅ ACTUALIZAR ESTADO DE FOLLOW (UNIVERSAL) ====================
+    case CHANNEL_TYPES.UPDATE_CHANNEL_FOLLOW_STATUS:
+      const { isFollowing, followersCount: newFollowersCount } = action.payload;
+      const currentChannelId = state.channel?._id;
+      
+      if (!currentChannelId) return state;
+      
+      return {
+        ...state,
+        channel: state.channel ? {
+          ...state.channel,
+          isFollowing: isFollowing,
+          followersCount: newFollowersCount
+        } : state.channel,
+        
+        followingChannels: isFollowing
+          ? (state.followingChannels.includes(currentChannelId) 
+              ? state.followingChannels 
+              : [...state.followingChannels, currentChannelId])
+          : state.followingChannels.filter(id => id !== currentChannelId),
+        
+        userChannels: state.userChannels.map(ch =>
+          ch._id === currentChannelId
+            ? { ...ch, isFollowing: isFollowing, followersCount: newFollowersCount }
+            : ch
+        ),
+        
+        channels: state.channels.map(ch =>
+          ch._id === currentChannelId
+            ? { ...ch, isFollowing: isFollowing, followersCount: newFollowersCount }
+            : ch
+        )
       };
     
     // ==================== SEGUIDORES ====================
@@ -353,9 +379,12 @@ case CHANNEL_TYPES.UPDATE_CHANNEL_FOLLOW_STATUS:
       };
     
     case CHANNEL_TYPES.GET_USER_FOLLOWING_CHANNELS:
+      const followingList = action.payload || [];
+      const followingIds = followingList.map(ch => ch._id || ch);
+      
       return {
         ...state,
-        followingChannels: normalizeChannels(action.payload),
+        followingChannels: followingIds,
         loading: false
       };
     
@@ -410,7 +439,7 @@ case CHANNEL_TYPES.UPDATE_CHANNEL_FOLLOW_STATUS:
         }
       };
     
-    // Aprobar canal
+    // ==================== APROBAR CANAL ====================
     case CHANNEL_TYPES.APPROVE_CHANNEL_REQUEST:
       return { ...state, loading: true, error: null };
     
@@ -424,23 +453,24 @@ case CHANNEL_TYPES.UPDATE_CHANNEL_FOLLOW_STATUS:
         ...state,
         loading: false,
         userChannels: normalizeChannels(state.userChannels.map(ch =>
-          ch._id === approvedChannel._id ? { ...ch, pending: false, isActive: true } : ch
+          ch._id === approvedChannel._id ? { ...ch, pending: false, isActive: true, status: 'approved' } : ch
         )),
         channels: normalizeChannels(state.channels.map(ch =>
-          ch._id === approvedChannel._id ? { ...ch, pending: false, isActive: true } : ch
+          ch._id === approvedChannel._id ? { ...ch, pending: false, isActive: true, status: 'approved' } : ch
         )),
         pendingChannels: {
           ...state.pendingChannels,
           channels: updatedPendingChannels,
           total: Math.max(0, state.pendingChannels.total - 1)
         },
+        channel: state.channel?._id === approvedChannel._id ? approvedChannel : state.channel,
         error: null
       };
     
     case CHANNEL_TYPES.APPROVE_CHANNEL_FAIL:
       return { ...state, loading: false, error: action.payload };
     
-    // Rechazar canal
+    // ==================== RECHAZAR CANAL ====================
     case CHANNEL_TYPES.REJECT_CHANNEL_REQUEST:
       return { ...state, loading: true, error: null };
     
@@ -453,15 +483,57 @@ case CHANNEL_TYPES.UPDATE_CHANNEL_FOLLOW_STATUS:
       return {
         ...state,
         loading: false,
+        userChannels: normalizeChannels(state.userChannels.map(ch =>
+          ch._id === rejectedChannel._id ? { 
+            ...ch, 
+            pending: false, 
+            isActive: false, 
+            status: 'rejected',
+            rejectionReason: rejectedChannel.rejectionReason 
+          } : ch
+        )),
+        channels: normalizeChannels(state.channels.map(ch =>
+          ch._id === rejectedChannel._id ? { 
+            ...ch, 
+            pending: false, 
+            isActive: false, 
+            status: 'rejected',
+            rejectionReason: rejectedChannel.rejectionReason 
+          } : ch
+        )),
         pendingChannels: {
           ...state.pendingChannels,
           channels: updatedPendingAfterReject,
           total: Math.max(0, state.pendingChannels.total - 1)
         },
+        channel: state.channel?._id === rejectedChannel._id ? rejectedChannel : state.channel,
         error: null
       };
     
     case CHANNEL_TYPES.REJECT_CHANNEL_FAIL:
+      return { ...state, loading: false, error: action.payload };
+    
+    // ==================== REENVIAR CANAL (RESUBMIT) ====================
+    case CHANNEL_TYPES.RESUBMIT_CHANNEL_REQUEST:
+      return { ...state, loading: true };
+    
+    case CHANNEL_TYPES.RESUBMIT_CHANNEL_SUCCESS:
+      const resubmittedChannel = normalizeChannel(action.payload);
+      
+      return {
+        ...state,
+        loading: false,
+        userChannels: normalizeChannels(state.userChannels.map(ch =>
+          ch._id === resubmittedChannel._id ? resubmittedChannel : ch
+        )),
+        channels: normalizeChannels(state.channels.map(ch =>
+          ch._id === resubmittedChannel._id ? resubmittedChannel : ch
+        )),
+        channel: state.channel?._id === resubmittedChannel._id ? resubmittedChannel : state.channel,
+        error: null
+      };
+    
+    case CHANNEL_TYPES.RESUBMIT_CHANNEL_FAIL:
       return { ...state, loading: false, error: action.payload };
     
     // Limpiar canales pendientes
@@ -485,6 +557,7 @@ case CHANNEL_TYPES.UPDATE_CHANNEL_FOLLOW_STATUS:
         userChannels: state.userChannels.filter(ch => ch._id !== action.payload),
         channels: state.channels.filter(ch => ch._id !== action.payload),
         channel: state.channel?._id === action.payload ? null : state.channel,
+        followingChannels: state.followingChannels.filter(id => id !== action.payload),
         loading: false,
         error: null
       };
@@ -537,10 +610,11 @@ case CHANNEL_TYPES.UPDATE_CHANNEL_FOLLOW_STATUS:
       };
       
     case CHANNEL_TYPES.GET_PENDING_CHANNEL_SUCCESS:
+      const normalizedPending = normalizeChannel(action.payload);
       return {
         ...state,
-        pendingChannel: action.payload,
-        channel: action.payload,
+        pendingChannel: normalizedPending,
+        channel: normalizedPending,
         pendingLoading: false,
         error: null
       };
@@ -550,6 +624,13 @@ case CHANNEL_TYPES.UPDATE_CHANNEL_FOLLOW_STATUS:
         ...state,
         pendingLoading: false,
         error: action.payload
+      };
+    
+    // ==================== SET FOLLOWING CHANNELS ====================
+    case CHANNEL_TYPES.SET_FOLLOWING_CHANNELS:
+      return {
+        ...state,
+        followingChannels: action.payload || []
       };
     
     // ==================== ERROR ====================

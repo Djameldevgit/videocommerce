@@ -1,4 +1,3 @@
-// components/Feed/Feed.jsx - VERSIÓN FINAL CON FOLLOW SINCRONIZADO
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useHistory } from 'react-router-dom';
@@ -10,7 +9,7 @@ import {
   faMusic, faXmark, faArrowLeft, faEllipsisVertical,
   faPen, faTrash, faFlag, faBan, faCheckCircle,
   faUserSlash, faExclamationTriangle,
-  faChevronUp, faChevronDown, faSpinner, faUserPlus
+  faChevronUp, faChevronDown, faSpinner, faUserPlus, faCheck
 } from '@fortawesome/free-solid-svg-icons';
 import {
   faHeart as faHeartRegular,
@@ -101,7 +100,9 @@ const Feed = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   
-  // ✅ ESTADOS PARA FOLLOW (usando Redux, no estado local)
+  // ✅ ESTADOS PARA FOLLOW (sincronizado con Redux)
+  const [localIsFollowing, setLocalIsFollowing] = useState(false);
+  const [localFollowersCount, setLocalFollowersCount] = useState(0);
   const [followLoading, setFollowLoading] = useState(false);
   
   const [showMenu, setShowMenu] = useState(false);
@@ -187,16 +188,33 @@ const Feed = ({
   const channelAvatar = extractAvatar(finalChannel.avatar || initialChannelAvatar);
   const isChannelVerified = finalChannel.isVerified || false;
 
-  // ✅ OBTENER ESTADO DE FOLLOW DESDE REDUX (no estado local)
-  const isFollowing = channelState?.followingChannels?.includes(channelId) || 
-                      (channelState?.channel?._id === channelId && channelState?.channel?.isFollowing) || 
-                      false;
-  
-  const followersCount = channelState?.channel?._id === channelId 
-    ? channelState.channel.followersCount 
-    : finalChannel?.followersCount || video.channel?.followersCount || 0;
+  // ✅ SINCRONIZAR EL ESTADO DE FOLLOW DESDE REDUX
+  useEffect(() => {
+    if (!channelId || channelId === 'null' || channelId === 'undefined') return;
+    
+    // Verificar en followingChannels (lista de IDs que sigue el usuario)
+    const isFollowFromList = channelState?.followingChannels?.includes(channelId);
+    
+    // Verificar en el canal actual si es el mismo
+    const isFollowFromChannel = channelState?.channel?._id === channelId && channelState?.channel?.isFollowing;
+    
+    // Verificar en el canal fetched
+    const isFollowFromFetched = finalChannel?.isFollowing || false;
+    
+    const finalFollowState = isFollowFromList || isFollowFromChannel || isFollowFromFetched;
+    
+    setLocalIsFollowing(finalFollowState);
+    
+    // Obtener followersCount
+    const followersCountFromState = channelState?.channel?._id === channelId 
+      ? channelState.channel.followersCount 
+      : finalChannel?.followersCount || 0;
+    
+    setLocalFollowersCount(followersCountFromState);
+    
+  }, [channelId, channelState?.followingChannels, channelState?.channel, finalChannel]);
 
-  // ✅ HANDLE FOLLOW CHANNEL - Usa la acción de Redux
+  // ✅ HANDLE FOLLOW CHANNEL - Con dos caras y optimistic update
   const handleFollowChannel = async () => {
     if (!auth.token) {
       dispatch({ type: GLOBALTYPES.ALERT, payload: { error: "Connectez-vous pour suivre" } });
@@ -211,24 +229,43 @@ const Feed = ({
     
     if (followLoading) return;
     
+    // ✅ OPTIMISTIC UPDATE - Cambiar UI inmediatamente
+    const wasFollowing = localIsFollowing;
+    const newFollowState = !wasFollowing;
+    
+    setLocalIsFollowing(newFollowState);
+    setLocalFollowersCount(prev => newFollowState ? prev + 1 : Math.max(0, prev - 1));
+    
     setFollowLoading(true);
+    
     try {
       const res = await dispatch(toggleFollowChannel(channelId, auth.token));
       
       if (res?.success) {
-        // ✅ No necesitas setear estado local, Redux ya actualiza
+        // ✅ Confirmar el estado con la respuesta del servidor
+        setLocalIsFollowing(res.isFollowing);
+        setLocalFollowersCount(res.followersCount);
+        
         dispatch({
           type: GLOBALTYPES.ALERT,
           payload: { success: res.isFollowing ? '✓ Canal suivi' : '✓ Canal abandonné' }
         });
-      } else if (res?.error) {
+      } else {
+        // ❌ Si falló, revertir el optimistic update
+        setLocalIsFollowing(wasFollowing);
+        setLocalFollowersCount(prev => wasFollowing ? prev + 1 : Math.max(0, prev - 1));
+        
         dispatch({
           type: GLOBALTYPES.ALERT,
-          payload: { error: res.error }
+          payload: { error: res?.error || "Erreur lors du suivi du canal" }
         });
       }
     } catch (error) {
       console.error('❌ Error en handleFollowChannel:', error);
+      // ❌ Revertir en caso de error
+      setLocalIsFollowing(wasFollowing);
+      setLocalFollowersCount(prev => wasFollowing ? prev + 1 : Math.max(0, prev - 1));
+      
       dispatch({
         type: GLOBALTYPES.ALERT,
         payload: { error: "Erreur lors du suivi du canal" }
@@ -796,7 +833,7 @@ const Feed = ({
           </button>
         )}
 
-        {/* Video info - BOTÓN DE FOLLOW AQUÍ */}
+        {/* Video info - BOTÓN DE FOLLOW CON DOS CARAS */}
         {!showComments && (
           <div className="vr-video-info">
             {isPending && isAdmin && <span className="vr-pending-badge">⏳ En attente</span>}
@@ -813,26 +850,36 @@ const Feed = ({
                 <div className="vr-stats">
                   <span><FontAwesomeIcon icon={faEye} />{formatNumber(video.views)}</span>
                   <span><FontAwesomeIcon icon={faClock} />{moment(video.createdAt).fromNow()}</span>
-                  {followersCount > 0 && (
-                    <span><FontAwesomeIcon icon={faUserPlus} />{formatNumber(followersCount)}</span>
+                  {localFollowersCount > 0 && (
+                    <span><FontAwesomeIcon icon={faUserPlus} />{formatNumber(localFollowersCount)}</span>
                   )}
                 </div>
               </div>
-              {/* ✅ BOTÓN DE FOLLOW - DOS CARAS EN FRANCÉS */}
+              
+              {/* ✅ BOTÓN DE FOLLOW CON DOS CARAS (SUSCRIBIR/ABONADO) */}
               {!isPending && !isOwner && (
                 <button 
-                  className={`vr-follow-btn ${isFollowing ? 'following' : ''}`} 
+                  className={`vr-follow-btn ${localIsFollowing ? 'following' : ''}`} 
                   onClick={handleFollowChannel}
                   disabled={followLoading}
                 >
                   {followLoading ? (
                     <FontAwesomeIcon icon={faSpinner} spin />
+                  ) : localIsFollowing ? (
+                    <>
+                      <FontAwesomeIcon icon={faCheck} className="me-1" />
+                      Abonné
+                    </>
                   ) : (
-                    isFollowing ? 'Abonné ✓' : "S'abonner"
+                    <>
+                      <FontAwesomeIcon icon={faUserPlus} className="me-1" />
+                      S'abonner
+                    </>
                   )}
                 </button>
               )}
-              {/* Si es dueño del video, mostrar botón deshabilitado o diferente */}
+              
+              {/* Si es dueño del video, mostrar botón deshabilitado */}
               {!isPending && isOwner && (
                 <button className="vr-follow-btn owner" disabled>
                   Votre canal

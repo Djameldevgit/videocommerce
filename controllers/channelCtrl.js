@@ -405,52 +405,73 @@ const updateChannel = async (req, res) => {
     }
 };
 
+// backend/controllers/channelCtrl.js
+
+// backend/controllers/channelCtrl.js
+
 const getChannelProfile = async (req, res) => {
     try {
         const { channelId } = req.params;
-        const currentUserId = req.user ? req.user._id : null;
-        const userRole = req.user ? req.user.role : null;
-        const isAdmin = userRole === 'admin';
-
-        console.log('📺 getChannelProfile llamado:');
-        console.log('   - channelId:', channelId);
-        console.log('   - currentUserId:', currentUserId);
-        console.log('   - userRole:', userRole);
+        
+        // ✅ Intentar obtener usuario del token (si existe)
+        let currentUserId = null;
+        let userRole = null;
+        
+        const authHeader = req.header('Authorization');
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            try {
+                const token = authHeader.replace('Bearer ', '');
+                const decoded = jwt.verify(token, process.env.JWT_SECRET);
+                currentUserId = decoded.id;
+                
+                const user = await User.findById(currentUserId).select('role username');
+                if (user) {
+                    userRole = user.role;
+                }
+                console.log('✅ Usuario autenticado:', currentUserId, 'Role:', userRole);
+            } catch (err) {
+                console.log('⚠️ Token inválido, continuando como usuario anónimo');
+            }
+        } else {
+            console.log('👤 Sin token, usuario anónimo');
+        }
 
         if (!mongoose.Types.ObjectId.isValid(channelId)) {
             return res.status(400).json({ success: false, message: 'ID inválido' });
         }
 
         const channel = await Channel.findById(channelId)
-            .populate('owner', 'username avatar fullname')
+            .populate('owner', 'username avatar fullname _id email')
             .lean();
 
         if (!channel) {
-            console.log('❌ Canal no encontrado en BD');
+            console.log('❌ Canal no encontrado:', channelId);
             return res.status(404).json({ success: false, message: 'Canal no encontrado' });
         }
 
-        // ✅ VERIFICAR SI EL USUARIO ACTUAL ES EL DUEÑO
+        // ✅ Verificar si es dueño o admin
         const isOwner = currentUserId && channel.owner._id.toString() === currentUserId.toString();
+        const isAdmin = userRole === 'admin';
 
         console.log('📺 Canal encontrado:', {
             id: channel._id,
             name: channel.name,
             pending: channel.pending,
             isActive: channel.isActive,
+            status: channel.status,
             isOwner: isOwner,
             isAdmin: isAdmin
         });
 
         // ============================================
-        // ✅ REGLA 1: EL DUEÑO SIEMPRE PUEDE VER SU CANAL
+        // ✅ REGLA 1: ADMIN SIEMPRE PUEDE VER CUALQUIER CANAL
         // ============================================
-        if (isOwner) {
-            console.log(`👑 Dueño viendo su canal pendiente: ${channel.name}`);
+        if (isAdmin) {
+            console.log(`👑 Admin viendo canal: ${channel.name} (status: ${channel.status || (channel.pending ? 'pending' : 'approved')})`);
             
-            // Obtener estadísticas (solo videos publicados para el dueño)
+            // Obtener estadísticas
             const stats = await Video.aggregate([
-                { $match: { channel: new mongoose.Types.ObjectId(channelId), isActive: true, pendiente: false } },
+                { $match: { channel: new mongoose.Types.ObjectId(channelId), isActive: true } },
                 { $group: {
                     _id: null,
                     totalVideos: { $sum: 1 },
@@ -461,7 +482,6 @@ const getChannelProfile = async (req, res) => {
 
             const statsData = stats.length > 0 ? stats[0] : { totalVideos: 0, totalLikes: 0, totalViews: 0 };
 
-            // ✅ Devolver el canal COMPLETO (incluyendo pending: true)
             const profileData = {
                 _id: channel._id.toString(),
                 name: channel.name,
@@ -477,10 +497,18 @@ const getChannelProfile = async (req, res) => {
                 totalVideos: statsData.totalVideos,
                 totalViews: statsData.totalViews,
                 totalLikes: statsData.totalLikes,
-                owner: channel.owner,
+                owner: {
+                    _id: channel.owner._id.toString(),
+                    username: channel.owner.username,
+                    avatar: channel.owner.avatar,
+                    fullname: channel.owner.fullname,
+                    email: channel.owner.email
+                },
                 isFollowing: false,
-                pending: channel.pending || false,  // ✅ MANTENER EL ESTADO PENDING
+                pending: channel.pending === true,
                 isActive: channel.isActive !== false,
+                status: channel.status || (channel.pending ? 'pending' : channel.isActive ? 'approved' : 'rejected'),
+                rejectionReason: channel.rejectionReason || '',
                 email: channel.email || '',
                 phone: channel.phone || '',
                 website: channel.website || '',
@@ -492,11 +520,23 @@ const getChannelProfile = async (req, res) => {
         }
 
         // ============================================
-        // ✅ REGLA 2: ADMIN PUEDE VER CUALQUIER CANAL
+        // ✅ REGLA 2: EL DUEÑO PUEDE VER SU CANAL (incluso rechazado)
         // ============================================
-        if (isAdmin) {
-            console.log(`👑 Admin viendo canal: ${channel.name} (pending: ${channel.pending})`);
+        if (isOwner) {
+            console.log(`👑 Dueño viendo su canal: ${channel.name} (status: ${channel.status || (channel.pending ? 'pending' : 'approved')})`);
             
+            const stats = await Video.aggregate([
+                { $match: { channel: new mongoose.Types.ObjectId(channelId), isActive: true } },
+                { $group: {
+                    _id: null,
+                    totalVideos: { $sum: 1 },
+                    totalLikes: { $sum: { $size: '$likes' } },
+                    totalViews: { $sum: '$views' }
+                }}
+            ]);
+
+            const statsData = stats.length > 0 ? stats[0] : { totalVideos: 0, totalLikes: 0, totalViews: 0 };
+
             const profileData = {
                 _id: channel._id.toString(),
                 name: channel.name,
@@ -509,13 +549,21 @@ const getChannelProfile = async (req, res) => {
                 activity: channel.activity || '',
                 isVerified: channel.isVerified || false,
                 followersCount: channel.followersCount || 0,
-                totalVideos: channel.totalVideos || 0,
-                totalViews: channel.totalViews || 0,
-                totalLikes: channel.totalLikes || 0,
-                owner: channel.owner,
+                totalVideos: statsData.totalVideos,
+                totalViews: statsData.totalViews,
+                totalLikes: statsData.totalLikes,
+                owner: {
+                    _id: channel.owner._id.toString(),
+                    username: channel.owner.username,
+                    avatar: channel.owner.avatar,
+                    fullname: channel.owner.fullname,
+                    email: channel.owner.email
+                },
                 isFollowing: false,
-                pending: channel.pending || false,
+                pending: channel.pending === true,
                 isActive: channel.isActive !== false,
+                status: channel.status || (channel.pending ? 'pending' : channel.isActive ? 'approved' : 'rejected'),
+                rejectionReason: channel.rejectionReason || '',
                 email: channel.email || '',
                 phone: channel.phone || '',
                 website: channel.website || '',
@@ -538,6 +586,7 @@ const getChannelProfile = async (req, res) => {
         }
 
         if (!channel.isActive) {
+            console.log(`❌ Canal inactivo bloqueado: ${channel.name}`);
             return res.status(404).json({ 
                 success: false, 
                 message: 'Canal non disponible' 
@@ -553,7 +602,6 @@ const getChannelProfile = async (req, res) => {
             }
         }
 
-        // Obtener estadísticas
         const stats = await Video.aggregate([
             { $match: { channel: new mongoose.Types.ObjectId(channelId), pendiente: false, isActive: true } },
             { $group: {
@@ -581,10 +629,17 @@ const getChannelProfile = async (req, res) => {
             totalVideos: statsData.totalVideos,
             totalViews: statsData.totalViews,
             totalLikes: statsData.totalLikes,
-            owner: channel.owner,
+            owner: {
+                _id: channel.owner._id.toString(),
+                username: channel.owner.username,
+                avatar: channel.owner.avatar,
+                fullname: channel.owner.fullname,
+                email: channel.owner.email
+            },
             isFollowing: isFollowing,
             pending: false,
             isActive: true,
+            status: 'approved',
             email: channel.email || '',
             phone: channel.phone || '',
             website: channel.website || '',
@@ -599,8 +654,6 @@ const getChannelProfile = async (req, res) => {
         res.status(500).json({ success: false, message: err.message });
     }
 };
- 
-
 const getChannelVideos = async (req, res) => {
     try {
         const { channelId } = req.params;
@@ -802,53 +855,126 @@ const approveChannel = async (req, res) => {
 // ============================================
 // ❌ RECHAZAR CANAL (solo ADMIN)
 // ============================================
+// backend/controllers/channelCtrl.js
+
+// ============================================
+// ❌ RECHAZAR CANAL (NO ELIMINAR)
+// ============================================
 const rejectChannel = async (req, res) => {
-  try {
-    const { channelId } = req.params;
-    const { reason } = req.body;
-    
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ 
-        success: false, 
-        message: 'Accès non autorisé. Réservé aux administrateurs.' 
-      });
-    }
-    
-    if (!mongoose.Types.ObjectId.isValid(channelId)) {
-      return res.status(400).json({ success: false, message: 'ID de canal inválido' });
-    }
-    
-    const channel = await Channel.findById(channelId);
-    if (!channel) {
-      return res.status(404).json({ success: false, message: 'Canal no encontrado' });
-    }
-    
-    // ✅ Rechazar canal
-    channel.pending = false;
-    channel.isActive = false;
-    channel.rejectionReason = reason || 'Canal non conforme aux conditions d\'utilisation';
-    
-    await channel.save();
-    
-    console.log('❌ Canal rechazado:', channel.name);
-    
-    res.json({ 
-      success: true, 
-      message: 'Canal rejeté',
-      channel: {
-        _id: channel._id,
-        name: channel.name,
-        pending: channel.pending,
-        isActive: channel.isActive,
-        rejectionReason: channel.rejectionReason
+    try {
+      const { channelId } = req.params;
+      const { reason } = req.body;
+      
+      // Verificar que es admin
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({ 
+          success: false, 
+          message: 'Accès non autorisé. Réservé aux administrateurs.' 
+        });
       }
-    });
-    
-  } catch (error) {
-    console.error('❌ Error rejectChannel:', error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
+      
+      if (!mongoose.Types.ObjectId.isValid(channelId)) {
+        return res.status(400).json({ success: false, message: 'ID de canal inválido' });
+      }
+      
+      const channel = await Channel.findById(channelId);
+      if (!channel) {
+        return res.status(404).json({ success: false, message: 'Canal no encontrado' });
+      }
+      
+      // ✅ RECHAZAR canal - NO ELIMINAR
+      channel.pending = false;           // Ya no está pendiente
+      channel.isActive = false;          // No está activo para el público
+      channel.status = 'rejected';       // Estado: rechazado
+      channel.rejectionReason = reason || 'Canal non conforme aux conditions d\'utilisation';
+      channel.rejectedAt = new Date();
+      channel.rejectedBy = req.user._id;
+      
+      // ✅ NO eliminamos el canal, solo lo marcamos como rechazado
+      // El dueño podrá verlo y editarlo para reenviarlo
+      
+      await channel.save();
+      
+      console.log(`❌ Canal rechazado: ${channel.name}`);
+      console.log(`   - Razón: ${channel.rejectionReason}`);
+      console.log(`   - Por: ${req.user.username}`);
+      
+      // Devolver el canal con el nuevo estado
+      const updatedChannel = await Channel.findById(channelId)
+        .populate('owner', 'username email avatar')
+        .lean();
+      
+      res.json({ 
+        success: true, 
+        message: 'Canal rejeté avec succès',
+        channel: {
+          _id: updatedChannel._id,
+          name: updatedChannel.name,
+          pending: updatedChannel.pending,
+          isActive: updatedChannel.isActive,
+          status: updatedChannel.status,
+          rejectionReason: updatedChannel.rejectionReason
+        }
+      });
+      
+    } catch (error) {
+      console.error('❌ Error rejectChannel:', error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  };
+
+// backend/controllers/channelCtrl.js
+
+// ============================================
+// 📤 REENVIAR CANAL (después de ser rechazado)
+// ============================================
+const resubmitChannel = async (req, res) => {
+    try {
+      const { channelId } = req.params;
+      
+      const channel = await Channel.findById(channelId);
+      if (!channel) {
+        return res.status(404).json({ success: false, message: 'Canal no encontrado' });
+      }
+      
+      // Verificar que el usuario es el dueño
+      const isOwner = channel.owner.toString() === req.user._id.toString();
+      if (!isOwner) {
+        return res.status(403).json({ 
+          success: false, 
+          message: 'Seul le propriétaire peut renvoyer le canal' 
+        });
+      }
+      
+      // ✅ Reenviar canal para aprobación
+      channel.pending = true;
+      channel.isActive = false;
+      channel.status = 'pending';
+      channel.rejectionReason = '';
+      channel.resubmittedAt = new Date();
+      channel.resubmittedCount = (channel.resubmittedCount || 0) + 1;
+      
+      await channel.save();
+      
+      console.log(`📤 Canal re-envoyé: ${channel.name} par ${req.user.username}`);
+      
+      res.json({ 
+        success: true, 
+        message: 'Canal renvoyé pour approbation',
+        channel: {
+          _id: channel._id,
+          name: channel.name,
+          pending: channel.pending,
+          status: channel.status
+        }
+      });
+      
+    } catch (error) {
+      console.error('❌ Error resubmitChannel:', error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  };
+
 // backend/controllers/channelCtrl.js
 
 const getPendingChannel = async (req, res) => {
@@ -1233,7 +1359,8 @@ module.exports = {
     reportChannel,
     blockChannel,
     registerShare,
-    getContactInfo
+    getContactInfo,
+    resubmitChannel
 };
 
  

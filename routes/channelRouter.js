@@ -30,5 +30,7 @@ router.get('/channels/:channelId/contact', auth, channelCtrl.getContactInfo);
 router.get('/admin/channels/pending', auth, channelCtrl.getPendingChannels);
 router.patch('/admin/channels/:channelId/approve', auth, channelCtrl.approveChannel);
 router.patch('/admin/channels/:channelId/reject', auth, channelCtrl.rejectChannel);
-
+ 
+// ✅ Ruta para que el dueño reenvíe un canal rechazado
+router.patch('/:channelId/resubmit', auth, channelCtrl.resubmitChannel);
 module.exports = router;

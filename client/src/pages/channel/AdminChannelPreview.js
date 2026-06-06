@@ -1,21 +1,24 @@
 // frontend/src/components/adminitration/adminApove/AdminChannelPreview.jsx
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useHistory } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { Container, Row, Col, Card, Image, Badge, Button, Spinner, Alert } from 'react-bootstrap';
-import { FaArrowLeft, FaCheck, FaTimes, FaClock, FaStore, FaUser, FaEnvelope, FaPhone, FaMapMarkerAlt } from 'react-icons/fa';
-import { getPendingChannelById } from '../../redux/actions/channelAction';
+import { FaArrowLeft, FaCheck, FaTimes, FaClock, FaStore, FaUser, FaEnvelope, FaPhone, FaMapMarkerAlt, FaExclamationTriangle } from 'react-icons/fa';
+import { getPendingChannelById, approveChannel, rejectChannel } from '../../redux/actions/channelAction';
+import './AdminChannelPreview.css'; // Importamos estilos personalizados
 
 const AdminChannelPreview = () => {
   const { id } = useParams();
   const history = useHistory();
   const dispatch = useDispatch();
-  const { auth } = useSelector(state => state);
+  const { auth, socket } = useSelector(state => state);
   const { pendingChannel, pendingLoading, error } = useSelector(state => state.channel);
   const [actionLoading, setActionLoading] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
 
   useEffect(() => {
-    // Verificar que el usuario es admin
     const user = auth?.user;
     if (!user || user.role !== 'admin') {
       history.push('/');
@@ -24,64 +27,59 @@ const AdminChannelPreview = () => {
     
     if (id && auth?.token) {
       console.log('📺 Cargando canal pendiente ID:', id);
-      console.log('🔑 Token disponible:', !!auth?.token);
       dispatch(getPendingChannelById(auth.token, id));
     }
   }, [id, auth?.token, dispatch, history]);
 
   const handleApprove = async () => {
-    if (!window.confirm(`¿Aprobar el canal "${pendingChannel?.name}"?`)) return;
+    if (!window.confirm(`Approuver le canal "${pendingChannel?.name}" ?`)) return;
     
+    setActionLoading(true);
     try {
-      setActionLoading(true);
-      const response = await fetch(`/api/admin/channels/${id}/approve`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${auth.token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        alert('✅ Canal aprobado exitosamente');
+      const result = await dispatch(approveChannel(id, auth.token, auth, socket));
+      if (result?.success) {
+        alert('✅ Canal approuvé avec succès !');
         history.push('/admin/dashboard');
       } else {
-        alert('Error: ' + data.message);
+        alert('❌ Erreur: ' + (result?.error || 'Erreur lors de l\'approbation'));
       }
     } catch (err) {
-      alert('Error: ' + err.message);
+      console.error('Error approving channel:', err);
+      alert('❌ Erreur: ' + err.message);
     } finally {
       setActionLoading(false);
     }
   };
 
+  const openRejectModal = () => {
+    setRejectReason('');
+    setShowRejectModal(true);
+  };
+
+  const closeRejectModal = () => {
+    setShowRejectModal(false);
+    setRejectReason('');
+  };
+
   const handleReject = async () => {
-    const reason = prompt('Razón del rechazo:');
-    if (!reason) return;
+    if (!rejectReason.trim()) {
+      alert('Veuillez indiquer une raison pour le rejet');
+      return;
+    }
     
+    setActionLoading(true);
     try {
-      setActionLoading(true);
-      const response = await fetch(`/api/admin/channels/${id}/reject`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${auth.token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ reason })
-      });
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        alert('❌ Canal rechazado');
+      const result = await dispatch(rejectChannel(id, rejectReason, auth.token, auth, socket));
+      if (result?.success) {
+        alert('❌ Canal rejeté avec succès');
+        closeRejectModal();
         history.push('/admin/dashboard');
       } else {
-        alert('Error: ' + data.message);
+        alert('❌ Erreur: ' + (result?.error || 'Erreur lors du rejet'));
       }
     } catch (err) {
-      alert('Error: ' + err.message);
+      console.error('Error rejecting channel:', err);
+      alert('❌ Erreur: ' + err.message);
     } finally {
       setActionLoading(false);
     }
@@ -91,7 +89,7 @@ const AdminChannelPreview = () => {
     return (
       <Container className="py-5 text-center">
         <Spinner animation="border" variant="primary" />
-        <p className="mt-3">Cargando detalles del canal...</p>
+        <p className="mt-3">Chargement des détails du canal...</p>
       </Container>
     );
   }
@@ -100,10 +98,10 @@ const AdminChannelPreview = () => {
     return (
       <Container className="py-5">
         <Alert variant="danger">
-          <h5>Error</h5>
+          <h5>Erreur</h5>
           <p>{error}</p>
           <Button variant="outline-danger" onClick={() => history.push('/admin/dashboard')}>
-            <FaArrowLeft className="me-2" /> Volver al Dashboard
+            <FaArrowLeft className="me-2" /> Retour au Dashboard
           </Button>
         </Alert>
       </Container>
@@ -112,16 +110,91 @@ const AdminChannelPreview = () => {
 
   if (!pendingChannel) return null;
 
-  // Obtener URLs de imágenes
   const avatarUrl = pendingChannel.avatar?.[0]?.url || pendingChannel.avatar || 'https://via.placeholder.com/150';
   const coverUrl = pendingChannel.cover?.[0]?.url || pendingChannel.cover || 'https://via.placeholder.com/1200x300';
 
   return (
     <Container fluid className="py-4">
+      {/* Modal de rechazo personalizado */}
+      {showRejectModal && (
+        <>
+          <div className="custom-modal-overlay" onClick={closeRejectModal} />
+          <div className="custom-modal-container">
+            <div className="custom-modal">
+              <div className="custom-modal-header">
+                <div className="custom-modal-icon">
+                  <FaExclamationTriangle size={24} />
+                </div>
+                <h3>Rejeter le canal</h3>
+                <button className="custom-modal-close" onClick={closeRejectModal}>
+                  <FaTimes />
+                </button>
+              </div>
+              
+              <div className="custom-modal-body">
+                <p>
+                  Vous êtes sur le point de rejeter le canal <strong>{pendingChannel.name}</strong>.
+                </p>
+                <p className="text-muted small">
+                  Veuillez indiquer la raison du rejet. Le propriétaire recevra une notification avec cette information.
+                </p>
+                
+                <div className="form-group mt-3">
+                  <label className="form-label fw-bold">Raison du rejet :</label>
+                  <textarea
+                    className="form-control"
+                    rows="4"
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    placeholder="Ex: Contenu inapproprié, informations manquantes, doublon..."
+                    style={{ resize: 'vertical' }}
+                    autoFocus
+                  />
+                </div>
+                
+                {!rejectReason.trim() && (
+                  <div className="text-warning small mt-2">
+                    <FaExclamationTriangle className="me-1" />
+                    Une raison est requise pour rejeter ce canal.
+                  </div>
+                )}
+              </div>
+              
+              <div className="custom-modal-footer">
+                <button 
+                  className="btn-cancel" 
+                  onClick={closeRejectModal}
+                  disabled={actionLoading}
+                >
+                  Annuler
+                </button>
+                <button 
+                  className="btn-confirm" 
+                  onClick={handleReject}
+                  disabled={actionLoading || !rejectReason.trim()}
+                >
+                  {actionLoading ? (
+                    <>
+                      <Spinner as="span" animation="border" size="sm" className="me-2" />
+                      Traitement...
+                    </>
+                  ) : (
+                    <>
+                      <FaTimes className="me-2" />
+                      Confirmer le rejet
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Header */}
       <div className="mb-4">
         <Button variant="outline-secondary" onClick={() => history.push('/admin/dashboard')} className="mb-3">
-          <FaArrowLeft className="me-2" /> Volver al Dashboard
+          <FaArrowLeft className="me-2" /> Retour au Dashboard
         </Button>
         
         <div className="d-flex justify-content-between align-items-start flex-wrap gap-3">
@@ -129,20 +202,31 @@ const AdminChannelPreview = () => {
             <h1 className="mb-2">
               {pendingChannel.name}
               <Badge bg="warning" text="dark" className="ms-3">
-                <FaClock className="me-1" /> Pendiente de Aprobación
+                <FaClock className="me-1" /> En attente d'approbation
               </Badge>
             </h1>
             <p className="text-muted">
-              <FaStore className="me-1" /> Canal en revisión - Solo visible para administradores
+              <FaStore className="me-1" /> Canal en révision - Visible uniquement par les administrateurs
             </p>
           </div>
           
           <div className="d-flex gap-2">
-            <Button variant="success" size="lg" onClick={handleApprove} disabled={actionLoading}>
-              <FaCheck className="me-2" /> Aprobar Canal
+            <Button 
+              variant="success" 
+              size="lg" 
+              onClick={handleApprove} 
+              disabled={actionLoading}
+            >
+              {actionLoading ? <Spinner size="sm" className="me-2" /> : <FaCheck className="me-2" />}
+              Approuver
             </Button>
-            <Button variant="danger" size="lg" onClick={handleReject} disabled={actionLoading}>
-              <FaTimes className="me-2" /> Rechazar Canal
+            <Button 
+              variant="danger" 
+              size="lg" 
+              onClick={openRejectModal} 
+              disabled={actionLoading}
+            >
+              <FaTimes className="me-2" /> Rejeter
             </Button>
           </div>
         </div>
@@ -176,10 +260,10 @@ const AdminChannelPreview = () => {
         <Col md={8}>
           <Card className="border-0 shadow-sm mb-4">
             <Card.Body>
-              <h4 className="mb-3">Información del Canal</h4>
+              <h4 className="mb-3">Informations du canal</h4>
               
               <Row className="mb-3">
-                <Col md={3}><strong>Nombre:</strong></Col>
+                <Col md={3}><strong>Nom:</strong></Col>
                 <Col md={9}>{pendingChannel.name}</Col>
               </Row>
               
@@ -189,17 +273,17 @@ const AdminChannelPreview = () => {
               </Row>
               
               <Row className="mb-3">
-                <Col md={3}><strong>Actividad:</strong></Col>
+                <Col md={3}><strong>Activité:</strong></Col>
                 <Col md={9}><Badge bg="info">{pendingChannel.activity}</Badge></Col>
               </Row>
               
               <Row className="mb-3">
-                <Col md={3}><strong>Descripción:</strong></Col>
-                <Col md={9}>{pendingChannel.description || 'Sin descripción'}</Col>
+                <Col md={3}><strong>Description:</strong></Col>
+                <Col md={9}>{pendingChannel.description || 'Aucune description'}</Col>
               </Row>
               
               <Row className="mb-3">
-                <Col md={3}><strong>Ubicación:</strong></Col>
+                <Col md={3}><strong>Localisation:</strong></Col>
                 <Col md={9}>
                   <FaMapMarkerAlt className="me-1 text-primary" />
                   {pendingChannel.wilaya}, {pendingChannel.commune}
@@ -210,7 +294,7 @@ const AdminChannelPreview = () => {
 
           <Card className="border-0 shadow-sm">
             <Card.Body>
-              <h4 className="mb-3">Información de Contacto</h4>
+              <h4 className="mb-3">Informations de contact</h4>
               
               {pendingChannel.email && (
                 <Row className="mb-3">
@@ -221,14 +305,14 @@ const AdminChannelPreview = () => {
               
               {pendingChannel.phone && (
                 <Row className="mb-3">
-                  <Col md={3}><strong><FaPhone className="me-2" />Teléfono:</strong></Col>
+                  <Col md={3}><strong><FaPhone className="me-2" />Téléphone:</strong></Col>
                   <Col md={9}>{pendingChannel.phone}</Col>
                 </Row>
               )}
               
               {pendingChannel.website && (
                 <Row className="mb-3">
-                  <Col md={3}><strong>Sitio web:</strong></Col>
+                  <Col md={3}><strong>Site web:</strong></Col>
                   <Col md={9}>
                     <a href={pendingChannel.website} target="_blank" rel="noopener noreferrer">
                       {pendingChannel.website}
@@ -244,7 +328,7 @@ const AdminChannelPreview = () => {
           <Card className="border-0 shadow-sm mb-4">
             <Card.Header className="bg-primary bg-opacity-10">
               <h5 className="mb-0">
-                <FaUser className="me-2" /> Propietario
+                <FaUser className="me-2" /> Propriétaire
               </h5>
             </Card.Header>
             <Card.Body className="text-center">
@@ -261,19 +345,19 @@ const AdminChannelPreview = () => {
 
           <Card className="border-0 shadow-sm">
             <Card.Header className="bg-warning bg-opacity-10">
-              <h5 className="mb-0">Estado de la Solicitud</h5>
+              <h5 className="mb-0">État de la demande</h5>
             </Card.Header>
             <Card.Body>
               <div className="text-center mb-3">
                 <Badge bg="warning" text="dark" className="p-2">
-                  ⏳ Pendiente de Revisión
+                  ⏳ En attente de révision
                 </Badge>
               </div>
               
               <hr />
               
               <small className="text-muted d-block">
-                <strong>Creado:</strong> {new Date(pendingChannel.createdAt).toLocaleDateString()}
+                <strong>Créé le:</strong> {new Date(pendingChannel.createdAt).toLocaleDateString('fr-FR')}
               </small>
               <small className="text-muted d-block mt-2">
                 <strong>ID:</strong> {pendingChannel._id}
