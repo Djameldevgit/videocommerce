@@ -1,33 +1,35 @@
-// frontend/src/pages/channel/ChannelOwnerView.jsx
+// frontend/src/pages/channel/ChannelOwnerView.jsx - VERSIÓN CON MODAL PARA CANAL PENDIENTE
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useParams, useHistory } from 'react-router-dom';
-import { 
-  Container, 
-  Spinner, 
-  Alert, 
-  Button, 
-  Row, 
+import {
+  Container,
+  Spinner,
+  Alert,
+  Button,
+  Row,
   Col,
   Badge,
   Card
 } from 'react-bootstrap';
-import { 
-  ArrowLeft, 
-  Pencil, 
-  Trash3, 
+import {
+  ArrowLeft,
+  Pencil,
+  Trash3,
   Share,
-  Clock, 
+  Clock,
   CheckCircle,
   ExclamationTriangle,
   Building,
   GeoAlt,
   Briefcase,
   Film,
-  Heart
+  Heart,
+  X,
+  HourglassSplit
 } from 'react-bootstrap-icons';
-import { 
+import {
   getChannelProfile,
   getChannelVideos,
   clearChannelState
@@ -64,30 +66,109 @@ const getAuthToken = (auth) => {
   return null;
 };
 
+// ============================================
+// ✅ MODAL PERSONALIZADO PARA CANAL PENDIENTE
+// ============================================
+const PendingChannelModal = ({ show, onClose, channelName, userId, history }) => {
+  if (!show) return null;
+
+  const handleGoToProfile = () => {
+    if (history && userId) {
+      history.push(`/profile/${userId}`);
+    }
+    onClose();
+  };
+
+  return (
+    <div className="pending-modal-overlay" onClick={onClose}>
+      <div className="pending-modal-container" onClick={(e) => e.stopPropagation()}>
+        <div className="pending-modal-header">
+          <div className="pending-modal-icon">
+            <HourglassSplit size={32} color="#f59e0b" />
+          </div>
+          <button className="pending-modal-close" onClick={onClose}>
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="pending-modal-body">
+          <h3 className="pending-modal-title">⏳ Canal en attente d'approbation</h3>
+
+          <div className="pending-modal-message">
+            <p>
+              Votre canal <strong>"{channelName}"</strong> est actuellement en cours de vérification par notre équipe administrative.
+            </p>
+            <p>
+              Une fois approuvé, il sera visible par tous les utilisateurs et vous pourrez :
+            </p>
+            <ul>
+              <li>✓ Publier des vidéos</li>
+              <li>✓ Modifier vos informations</li>
+              <li>✓ Être visible dans les recherches</li>
+              <li>✓ Recevoir des abonnés</li>
+            </ul>
+          </div>
+
+          <div className="pending-modal-info">
+            <strong>💡 Information importante :</strong>
+            <p>
+              La vérification prend généralement 24 à 48 heures. Vous serez notifié par email dès que votre canal sera approuvé.
+            </p>
+            <p className="mt-2">
+              En attendant, vous pouvez consulter l'état de votre canal depuis votre profil.
+            </p>
+          </div>
+        </div>
+
+        <div className="pending-modal-footer pending-modal-footer-double">
+          <button
+            className="pending-modal-btn pending-modal-btn-secondary"
+            onClick={handleGoToProfile}
+          >
+            👤 Retour au profil
+          </button>
+         
+        </div>
+      </div>
+    </div>
+  );
+};
 const ChannelOwnerView = () => {
   const { channelId } = useParams();
   const history = useHistory();
   const dispatch = useDispatch();
   const { auth } = useSelector(state => state);
-  const { 
-    channel, 
-    videos = [], 
+  const {
+    channel,
+    videos = [],
     loading,
-    error 
+    error
   } = useSelector(state => state.channel);
-  
+
   const [activeTab, setActiveTab] = useState('videos');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  
+  const [showPendingModal, setShowPendingModal] = useState(false);
+
   // ✅ Ref para evitar peticiones duplicadas
   const hasLoadedRef = useRef(false);
   const loadingRef = useRef(false);
-  
+
   const isOwner = auth.user?._id === channel?.owner?._id;
   const isAdmin = auth.user?.role === 'admin';
   const canEdit = isOwner || isAdmin;
-  const isPending = channel?.pending === true;
+  const isPending = channel?.pendiente === true || channel?.status === 'pending';
+
+  // ✅ Mostrar modal automáticamente si el canal está pendiente
+  useEffect(() => {
+    if (channel && isPending && !showPendingModal && !isLoading) {
+      // Pequeño delay para que el usuario vea el contenido antes del modal
+      const timer = setTimeout(() => {
+        setShowPendingModal(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [channel, isPending, isLoading, showPendingModal]);
 
   // ✅ Limpiar estado al desmontar
   useEffect(() => {
@@ -95,6 +176,7 @@ const ChannelOwnerView = () => {
       dispatch(clearChannelState());
       hasLoadedRef.current = false;
       loadingRef.current = false;
+      setShowPendingModal(false);
     };
   }, [dispatch]);
 
@@ -103,30 +185,30 @@ const ChannelOwnerView = () => {
     if (!channelId) return;
     if (hasLoadedRef.current) return;
     if (loadingRef.current) return;
-    
+
     const loadData = async () => {
       try {
         loadingRef.current = true;
         setIsLoading(true);
-        
+
         const token = getAuthToken(auth);
-        
+
         console.log('📺 ChannelOwnerView - Cargando canal ID:', channelId);
         console.log('🔑 Token disponible:', !!token);
-        console.log('👤 Usuario:', auth.user?.username, 'Role:', auth.user?.role);
-        
+
         if (!token) {
           console.error('❌ No hay token de autenticación');
-          // Intentar cargar sin token (solo para debugging)
-          await dispatch(getChannelProfile(channelId, null));
+          // ✅ Usar isOwnerView = true
+          await dispatch(getChannelProfile(channelId, null, true));
           await dispatch(getChannelVideos(channelId, 1, 12, null));
         } else {
-          await dispatch(getChannelProfile(channelId, token));
+          // ✅ Usar isOwnerView = true
+          await dispatch(getChannelProfile(channelId, token, true));
           await dispatch(getChannelVideos(channelId, 1, 12, token));
         }
-        
+
         hasLoadedRef.current = true;
-        
+
       } catch (err) {
         console.error('❌ Error loading channel:', err);
       } finally {
@@ -134,29 +216,31 @@ const ChannelOwnerView = () => {
         loadingRef.current = false;
       }
     };
-    
-    // Pequeño delay para evitar race conditions
     const timer = setTimeout(loadData, 100);
     return () => clearTimeout(timer);
-    
+
   }, [channelId, auth, dispatch]);
 
   const handleBack = () => {
     hasLoadedRef.current = false;
     history.goBack();
   };
-  
+
   const handleEdit = () => {
+    if (isPending) {
+      setShowPendingModal(true);
+      return;
+    }
     hasLoadedRef.current = false;
     history.push(`/channel/${channelId}/edit`);
   };
-  
+
   const handleViewPublic = () => {
     window.open(`/channel/${channelId}`, '_blank');
   };
-  
+
   const handleDelete = () => setShowDeleteConfirm(true);
-  
+
   const confirmDelete = async () => {
     try {
       const token = getAuthToken(auth);
@@ -167,9 +251,9 @@ const ChannelOwnerView = () => {
           'Authorization': `Bearer ${token}`
         }
       });
-      
+
       const data = await response.json();
-      
+
       if (data.success) {
         dispatch({ type: GLOBALTYPES.ALERT, payload: { success: "Canal supprimé avec succès" } });
         hasLoadedRef.current = false;
@@ -189,7 +273,7 @@ const ChannelOwnerView = () => {
     dispatch({ type: GLOBALTYPES.ALERT, payload: { success: "Lien copié !" } });
   };
 
-  // ✅ Estado de carga mejorado
+  // ✅ Estado de carga
   if ((loading || isLoading) && !channel) {
     return (
       <div className="owner-view-loading">
@@ -206,9 +290,6 @@ const ChannelOwnerView = () => {
           <ExclamationTriangle size={20} className="me-2" />
           <strong>Erreur :</strong> {error}
         </Alert>
-        <p className="mt-3 text-muted">
-          Si votre canal est en attente d'approbation, vous pourrez le voir une fois approuvé.
-        </p>
         <Button variant="primary" onClick={handleBack}>
           <ArrowLeft size={16} className="me-2" /> Retour
         </Button>
@@ -220,6 +301,15 @@ const ChannelOwnerView = () => {
 
   return (
     <div className="channel-owner-view">
+      {/* Modal para canal pendiente */}
+      <PendingChannelModal
+        show={showPendingModal}
+        onClose={() => setShowPendingModal(false)}
+        channelName={channel.name}
+        userId={auth.user?._id}
+        history={history}
+      />
+
       {/* Header con botón volver */}
       <div className="owner-header">
         <button className="back-btn" onClick={handleBack}>
@@ -256,7 +346,7 @@ const ChannelOwnerView = () => {
             </button>
           )}
         </div>
-        
+
         <div className="owner-info">
           <div className="owner-name-section">
             <h2>{channel.name}</h2>
@@ -266,7 +356,7 @@ const ChannelOwnerView = () => {
               </Badge>
             )}
           </div>
-          
+
           {/* Badge de estado */}
           <div className="status-badge-container">
             {isPending ? (
@@ -279,25 +369,25 @@ const ChannelOwnerView = () => {
               </Badge>
             )}
           </div>
-          
+
           {channel.activity && (
             <div className="owner-activity">
               <Briefcase size={14} className="me-1" />
               <span>{channel.activity}</span>
             </div>
           )}
-          
+
           {channel.wilaya && (
             <div className="owner-location">
               <GeoAlt size={14} className="me-1" />
               <span>{channel.wilaya}{channel.commune ? `, ${channel.commune}` : ''}</span>
             </div>
           )}
-          
+
           {channel.description && (
             <p className="owner-description">{channel.description}</p>
           )}
-          
+
           {/* Stats */}
           <div className="owner-stats">
             <div className="stat">
@@ -313,7 +403,7 @@ const ChannelOwnerView = () => {
               <span className="stat-label">Abonnés</span>
             </div>
           </div>
-          
+
           {/* Botones de acción */}
           <div className="owner-actions">
             <Button variant="outline-primary" onClick={handleShare}>
@@ -332,29 +422,24 @@ const ChannelOwnerView = () => {
         </div>
       </div>
 
-      {/* Alerta para canal pendiente */}
-      {isPending && (
-        <div className="pending-alert">
+      {/* Alerta para canal pendiente (ahora más sutil, sin modal) */}
+      {isPending && !showPendingModal && (
+        <div className="pending-alert-info">
           <div className="alert-icon">
-            <ExclamationTriangle size={24} />
+            <HourglassSplit size={20} />
           </div>
           <div className="alert-content">
-            <h4>Canal en attente de vérification</h4>
-            <p>
-              Votre canal a été créé avec succès et est actuellement en cours de révision 
-              par nos administrateurs. Une fois approuvé, il sera visible par tous les utilisateurs.
-            </p>
-            <p className="alert-note">
-              <strong>Note :</strong> Vous pouvez continuer à modifier votre canal et ajouter des vidéos.
-              Elles seront automatiquement publiées une fois le canal approuvé.
-            </p>
+            <span>Votre canal est en attente d'approbation.</span>
+            <button onClick={() => setShowPendingModal(true)} className="alert-link">
+              En savoir plus
+            </button>
           </div>
         </div>
       )}
 
       {/* Tabs */}
       <div className="owner-tabs">
-        <button 
+        <button
           className={`tab ${activeTab === 'videos' ? 'active' : ''}`}
           onClick={() => setActiveTab('videos')}
         >

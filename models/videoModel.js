@@ -1,5 +1,7 @@
-// models/Video.js
+// backend/models/Video.js
+
 const mongoose = require('mongoose');
+const { applyReviewableMixin } =  require('./mixins/reviewableFields');
 
 const videoSchema = new mongoose.Schema({
     // ============ INFORMACIÓN BÁSICA ============
@@ -7,7 +9,7 @@ const videoSchema = new mongoose.Schema({
     description: { type: String, trim: true, maxlength: 2000, default: '' },
     shortDescription: { type: String, trim: true, maxlength: 300, default: '' },
     
-    // ============ VIDEO Y MULTIMEDIA ============**
+    // ============ VIDEO Y MULTIMEDIA ============
     videoUrl: { type: String, required: true },
     videoPublicId: { type: String, default: '' },
     videoType: { type: String, enum: ['youtube', 'vimeo', 'local'], default: 'local' },
@@ -22,18 +24,15 @@ const videoSchema = new mongoose.Schema({
     
     // ============ INFORMACIÓN COMERCIAL ============
     isCommercial: { type: Boolean, default: false, index: true },
-    
-    // 🔥 NUEVO: Tipo de venta (detalle, mayor, ambos)
     saleType: {
         type: String,
         enum: ['retail', 'wholesale', 'both'],
-        required: false,  // Opcional, solo si el video es comercial
         default: null
     },
     
-    // ============ UBICACIÓN DE LA TIENDA (opcional) ============
-    address: { type: String, default: '' },        // Dirección física
-    mapUrl: { type: String, default: '' },         // URL de Google Maps o embed
+    // ============ UBICACIÓN DE LA TIENDA ============
+    address: { type: String, default: '' },
+    mapUrl: { type: String, default: '' },
     
     // ============ ESTADÍSTICAS ============
     views: { type: Number, default: 0, min: 0 },
@@ -44,9 +43,8 @@ const videoSchema = new mongoose.Schema({
     watchTime: { type: Number, default: 0 },
     averageWatchTime: { type: Number, default: 0 },
     
-    // ============ ESTADO ============
-    pendiente: { type: Boolean, default: true, index: true },
-    isActive: { type: Boolean, default: true, index: true },
+    // ============ ESTADO (ALGUNOS CAMPOS LOS APORTA EL MIXIN) ============
+    // pendiente, isActive, status, etc. vienen del mixin
     isFeatured: { type: Boolean, default: false },
     
     // ============ TAGS Y SEO ============
@@ -60,13 +58,22 @@ const videoSchema = new mongoose.Schema({
     
 }, { timestamps: true });
 
-// Índices (eliminado el índice de price)
+// ✅ APLICAR MIXIN DE REVISIÓN
+applyReviewableMixin(videoSchema, { addIndexes: true });
+
+// ============================================
+// 🔧 ÍNDICES ADICIONALES
+// ============================================
 videoSchema.index({ channel: 1, createdAt: -1 });
 videoSchema.index({ category: 1, isCommercial: 1 });
 videoSchema.index({ title: 'text', description: 'text' });
-videoSchema.index({ saleType: 1 }); // útil para filtrar por tipo de venta
+videoSchema.index({ saleType: 1 });
+videoSchema.index({ tags: 1 });
 
-// Métodos (sin referencias a stock/price)
+// ============================================
+// 📌 MÉTODOS DEL VIDEO
+// ============================================
+
 videoSchema.methods.isCommercialVideo = function() {
     return this.isCommercial === true;
 };
@@ -113,48 +120,44 @@ videoSchema.methods.updateEngagementScore = function() {
     this.engagementScore = Math.min((totalEngagement / totalViews) * 100, 100);
 };
 
-// Métodos que podrías necesitar (watchTime, share, etc.) se mantienen igual
-// ... (agrega aquí los que ya tenías, sin tocar precio/stock)
-
-// Pre-save: eliminado el ajuste de stock
-videoSchema.pre('save', function(next) {
-    if (this.isModified('views') || this.isModified('likes') || this.isModified('comments') || this.isModified('shares')) {
-        this.updateEngagementScore();
-    }
-    next();
-});
-// ============ MÉTODOS FALTANTES ============
-
-// Método para compartir
 videoSchema.methods.share = async function(userId) {
     const userIdStr = userId.toString();
     const index = this.shares.findIndex(id => id && id.toString() === userIdStr);
     let shared = false;
     
     if (index === -1) {
-      this.shares.push(userId);
-      shared = true;
+        this.shares.push(userId);
+        shared = true;
     } else {
-      this.shares.splice(index, 1);
-      shared = false;
+        this.shares.splice(index, 1);
+        shared = false;
     }
     
     this.updateEngagementScore();
     await this.save();
     return { shared, sharesCount: this.shares.length };
-  };
-  
-  // Método para actualizar tiempo de visualización
-  videoSchema.methods.updateWatchTime = async function(userId, watchTimeSeconds) {
+};
+
+videoSchema.methods.updateWatchTime = async function(userId, watchTimeSeconds) {
     if (!userId) return;
     
     this.watchTime = (this.watchTime || 0) + watchTimeSeconds;
     
     if (this.views > 0) {
-      this.averageWatchTime = this.watchTime / this.views;
+        this.averageWatchTime = this.watchTime / this.views;
     }
     
     await this.save();
     return { watchTime: this.watchTime, averageWatchTime: this.averageWatchTime };
-  };
+};
+
+// Pre-save: actualizar engagement score
+videoSchema.pre('save', function(next) {
+    if (this.isModified('views') || this.isModified('likes') || 
+        this.isModified('comments') || this.isModified('shares')) {
+        this.updateEngagementScore();
+    }
+    next();
+});
+
 module.exports = mongoose.model('Video', videoSchema);

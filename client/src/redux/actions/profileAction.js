@@ -1,7 +1,7 @@
 // redux/actions/profileAction.js - VERSIÓN CORREGIDA
 
 import { GLOBALTYPES } from './globalTypes'
-import { getDataAPI, patchDataAPI } from '../../utils/fetchData'
+import { getDataAPI,deleteDataAPI, patchDataAPI } from '../../utils/fetchData'
 import { uploadAvatar } from '../../utils/uploadAvatar'  // ✅ Nueva función
 
 export const PROFILE_TYPES = {
@@ -182,13 +182,37 @@ export const updateProfileUser = ({ userData, avatar, auth }) => async (dispatch
 // ============================================
 // 🟢 DELETE PROFILE USER
 // ============================================
+// redux/actions/profileAction.js - AÑADIR ESTA FUNCIÓN
+
+// ============================================
+// 🗑️ DELETE PROFILE USER - ELIMINAR CUENTA COMPLETA
+// ============================================
+// redux/actions/profileAction.js
+
+// 🗑️ ELIMINAR PERFIL DE USUARIO COMPLETO (CORREGIDO)
 export const deleteProfileUser = (auth) => async (dispatch) => {
     try {
         dispatch({ type: GLOBALTYPES.ALERT, payload: { loading: true } });
         
-        const res = await patchDataAPI("user/delete", {}, auth.token);
+        console.log('🗑️ Iniciando eliminación de cuenta para usuario:', auth.user?._id);
+        console.log('📧 Email:', auth.user?.email);
+        
+        // ✅ CORREGIDO: Usar deleteDataAPI, NO patchDataAPI
+        // ✅ CORREGIDO: Usar la ruta correcta '/user/delete-account'
+        const res = await deleteDataAPI("delete-account", auth.token);
         
         if (res.data && res.data.success) {
+            console.log('✅ Cuenta eliminada exitosamente en el backend');
+            console.log('📊 Datos eliminados:', res.data.deletedData || 'No se recibieron detalles');
+            
+            // ✅ Limpiar localStorage y sessionStorage
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('token');
+            localStorage.removeItem('user_following_channels');
+            localStorage.removeItem('user_data');
+            sessionStorage.clear();
+            
+            // ✅ Limpiar estado de Redux
             dispatch({
                 type: GLOBALTYPES.AUTH,
                 payload: {
@@ -197,25 +221,38 @@ export const deleteProfileUser = (auth) => async (dispatch) => {
                 }
             });
             
+            // ✅ Resetear otros estados importantes
+            dispatch({ type: 'CLEAR_ALL_CHANNELS' });
+            dispatch({ type: 'CLEAR_ALL_VIDEOS' });
+            dispatch({ type: 'CLEAR_FOLLOWING_CHANNELS' });
+            
+            // ✅ Mostrar mensaje de éxito
             dispatch({
                 type: GLOBALTYPES.ALERT,
-                payload: { success: res.data.msg || 'Compte supprimé avec succès' }
+                payload: { 
+                    success: res.data.msg || 'Compte supprimé avec succès. Vous allez être redirigé.' 
+                }
             });
             
+            // ✅ Redirigir al login después de 2 segundos
             setTimeout(() => {
                 window.location.href = '/login';
             }, 2000);
             
             return { success: true };
         } else {
-            throw new Error(res.data?.msg || 'Error al eliminar');
+            throw new Error(res.data?.msg || 'Error al eliminar cuenta');
         }
         
     } catch (err) {
-        console.error('❌ Error deleting profile:', err);
+        console.error('❌ Error eliminando perfil:', err);
+        console.error('❌ Detalles del error:', err.response?.data);
+        
         dispatch({
             type: GLOBALTYPES.ALERT,
-            payload: { error: err.response?.data?.msg || err.message || 'Error al eliminar cuenta' }
+            payload: { 
+                error: err.response?.data?.msg || err.message || 'Error al eliminar cuenta' 
+            }
         });
         return { success: false, error: err.message };
     } finally {

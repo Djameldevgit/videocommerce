@@ -1,4 +1,4 @@
-// CreateVideoWizard.jsx - VERSIÓN FINAL
+// CreateVideoWizard.jsx - VERSIÓN CORREGIDA
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useHistory } from 'react-router-dom';
@@ -39,6 +39,9 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
   // Refs para evitar bucles
   const hasLoadedChannelsRef = useRef(false);
   const hasLoadedCategoriesRef = useRef(false);
+  
+  // ✅ Estado para canal pendiente - Inicializado correctamente
+  const [isChannelPending, setIsChannelPending] = useState(false);
 
   // Estado principal
   const [wizardData, setWizardData] = useState({
@@ -62,8 +65,41 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
 
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
-
   const maxDuration = 60;
+
+  // ✅ EFECTO PARA VERIFICAR CANAL PENDIENTE (se ejecuta inmediatamente cuando hay canal seleccionado)
+ // ✅ EFECTO PARA VERIFICAR CANAL PENDIENTE (CON MÁS LOGS)
+useEffect(() => {
+  console.log('🔍========== DEBUG COMPLETO ==========');
+  console.log('🔍 userChannels:', userChannels);
+  console.log('🔍 selectedChannelId:', selectedChannelId);
+  console.log('🔍 selectedChannel:', selectedChannel);
+  
+  if (selectedChannel) {
+    console.log('🔍 CANAL SELECCIONADO:');
+    console.log('  - Nombre:', selectedChannel.name);
+    console.log('  - pendiente (con e):', selectedChannel.pendiente);
+    console.log('  - status:', selectedChannel.status);
+    console.log('  - isActive:', selectedChannel.isActive);
+    console.log('  - Todas las keys:', Object.keys(selectedChannel));
+    
+    const isPending = selectedChannel.pendiente === true;
+    console.log('  - isPending calculado:', isPending);
+    
+    setIsChannelPending(isPending);
+  } else if (userChannels.length > 0 && !selectedChannelId) {
+    const firstChannel = userChannels[0];
+    console.log('🔍 PRIMER CANAL (por defecto):');
+    console.log('  - Nombre:', firstChannel.name);
+    console.log('  - pendiente:', firstChannel.pendiente);
+    
+    setIsChannelPending(firstChannel.pendiente === true);
+  } else {
+    console.log('🔍 No hay canal seleccionado ni canales disponibles');
+  }
+  
+  console.log('🔍=====================================');
+}, [selectedChannel, userChannels, selectedChannelId]);
 
   // Cargar categorías (SOLO UNA VEZ)
   useEffect(() => {
@@ -100,7 +136,10 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
   // Seleccionar primer canal por defecto cuando se carguen
   useEffect(() => {
     if (userChannels.length > 0 && !selectedChannelId) {
-      setSelectedChannelId(userChannels[0]._id);
+      const firstChannel = userChannels[0];
+      setSelectedChannelId(firstChannel._id);
+      // ✅ Actualizar estado de canal pendiente inmediatamente
+      setIsChannelPending(firstChannel.pending === true);
     }
   }, [userChannels, selectedChannelId]);
 
@@ -230,6 +269,11 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
   };
 
   const nextStep = () => {
+    // ✅ Evitar avanzar si el canal está pendiente
+    if (isChannelPending) {
+      setError('⏳ Impossible de publier : votre chaîne est en attente d\'approbation.');
+      return;
+    }
     if (currentStep === 1 && !isStep1Valid) {
       setError('Veuillez sélectionner et télécharger une vidéo valide');
       return;
@@ -255,6 +299,13 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
 
   const handleSubmit = async () => {
     if (submitting) return;
+    
+    // ✅ Validar canal pendiente antes de enviar
+    if (isChannelPending) {
+      setError('⏳ Impossible de publier : votre chaîne est en attente d\'approbation.');
+      return;
+    }
+    
     if (!validateChannelForCommercial()) return;
 
     setSubmitting(true);
@@ -310,16 +361,56 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
     }
   };
 
-  // Render paso 1
+  // ✅ Render paso 1 - CON ADVERTENCIA VISIBLE
   const renderStep1 = () => (
     <div className="step1-container" style={{ padding: '0 8px', minHeight: '60vh', display: 'flex', flexDirection: 'column' }}>
+      
+      {/* ⚠️ ADVERTENCIA PARA CANAL PENDIENTE - AHORA SÍ SE MUESTRA */}
+      {isChannelPending && (
+        <div style={{
+          backgroundColor: '#fef3c7',
+          borderLeft: '4px solid #f59e0b',
+          borderRadius: '12px',
+          padding: '16px',
+          marginBottom: '20px',
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: '12px'
+        }}>
+          <div style={{ fontSize: '24px' }}>⏳</div>
+          <div style={{ flex: 1 }}>
+            <h6 style={{ color: '#92400e', marginBottom: '8px', fontWeight: 'bold' }}>
+              Chaîne en attente d'approbation
+            </h6>
+            <p style={{ color: '#78350f', marginBottom: '8px', fontSize: '13px' }}>
+              Votre chaîne <strong>"{selectedChannel?.name || userChannels[0]?.name}"</strong> n'a pas encore été approuvée par notre équipe.
+            </p>
+            <p style={{ color: '#78350f', marginBottom: '0', fontSize: '13px' }}>
+              ❌ <strong>Vous ne pouvez pas publier de vidéos tant que votre chaîne n'est pas validée.</strong>
+            </p>
+            <div style={{
+              marginTop: '12px',
+              padding: '8px',
+              backgroundColor: '#fffbeb',
+              borderRadius: '8px',
+              fontSize: '12px',
+              color: '#92400e'
+            }}>
+              💡 <strong>Conseil :</strong> Rendez-vous dans votre profil et attendez que votre canal soit approuvé par l'administrateur avant de créer des vidéos.
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Botones de selección de video */}
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '40px', marginBottom: '20px', padding: '10px 0' }}>
         <div style={{ textAlign: 'center' }}>
           <button 
             type="button" 
             onClick={handleGallerySelect} 
+            disabled={isChannelPending}
             style={{ 
-              background: 'linear-gradient(135deg, #667eea, #764ba2)', 
+              background: isChannelPending ? 'linear-gradient(135deg, #999, #666)' : 'linear-gradient(135deg, #667eea, #764ba2)', 
               border: 'none', 
               borderRadius: '60px', 
               width: '70px', 
@@ -327,19 +418,23 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
               display: 'flex', 
               alignItems: 'center', 
               justifyContent: 'center', 
-              cursor: 'pointer' 
+              cursor: isChannelPending ? 'not-allowed' : 'pointer',
+              opacity: isChannelPending ? 0.5 : 1,
+              transition: 'all 0.3s ease'
             }}
           >
             <Image size={36} color="white" />
           </button>
           <div style={{ fontSize: '12px', marginTop: '8px', color: '#fff' }}>Galerie</div>
         </div>
+        
         <div style={{ textAlign: 'center' }}>
           <button 
             type="button" 
             onClick={handleCameraSelect} 
+            disabled={isChannelPending}
             style={{ 
-              background: 'linear-gradient(135deg, #f093fb, #f5576c)', 
+              background: isChannelPending ? 'linear-gradient(135deg, #999, #666)' : 'linear-gradient(135deg, #f093fb, #f5576c)', 
               border: 'none', 
               borderRadius: '60px', 
               width: '70px', 
@@ -347,7 +442,9 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
               display: 'flex', 
               alignItems: 'center', 
               justifyContent: 'center', 
-              cursor: 'pointer' 
+              cursor: isChannelPending ? 'not-allowed' : 'pointer',
+              opacity: isChannelPending ? 0.5 : 1,
+              transition: 'all 0.3s ease'
             }}
           >
             <Camera size={36} color="white" />
@@ -356,22 +453,26 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
         </div>
       </div>
       
+      {/* Inputs ocultos para archivos */}
       <input 
         type="file" 
         ref={fileInputRef} 
         accept="video/mp4,video/quicktime,video/webm" 
         style={{ display: 'none' }} 
         onChange={(e) => handleFileChange(e, false)} 
+        disabled={isChannelPending}
       />
       <input 
         type="file" 
         ref={cameraInputRef} 
-        accept="video/mp4,video/quicktime/video/webm" 
+        accept="video/mp4,video/quicktime,video/webm" 
         capture="environment" 
         style={{ display: 'none' }} 
         onChange={(e) => handleFileChange(e, true)} 
+        disabled={isChannelPending}
       />
       
+      {/* Barra de progreso */}
       {loading && uploadProgress > 0 && (
         <ProgressBar 
           now={uploadProgress} 
@@ -383,6 +484,7 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
         />
       )}
       
+      {/* Preview del video */}
       {wizardData.videoPreview && (
         <div className="video-preview-full" style={{ marginTop: '15px', position: 'relative', borderRadius: '16px', overflow: 'hidden', background: '#000' }}>
           <video src={wizardData.videoPreview} controls style={{ width: '100%', maxHeight: '50vh', objectFit: 'contain' }} />
@@ -394,12 +496,14 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
             size="sm" 
             style={{ position: 'absolute', top: '8px', right: '8px', borderRadius: '60px' }} 
             onClick={clearVideo}
+            disabled={isChannelPending}
           >
             <X size={14} className="me-1" /> Changer
           </Button>
         </div>
       )}
       
+      {/* Placeholder cuando no hay video */}
       {!wizardData.videoPreview && !loading && (
         <div style={{ 
           flex: 1, 
@@ -456,7 +560,7 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
             <option value="">-- Choisissez un canal --</option>
             {userChannels.map(ch => (
               <option key={ch._id} value={ch._id}>
-                🏪 {ch.name}
+                🏪 {ch.name} {ch.pending ? '⏳ (En attente)' : '✅'}
               </option>
             ))}
           </select>
@@ -664,8 +768,8 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
               <Button 
                 variant="primary" 
                 onClick={nextStep} 
-                disabled={loading || (currentStep === 1 && !isStep1Valid)} 
-                style={{ borderRadius: '40px', padding: '8px 20px', background: 'linear-gradient(135deg, #667eea, #764ba2)', border: 'none', fontWeight: 'bold' }}
+                disabled={loading || isChannelPending || (currentStep === 1 && !isStep1Valid)} 
+                style={{ borderRadius: '40px', padding: '8px 20px', background: isChannelPending ? '#6c757d' : 'linear-gradient(135deg, #667eea, #764ba2)', border: 'none', fontWeight: 'bold' }}
               >
                 Suivant <ArrowRight className="ms-2" />
               </Button>
@@ -673,8 +777,8 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
               <Button 
                 variant="success" 
                 onClick={handleSubmit} 
-                disabled={submitting || !isStep3Valid} 
-                style={{ borderRadius: '40px', padding: '8px 20px', background: 'linear-gradient(135deg, #28a745, #20c997)', border: 'none', fontWeight: 'bold' }}
+                disabled={submitting || !isStep3Valid || isChannelPending} 
+                style={{ borderRadius: '40px', padding: '8px 20px', background: isChannelPending ? '#6c757d' : 'linear-gradient(135deg, #28a745, #20c997)', border: 'none', fontWeight: 'bold' }}
               >
                 {submitting ? <><Spinner size="sm" className="me-2" /> Publication...</> : <><CloudUpload className="me-2" /> Publier</>}
               </Button>

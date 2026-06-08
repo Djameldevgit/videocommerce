@@ -84,14 +84,10 @@ router.get('/users/saved-videos', auth, userCtrl.getSavedVideos)
 router.get('/users/liked-videos', auth, userCtrl.getLikedVideos)
 // videoRoutes.js
 router.patch('/videos/:videoId/like', auth, userCtrl.likeVideo);
-// ============================================
-// 🆕 1️⃣2️⃣ RUTAS DE VIDEOS CON LIKE (FALTANTES)
-// ============================================
-   // ✅ NUEVA - VIDEOS CON LIKE
-
-// ============================================
-// 🆕 1️⃣3️⃣ RUTAS DE VIDEOS DEL USUARIO
-// ============================================
+ 
 router.get('/users/:userId/videos', auth, userCtrl.getUserVideos)  // ✅ NUEVA - VIDEOS DEL USUARIO
-
+router.patch('/user/delete', auth, userCtrl.deleteUserAccount)
+router.delete('/delete-account', auth, userCtrl.deleteUserProfile);
+// O mantén la ruta existente pero actualiza la función
+//router.delete('/delete', auth, userCtrl.deleteUserComplete);
 module.exports = router

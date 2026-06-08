@@ -1,4 +1,5 @@
-// components/Video/DetailVideoPage.jsx - VERSIÓN CON BOTÓN PARA MAPA
+// components/Video/DetailVideoPage.jsx - MODIFICADO
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useParams, useHistory } from 'react-router-dom';
@@ -7,7 +8,7 @@ import {
   Heart, HeartFill, Eye, Clock, Share, Bookmark, BookmarkFill,
   ArrowLeft, VolumeUp, VolumeMute, CheckCircle,
   Trash, ShieldLock, HourglassSplit, SendCheck,
-  GeoAlt, Tag, Building, Map
+  GeoAlt, Tag, Building, Map, PersonCircle, House
 } from 'react-bootstrap-icons';
 import { getVideoById, likeVideo } from '../../redux/actions/videoAction';
 import { aprobarVideo, eliminarVideo } from '../../redux/actions/videoApproveAction';
@@ -217,8 +218,6 @@ const DetailVideoPage = () => {
       });
     }
     
-   
-    
     if (items.length === 0) return null;
     
     return (
@@ -288,16 +287,8 @@ const DetailVideoPage = () => {
   };
 
   // ============================================
-  // PANTALLAS DE ESTADO
+  // 🆕 PANTALLA DE VIDEO PENDIENTE CON NUEVOS BOTONES
   // ============================================
-  if (loading && !video) {
-    return (
-      <div className="tiktok-loader">
-        <div className="tiktok-spinner"></div>
-      </div>
-    );
-  }
-
   if (video && video.pendiente === true && !isAdmin) {
     return (
       <div className="pending-video-container">
@@ -310,14 +301,25 @@ const DetailVideoPage = () => {
           <h2 className="pending-title">Vidéo en cours de validation</h2>
           <div className="pending-divider"></div>
           <p className="pending-message">
-            📹 Votre vidéo "{video.title}" a été envoyée aux administrateurs pour validation.
+            📹 Votre vidéo <strong>"{video.title}"</strong> a été envoyée aux administrateurs pour validation.
+          </p>
+          <p className="pending-submessage">
+            Vous serez notifié dès qu'elle sera approuvée. En attendant, vous pouvez consulter vos vidéos dans votre profil.
           </p>
           <div className="pending-buttons">
-            <Button variant="outline-secondary" onClick={() => history.push('/videos/1')}>
-              Parcourir les vidéos
+            <Button 
+              variant="outline-secondary" 
+              onClick={() => history.push(`/profile/${auth.user?._id}`)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+            >
+              <PersonCircle size={18} /> Mon profil
             </Button>
-            <Button variant="primary" onClick={() => history.push('/create-video')}>
-              Créer une autre vidéo
+            <Button 
+              variant="primary" 
+              onClick={() => history.push('/')}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+            >
+              <House size={18} /> Accueil
             </Button>
           </div>
         </Card>

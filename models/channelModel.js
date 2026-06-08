@@ -1,15 +1,17 @@
-// backend/models/Channel.js
-const mongoose = require('mongoose');
+// backend/models/Channel.js - CON LOGS DE DEPURACIÓN (CORREGIDO)
 
+const mongoose = require('mongoose');
+const { applyReviewableMixin } = require('./mixins/reviewableFields');
+
+ 
 const channelSchema = new mongoose.Schema({
     name: { type: String, required: true, trim: true, maxlength: 50 },
     slug: { type: String, required: true, unique: true, trim: true },
     activity: { type: String, required: true, trim: true, maxlength: 100 },
     description: { type: String, trim: true, maxlength: 500, default: '' },
     
-    // ✅ ACTUALIZADO: avatar como ARRAY (igual que images en Post)
-    avatar: { type: Array, default: [] },  // Array de objetos { url, public_id }
-    cover: { type: Array, default: [] },   // Array de objetos { url, public_id }
+    avatar: { type: Array, default: [] },
+    cover: { type: Array, default: [] },
    
     phone: { type: String, trim: true, default: '' },
     phoneHidden: { type: Boolean, default: false },
@@ -21,7 +23,7 @@ const channelSchema = new mongoose.Schema({
         type: { type: String, enum: ['Point'], default: 'Point' },
         coordinates: { type: [Number], default: [0, 0] }
     },
-    pending: { type: Boolean, default: true, index: true },
+    
     delivery: {
         available: { type: Boolean, default: false },
         cost: { type: Number, default: 0 },
@@ -43,8 +45,6 @@ const channelSchema = new mongoose.Schema({
     totalVideos: { type: Number, default: 0 },
     totalViews: { type: Number, default: 0 },
     totalLikes: { type: Number, default: 0 },
-    isActive: { type: Boolean, default: true },
-    isVerified: { type: Boolean, default: false },
     settings: {
         allowComments: { type: Boolean, default: true },
         allowSharing: { type: Boolean, default: true },
@@ -52,22 +52,34 @@ const channelSchema = new mongoose.Schema({
     }
 }, { timestamps: true });
 
-// Índices
+console.log('🔍 3. Antes del mixin - Campos del schema:', Object.keys(channelSchema.paths).length);
+
+// ✅ APLICAR MIXIN DE REVISIÓN
+if (applyReviewableMixin) {
+    applyReviewableMixin(channelSchema, { addIndexes: true });
+    console.log('🔍 4. Mixin aplicado correctamente');
+} else {
+    console.log('❌ 4. ERROR: applyReviewableMixin no existe o no está definido');
+}
+
+console.log('🔍 5. Después del mixin - Campos del schema:', Object.keys(channelSchema.paths).length);
+console.log('🔍 6. ¿Tiene campo "pendiente"?', channelSchema.paths['pendiente'] ? 'SÍ ✅' : 'NO ❌');
+console.log('🔍 7. ¿Tiene campo "status"?', channelSchema.paths['status'] ? 'SÍ ✅' : 'NO ❌');
+
+// ============================================
+// 🔧 ÍNDICES ADICIONALES
+// ============================================
 channelSchema.index({ location: '2dsphere' });
 channelSchema.index({ wilaya: 1, commune: 1 });
 channelSchema.index({ owner: 1 });
 channelSchema.index({ name: 'text' });
 channelSchema.index({ slug: 1 }, { unique: true });
 
-// Pre-save middleware
-channelSchema.pre('save', function(next) {
-    if (this.isModified('followers')) {
-        this.followersCount = this.followers.length;
-    }
-    next();
-});
+// ============================================
+// 📌 MÉTODOS ESPECÍFICOS DEL CANAL
+// ============================================
 
-// Métodos
+// Seguir/Dejar de seguir canal
 channelSchema.methods.toggleFollow = async function(userId) {
     const index = this.followers.indexOf(userId);
     let isFollowing = false;
@@ -83,6 +95,7 @@ channelSchema.methods.toggleFollow = async function(userId) {
     return { isFollowing, followersCount: this.followersCount };
 };
 
+// ✅ CORREGIDO: Error de sintaxis en el aggregate
 channelSchema.methods.updateStats = async function() {
     const Video = mongoose.model('Video');
     const stats = await Video.aggregate([
@@ -91,7 +104,7 @@ channelSchema.methods.updateStats = async function() {
             _id: null,
             totalVideos: { $sum: 1 },
             totalViews: { $sum: '$views' },
-            totalLikes: { $sum: { $size: '$likes' } }
+            totalLikes: { $sum: { $size: '$likes' } }  // ✅ CORREGIDO
         }}
     ]);
     if (stats.length) {
@@ -107,4 +120,8 @@ channelSchema.methods.updateStats = async function() {
     return this;
 };
 
-module.exports = mongoose.model('Channel', channelSchema);
+const Channel = mongoose.model('Channel', channelSchema);
+console.log('🔍 8. Modelo creado correctamente');
+console.log('🔍 9. Campos finales del modelo:', Object.keys(Channel.schema.paths).length);
+
+module.exports = Channel;

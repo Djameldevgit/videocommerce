@@ -18,7 +18,9 @@ router.get('/my-channels', auth, channelCtrl.getMyChannels);
 router.get('/users/my-channels', auth, channelCtrl.getMyChannels);
 router.patch('/channels/:channelId/follow', auth, channelCtrl.toggleFollowChannel);
 router.patch('/channels/:channelId', auth, channelCtrl.updateChannel);
-router.delete('/channels/:channelId', auth, channelCtrl.deleteChannel);
+router.delete('/channels/:id', auth, channelCtrl.deleteChannel);
+router.get('/channels/owner/:id', auth, channelCtrl.getChannelForOwner);
+router.get('/:id', auth, channelCtrl.getChannelById);
 
 // ========== NUEVAS RUTAS PARA DROPDOWN ==========
 router.post('/channels/:channelId/report', auth, channelCtrl.reportChannel);

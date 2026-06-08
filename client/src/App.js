@@ -29,10 +29,10 @@ import EditImageWizard from './pages/video/EditImageWizar';
 import Conversation from './pages/message/[id]';
 import Message from './pages/message/index';
 import Posts from './pages/aprobation/Posts';
- 
+
 import EditChannel from './pages/channel/EditChannel';
 import ChannelProfile from './pages/channel/ChannelProfile';
- 
+
 import ChannelFeed from './pages/channel/ChannelFeed';
 import Map from './pages/Map';
 import UserProInfoPlans from './pages/userProInfoPlans';
@@ -126,10 +126,10 @@ function AppContent() {
   useEffect(() => {
     const checkPlanUpdate = async () => {
       if (!auth.token) return;
-      
+
       try {
         const res = await getDataAPI('check-plan-status', auth.token);
-        
+
         console.log('🔍 Verificando plan después de pago:');
         console.log('Redux actual:', {
           plan: auth.user?.channelPlan,
@@ -141,12 +141,12 @@ function AppContent() {
           role: res.data.user.role,
           isPro: res.data.user.isPro
         });
-        
+
         if (res.data.user.channelPlan !== auth.user?.channelPlan ||
-            res.data.user.role !== auth.user?.role) {
-          
+          res.data.user.role !== auth.user?.role) {
+
           console.log('⚠️ ACTUALIZANDO REDUX - Plan cambiado');
-          
+
           dispatch({
             type: GLOBALTYPES.AUTH,
             payload: {
@@ -160,11 +160,11 @@ function AppContent() {
               }
             }
           });
-          
+
           dispatch({
             type: GLOBALTYPES.ALERT,
-            payload: { 
-              success: `✅ Plan ${res.data.user.channelPlan} activado! Rol: ${res.data.user.role}` 
+            payload: {
+              success: `✅ Plan ${res.data.user.channelPlan} activado! Rol: ${res.data.user.role}`
             }
           });
         }
@@ -180,16 +180,16 @@ function AppContent() {
     window.addEventListener('focus', checkPlanUpdate);
     return () => window.removeEventListener('focus', checkPlanUpdate);
   }, [auth.token]);
- 
+
   useEffect(() => {
     // ✅ Cargar following channels desde localStorage AL INICIAR
     const loadStoredFollowing = async () => {
-        await dispatch(loadFollowingFromStorage());
+      await dispatch(loadFollowingFromStorage());
     };
-    
+
     loadStoredFollowing();
-    
-}, [dispatch]); 
+
+  }, [dispatch]);
   useEffect(() => {
     initAudio();
     setIsReady(true);
@@ -307,6 +307,9 @@ function AppContent() {
       '/users/roles',
       '/donation',
       '/planes',
+      '/userproinfoplans',
+      '/channel/new'
+
     ];
 
     const prefixes = [
@@ -317,7 +320,9 @@ function AppContent() {
       '/edit-image/',
       '/message/',
       '/profile/',
-      '/donation/'
+      '/donation/',
+      '/userproinfoplans',
+      '/channel/new'
     ];
 
     if (explicitRoutes.includes(pathname)) return true;
@@ -353,17 +358,17 @@ function AppContent() {
         <Route exact path="/video/:id" component={DetailVideoPage} />
         <Route exact path="/video/userVideo/:userId/info" component={InfoUserVideo} />
         <Route exact path="/videos/trending" component={TrendingVideos} />
-      
+
         <Route exact path="/channel/new" component={CreateChannelWizard} />
 
         <Route exact path="/channel/:channelId/edit" component={EditChannel} />
         <Route exact path="/channel/:channelId" component={ChannelProfile} />
- 
- 
- 
-  <Route exact path="/channel/:channelId/owner" component={ChannelOwnerView} />
-  <Route 
-  path="/admin/channel-preview/:id"  component={AdminChannelPreview} />
+
+
+
+        <Route exact path="/channel/:channelId/owner" component={ChannelOwnerView} />
+        <Route
+          path="/admin/channel-preview/:id" component={AdminChannelPreview} />
         <Route path="/video/channelFeed/:channelId" component={ChannelFeed} />
         <Route exact path="/map" component={Map} />
         <Route path="/create-image-page" component={CreateImageWizard} />

@@ -1,10 +1,10 @@
-// src/pages/channel/EditChannel.jsx - VERSIÓN CORREGIDA
+// src/pages/channel/EditChannel.jsx - VERSIÓN CON MENSAJE PARA CANAL PENDIENTE
 
 import React, { useEffect, useState, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useParams, useHistory } from 'react-router-dom';
 import { Container, Row, Col, Card, Form, Button, Spinner, Alert } from 'react-bootstrap';
-import { Tv, ArrowLeft, InfoCircle, Save, CheckCircle, Image, Upload } from 'react-bootstrap-icons';
+import { Tv, ArrowLeft, InfoCircle, Save, CheckCircle, Image, Upload, HourglassSplit } from 'react-bootstrap-icons';
 import { getChannelById, updateChannel } from '../../redux/actions/channelAction';
 import { getMainCategories } from '../../redux/actions/categoryAction';
 import WilayaCommuneField from './WilayaCommuneField';
@@ -46,6 +46,11 @@ const EditChannel = () => {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
+  
+  // ✅ Estado para saber si el canal está pendiente
+  const [isPending, setIsPending] = useState(false);
+  const [isRejected, setIsRejected] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
 
   // Cargar categorías si no están
   useEffect(() => {
@@ -53,7 +58,31 @@ const EditChannel = () => {
       dispatch(getMainCategories(1, 100, false));
     }
   }, [dispatch, categories]);
+// src/pages/channel/EditChannel.jsx - Modifica el useEffect
 
+useEffect(() => {
+  const loadChannelData = async () => {
+      if (!channelId) return;
+      
+      try {
+          // ✅ Usar isOwnerView = true para cargar canales pendientes
+          console.log('📺 Canal cargado:', result?.channel);
+          
+          if (result?.channel) {
+              setIsPending(result.channel.pendiente === true);
+              setIsRejected(result.channel.status === 'rejected');
+              setRejectionReason(result.channel.rejectionReason || '');
+          }
+      } catch (err) {
+          console.error('Error cargando canal:', err);
+          setError('Error al cargar los datos del canal');
+      }
+  };
+  
+  if (channelId && auth?.token) {
+      loadChannelData();
+  }
+}, [channelId, dispatch, auth?.token]);
   // Cargar datos del canal
   useEffect(() => {
     const loadChannelData = async () => {
@@ -61,8 +90,15 @@ const EditChannel = () => {
       
       try {
         if (!channel || channel._id !== channelId) {
-          const result = await dispatch(getChannelById(channelId));
+          const result = await dispatch(getChannelById(channelId, auth?.token, true)); // true = isOwnerView
           console.log('📺 Canal cargado:', result?.channel);
+          
+          // ✅ Verificar estado del canal
+          if (result?.channel) {
+            setIsPending(result.channel.pendiente === true);
+            setIsRejected(result.channel.status === 'rejected');
+            setRejectionReason(result.channel.rejectionReason || '');
+          }
         }
       } catch (err) {
         console.error('Error cargando canal:', err);
@@ -71,11 +107,11 @@ const EditChannel = () => {
     };
     
     loadChannelData();
-  }, [channelId, dispatch]);
+  }, [channelId, dispatch, auth?.token]);
 
   // Actualizar formulario cuando el canal está disponible
   useEffect(() => {
-    if (channel && channel._id === channelId && initialLoad) {
+    if (channel && channel._id === channelId && initialLoad && !isPending) {
       console.log('📝 Datos del canal:', {
         name: channel.name,
         avatar: channel.avatar,
@@ -93,12 +129,12 @@ const EditChannel = () => {
         website: channel.website || ''
       });
       
-      // ✅ Establecer previsualizaciones con las URLs existentes
+      // Establecer previsualizaciones con las URLs existentes
       setAvatarPreview(channel.avatar || '');
       setCoverPreview(channel.cover || '');
       setInitialLoad(false);
     }
-  }, [channel, channelId, initialLoad]);
+  }, [channel, channelId, initialLoad, isPending]);
 
   // Manejar cambio de avatar
   const handleAvatarChange = (e) => {
@@ -183,9 +219,14 @@ const EditChannel = () => {
     if (success) setSuccess(false);
   };
 
-  // ✅ HANDLE SUBMIT CORREGIDO
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // ✅ No permitir edición si está pendiente
+    if (isPending) {
+      setError("❌ Impossible de modifier : votre chaîne est en attente d'approbation");
+      return;
+    }
     
     if (!formData.name.trim()) {
       setError("Le nom de la chaîne est obligatoire");
@@ -201,39 +242,27 @@ const EditChannel = () => {
     setError(null);
     
     try {
-      // ✅ Array para las imágenes (como en createChannel)
       let avatarArray = [];
       let coverArray = [];
       
-      // ✅ Procesar avatar
       if (!removedAvatar) {
         if (avatarFile) {
-          // Nueva imagen subida
-          console.log('📸 Subiendo nuevo avatar...');
           const uploaded = await imageUpload2([avatarFile]);
           avatarArray = uploaded;
-          console.log('✅ Avatar subido:', avatarArray);
         } else if (avatarPreview && avatarPreview.includes('cloudinary.com')) {
-          // Imagen existente - mantener como array
           avatarArray = [{ url: avatarPreview, public_id: `avatar_${channelId}` }];
         }
       }
       
-      // ✅ Procesar cover - MISMA LÓGICA QUE AVATAR
       if (!removedCover) {
         if (coverFile) {
-          // Nueva imagen subida
-          console.log('🖼️ Subiendo nuevo cover...');
           const uploaded = await imageUpload2([coverFile]);
           coverArray = uploaded;
-          console.log('✅ Cover subido:', coverArray);
         } else if (coverPreview && coverPreview.includes('cloudinary.com')) {
-          // Imagen existente - mantener como array
           coverArray = [{ url: coverPreview, public_id: `cover_${channelId}` }];
         }
       }
       
-      // ✅ Preparar datos para actualizar
       const updateData = {
         name: formData.name,
         activity: formData.activity,
@@ -243,17 +272,10 @@ const EditChannel = () => {
         phone: formData.phone || '',
         email: formData.email || '',
         website: formData.website || '',
-        avatar: avatarArray,   // ✅ Array como en createChannel
-        cover: coverArray      // ✅ Array como en createChannel
+        avatar: avatarArray,
+        cover: coverArray
       };
       
-      console.log('📤 Enviando actualización:', {
-        ...updateData,
-        avatar: avatarArray.length,
-        cover: coverArray.length
-      });
-      
-      // ✅ Llamar a updateChannel
       const result = await dispatch(updateChannel({
         channelId,
         channelData: updateData,
@@ -278,6 +300,147 @@ const EditChannel = () => {
     }
   };
 
+  // ✅ PANTALLA PARA CANAL PENDIENTE
+  if (isPending && !initialLoad) {
+    return (
+      <div className="bg-light" style={{ minHeight: '100vh' }}>
+        <Container className="py-5">
+          <div className="text-center" style={{ maxWidth: '550px', margin: '0 auto' }}>
+            <div style={{ 
+              width: '90px', 
+              height: '90px', 
+              backgroundColor: '#fef3c7', 
+              borderRadius: '50%', 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              marginBottom: '25px'
+            }}>
+              <HourglassSplit size={48} color="#f59e0b" />
+            </div>
+            
+            <h3 style={{ color: '#92400e', marginBottom: '15px', fontWeight: 'bold' }}>
+              ⏳ Chaîne en attente d'approbation
+            </h3>
+            
+            <div style={{ 
+              backgroundColor: '#fef3c7', 
+              borderLeft: '4px solid #f59e0b', 
+              padding: '20px', 
+              borderRadius: '12px',
+              textAlign: 'left',
+              marginBottom: '25px'
+            }}>
+              <p style={{ color: '#78350f', marginBottom: '12px', fontSize: '15px' }}>
+                <strong>❌ Vous ne pouvez pas modifier cette chaîne pour le moment.</strong>
+              </p>
+              <p style={{ color: '#78350f', marginBottom: '12px', fontSize: '14px' }}>
+                Votre chaîne <strong>"{channel?.name || formData.name}"</strong> est actuellement en cours de vérification par notre équipe administrative.
+              </p>
+              <p style={{ color: '#78350f', marginBottom: '0', fontSize: '14px' }}>
+                Une fois approuvée, vous pourrez modifier ses informations, ajouter des vidéos et la rendre visible au public.
+              </p>
+            </div>
+            
+            <div style={{ 
+              backgroundColor: '#e7f3ff', 
+              padding: '12px', 
+              borderRadius: '8px', 
+              marginBottom: '25px',
+              fontSize: '13px',
+              color: '#004085'
+            }}>
+              <strong>💡 Information :</strong> La vérification prend généralement 24 à 48 heures. Vous serez notifié par email dès que votre chaîne sera approuvée.
+            </div>
+            
+            <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', flexWrap: 'wrap' }}>
+              <Button 
+                variant="outline-secondary" 
+                onClick={() => history.push(`/profile/${auth.user?._id}`)}
+                style={{ padding: '10px 24px' }}
+              >
+                Retour à mon profil
+              </Button>
+              <Button 
+                variant="primary" 
+                onClick={() => history.push('/')}
+                style={{ padding: '10px 24px' }}
+              >
+                Accueil
+              </Button>
+            </div>
+          </div>
+        </Container>
+      </div>
+    );
+  }
+
+  // ✅ PANTALLA PARA CANAL RECHAZADO
+  if (isRejected && !initialLoad) {
+    return (
+      <div className="bg-light" style={{ minHeight: '100vh' }}>
+        <Container className="py-5">
+          <div className="text-center" style={{ maxWidth: '550px', margin: '0 auto' }}>
+            <div style={{ 
+              width: '90px', 
+              height: '90px', 
+              backgroundColor: '#fee2e2', 
+              borderRadius: '50%', 
+              display: 'inline-flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              marginBottom: '25px'
+            }}>
+              <span style={{ fontSize: '48px' }}>❌</span>
+            </div>
+            
+            <h3 style={{ color: '#dc2626', marginBottom: '15px', fontWeight: 'bold' }}>
+              Chaîne rejetée
+            </h3>
+            
+            <div style={{ 
+              backgroundColor: '#fee2e2', 
+              borderLeft: '4px solid #dc2626', 
+              padding: '20px', 
+              borderRadius: '12px',
+              textAlign: 'left',
+              marginBottom: '25px'
+            }}>
+              <p style={{ color: '#7f1d1d', marginBottom: '12px', fontSize: '15px' }}>
+                <strong>❌ Votre chaîne n'a pas été approuvée.</strong>
+              </p>
+              {rejectionReason && (
+                <p style={{ color: '#7f1d1d', marginBottom: '12px', fontSize: '14px' }}>
+                  <strong>Motif :</strong> {rejectionReason}
+                </p>
+              )}
+              <p style={{ color: '#7f1d1d', marginBottom: '0', fontSize: '14px' }}>
+                Veuillez corriger les problèmes mentionnés et soumettre à nouveau votre chaîne.
+              </p>
+            </div>
+            
+            <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', flexWrap: 'wrap' }}>
+              <Button 
+                variant="outline-secondary" 
+                onClick={() => history.push(`/profile/${auth.user?._id}`)}
+                style={{ padding: '10px 24px' }}
+              >
+                Retour à mon profil
+              </Button>
+              <Button 
+                variant="primary" 
+                onClick={() => history.push('/channel/new')}
+                style={{ padding: '10px 24px' }}
+              >
+                Créer une nouvelle chaîne
+              </Button>
+            </div>
+          </div>
+        </Container>
+      </div>
+    );
+  }
+
   // Mostrar loading mientras se carga el canal
   if ((channelLoading || initialLoad) && !channel) {
     return (
@@ -288,12 +451,13 @@ const EditChannel = () => {
     );
   }
 
+  // ✅ FORMULARIO NORMAL (solo para canales aprobados)
   return (
-    <div className="bg-light" style={{ minHeight: '100vh'  }}>
-      <Container>
+    <div className="bg-light" style={{ minHeight: '100vh' }}>
+      <Container className="py-4">
         <Button 
           variant="link" 
-          className="text-decoration-none mb-1 d-inline-flex align-items-center gap-1"
+          className="text-decoration-none mb-3 d-inline-flex align-items-center gap-1"
           onClick={() => history.goBack()}
         >
           <ArrowLeft size={16} /> Retour
@@ -307,8 +471,8 @@ const EditChannel = () => {
                   <Tv size={28} className="text-primary" />
                   <h2 className="h4 fw-bold mb-0">Modifier la chaîne</h2>
                 </div>
-                 </Card.Header>
-              <Card className="p-4">
+              </Card.Header>
+              <Card.Body className="p-4">
                 {error && (
                   <Alert variant="danger" className="mb-4" onClose={() => setError(null)} dismissible>
                     <strong>Erreur :</strong> {error}
@@ -323,9 +487,60 @@ const EditChannel = () => {
 
                 <Form onSubmit={handleSubmit}>
                   {/* SECCIÓN DE IMÁGENES */}
-                  <div className="mb-3 pb-2 border-bottom">
-                       <Row>
-                    
+                  <div className="mb-4 pb-2 border-bottom">
+                    <Row>
+                      <Col md={6} className="mb-3 text-center">
+                        <Form.Label className="fw-semibold">Avatar</Form.Label>
+                        <div 
+                          className="avatar-upload-box mx-auto"
+                          style={{
+                            width: '150px',
+                            height: '150px',
+                            borderRadius: '50%',
+                            border: '2px dashed #ccc',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            overflow: 'hidden',
+                            background: '#f8f9fa'
+                          }}
+                          onClick={() => avatarInputRef.current?.click()}
+                        >
+                          <input
+                            type="file"
+                            ref={avatarInputRef}
+                            accept="image/jpeg, image/png, image/jpg, image/gif"
+                            onChange={handleAvatarChange}
+                            disabled={uploadingAvatar}
+                            style={{ display: 'none' }}
+                          />
+                          
+                          {avatarPreview ? (
+                            <img 
+                              src={avatarPreview} 
+                              alt="Avatar"
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            />
+                          ) : (
+                            <>
+                              <Image size={32} className="text-muted mb-2" />
+                              <span className="small text-muted">Cliquez pour uploader</span>
+                            </>
+                          )}
+                        </div>
+                        {avatarPreview && (
+                          <Button 
+                            variant="danger" 
+                            size="sm" 
+                            className="mt-2"
+                            onClick={handleRemoveAvatar}
+                          >
+                            Supprimer
+                          </Button>
+                        )}
+                      </Col>
 
                       <Col md={6}>
                         <Form.Label className="fw-semibold">Image de couverture</Form.Label>
@@ -333,7 +548,7 @@ const EditChannel = () => {
                           className="cover-upload-box"
                           style={{
                             width: '100%',
-                            height: '100px',
+                            height: '150px',
                             borderRadius: '12px',
                             border: '2px dashed #ccc',
                             display: 'flex',
@@ -379,65 +594,6 @@ const EditChannel = () => {
                           </Button>
                         )}
                       </Col>
-
-                      <Col md={6} className="mb-3">
-                        <Form.Label className="fw-semibold">Avatar</Form.Label>
-                        <div 
-                          className="avatar-upload-box text-center"
-                          style={{
-                            width: '150px',
-                            height: '150px',
-                            borderRadius: '50%',
-                            border: '2px dashed #ccc',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            cursor: 'pointer',
-                            overflow: 'hidden',
-                            background: '#f8f9fa',
-                            margin: '0 auto'
-                          }}
-                          onClick={() => avatarInputRef.current?.click()}
-                        >
-                          <input
-                            type="file"
-                            ref={avatarInputRef}
-                            accept="image/jpeg, image/png, image/jpg, image/gif"
-                            onChange={handleAvatarChange}
-                            disabled={uploadingAvatar}
-                            style={{ display: 'none' }}
-                          />
-                          
-                          {avatarPreview ? (
-                            <img 
-                              src={avatarPreview} 
-                              alt="Avatar"
-                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                            />
-                          ) : (
-                            <>
-                              <Image size={32} className="text-muted mb-2" />
-                              <span className="small text-muted">Cliquez pour uploader</span>
-                            </>
-                          )}
-                        </div>
-                        {avatarPreview && (
-                          <Button 
-                            variant="danger" 
-                            size="sm" 
-                            className="mt-2 d-block mx-auto"
-                            onClick={handleRemoveAvatar}
-                          >
-                            Supprimer
-                          </Button>
-                        )}
-                      </Col>
-
-
-
-
-
                     </Row>
                   </div>
 
@@ -548,11 +704,11 @@ const EditChannel = () => {
                       Annuler
                     </Button>
                     <Button type="submit" variant="primary" disabled={loading}>
-                      {loading ? <Spinner size="sm" animation="border" /> : 'Enregistrer'}
+                      {loading ? <Spinner size="sm" animation="border" /> : <Save className="me-2" /> }
                     </Button>
                   </div>
                 </Form>
-              </Card>
+              </Card.Body>
             </Card>
           </Col>
         </Row>

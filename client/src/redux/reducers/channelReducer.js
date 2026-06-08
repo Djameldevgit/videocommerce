@@ -553,13 +553,13 @@ const channelReducer = (state = initialState, action) => {
     // ==================== ELIMINAR CANAL ====================
     case CHANNEL_TYPES.DELETE_CHANNEL_SUCCESS:
       return {
-        ...state,
-        userChannels: state.userChannels.filter(ch => ch._id !== action.payload),
-        channels: state.channels.filter(ch => ch._id !== action.payload),
-        channel: state.channel?._id === action.payload ? null : state.channel,
-        followingChannels: state.followingChannels.filter(id => id !== action.payload),
-        loading: false,
-        error: null
+          ...state,
+          userChannels: state.userChannels.filter(ch => ch._id !== action.payload),
+          channels: state.channels.filter(ch => ch._id !== action.payload),
+          channel: state.channel?._id === action.payload ? null : state.channel,
+          followingChannels: state.followingChannels.filter(id => id !== action.payload),
+          loading: false,
+          error: null
       };
     
     case CHANNEL_TYPES.DELETE_CHANNEL_FAIL:

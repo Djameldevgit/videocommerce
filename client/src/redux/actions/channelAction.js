@@ -302,18 +302,26 @@ export const updateChannel = ({
 
 // frontend/src/redux/actions/channelAction.js
 
-export const getChannelProfile = (channelId, token) => async (dispatch) => {
+// redux/actions/channelAction.js
+
+// ✅ CORREGIR getChannelProfile para usar la ruta de dueño cuando sea necesario
+export const getChannelProfile = (channelId, token, isOwnerView = false) => async (dispatch) => {
     try {
         dispatch({ type: CHANNEL_TYPES.CHANNEL_LOADING, payload: true });
         
-        const res = await getDataAPI(`channels/${channelId}`, token);
+        // ✅ Usar la ruta correcta según si es vista de dueño
+        const url = isOwnerView ? `channels/owner/${channelId}` : `channels/${channelId}`;
+        const res = await getDataAPI(url, token);
+        
+        console.log('📺 getChannelProfile - URL:', url);
+        console.log('📺 Respuesta:', res.data);
         
         dispatch({ 
             type: CHANNEL_TYPES.GET_CHANNEL, 
-            payload: res.data.profile  // ✅ IMPORTANTE: res.data.profile, no res.data.channel
+            payload: res.data.channel || res.data.profile
         });
         
-        return { success: true, channel: res.data.profile };
+        return { success: true, channel: res.data.channel || res.data.profile };
         
     } catch (err) {
         console.error('❌ Error getChannelProfile:', err);
@@ -324,23 +332,34 @@ export const getChannelProfile = (channelId, token) => async (dispatch) => {
     }
 };
 // ==================== OBTENER CANAL POR ID ====================
-export const getChannelById = (channelId) => async (dispatch) => {
+// redux/actions/channelAction.js
+
+// 🔍 OBTENER CANAL POR ID (con soporte para vista de dueño)
+export const getChannelById = (id, token, isOwnerView = false) => async (dispatch) => {
     try {
         dispatch({ type: CHANNEL_TYPES.CHANNEL_LOADING, payload: true });
         
-        const res = await getDataAPI(`channels/${channelId}`);
+        // ✅ Usar ruta diferente si es vista de dueño
+        const url = isOwnerView ? `channels/owner/${id}` : `channels/${id}`;
+        const res = await getDataAPI(url, token);
         
-        dispatch({ 
-            type: CHANNEL_TYPES.GET_CHANNEL, 
-            payload: res.data.channel || res.data.profile 
-        });
+        if (res.data?.success) {
+            dispatch({
+                type: CHANNEL_TYPES.GET_CHANNEL,
+                payload: res.data.channel
+            });
+            return { success: true, channel: res.data.channel };
+        }
         
-        return { success: true, channel: res.data.channel || res.data.profile };
+        return { success: false, error: 'Canal non trouvé' };
         
     } catch (err) {
         console.error('❌ Error getChannelById:', err);
-        dispatch({ type: CHANNEL_TYPES.CHANNEL_ERROR, payload: err.response?.data?.message });
-        return { success: false, message: err.response?.data?.message };
+        dispatch({
+            type: CHANNEL_TYPES.CHANNEL_ERROR,
+            payload: err.response?.data?.msg || err.message
+        });
+        return { success: false, error: err.response?.data?.msg || err.message };
     } finally {
         dispatch({ type: CHANNEL_TYPES.CHANNEL_LOADING, payload: false });
     }
@@ -849,12 +868,103 @@ export const getUserFollowingChannels = (userId, token) => async (dispatch) => {
         return null;
     }
 };
+// ============================================
+// 🗑️ DELETE CHANNEL - ELIMINAR CANAL
+// ============================================
+const deleteChannel = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const userId = req.user._id;
+        
+        // Buscar el canal
+        const channel = await Channel.findById(id);
+        
+        if (!channel) {
+            return res.status(404).json({
+                success: false,
+                msg: 'Canal no encontrado'
+            });
+        }
+        
+        // Verificar permisos
+        const isOwner = channel.owner.toString() === userId.toString();
+        const isAdmin = req.user.role === 'admin';
+        
+        if (!isOwner && !isAdmin) {
+            return res.status(403).json({
+                success: false,
+                msg: 'No tienes permiso para eliminar este canal'
+            });
+        }
+        
+        // ✅ 1. OBTENER TODOS LOS VIDEOS DEL CANAL
+        const videos = await Video.find({ channel: id });
+        const videoIds = videos.map(v => v._id);
+        
+        // ✅ 2. ELIMINAR REFERENCIAS EN USUARIOS
+        
+        // 2.1 Usuarios que siguen este canal
+        await User.updateMany(
+            { followingChannels: id },
+            { $pull: { followingChannels: id } }
+        );
+        
+        // 2.2 Usuarios que guardaron videos de este canal
+        if (videoIds.length > 0) {
+            await User.updateMany(
+                { savedVideos: { $in: videoIds } },
+                { $pull: { savedVideos: { $in: videoIds } } }
+            );
+            
+            // 2.3 Usuarios que dieron like a videos de este canal
+            await User.updateMany(
+                { likedVideos: { $in: videoIds } },
+                { $pull: { likedVideos: { $in: videoIds } } }
+            );
+        }
+        
+        // ✅ 3. ELIMINAR COMENTARIOS (si tienes modelo Comment separado)
+        if (mongoose.models.Comment) {
+            await mongoose.models.Comment.deleteMany({ video: { $in: videoIds } });
+        }
+        
+        // ✅ 4. ELIMINAR REPORTES (si tienes)
+        if (mongoose.models.Report) {
+            await mongoose.models.Report.deleteMany({ channelId: id });
+            await mongoose.models.Report.deleteMany({ videoId: { $in: videoIds } });
+        }
+        
+        // ✅ 5. ELIMINAR TODOS LOS VIDEOS DEL CANAL
+        const videosDeleted = await Video.deleteMany({ channel: id });
+        
+        // ✅ 6. ELIMINAR EL CANAL
+        await Channel.findByIdAndDelete(id);
+        
+        console.log(`✅ Canal ${id} eliminado por usuario ${userId}`);
+        console.log(`📊 Videos eliminados: ${videosDeleted.deletedCount || 0}`);
+        console.log(`🎯 IDs de videos eliminados: ${videoIds.length}`);
+        
+        res.status(200).json({
+            success: true,
+            msg: 'Canal y todo su contenido eliminado correctamente',
+            deletedData: {
+                channelId: id,
+                channelName: channel.name,
+                videosCount: videosDeleted.deletedCount || 0,
+                videosIds: videoIds
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Error al eliminar canal:', error);
+        res.status(500).json({
+            success: false,
+            msg: error.message || 'Error al eliminar el canal'
+        });
+    }
+};
 
-// frontend/src/redux/actions/channelAction.js
-
-// frontend/src/redux/actions/channelAction.js
-
-export const deleteChannel = (channelId, reason, token, history) => async (dispatch) => {
+export const deleteChannelAdmin = (channelId, reason, token, history) => async (dispatch) => {
     try {
         dispatch({ type: CHANNEL_TYPES.DELETE_CHANNEL_REQUEST });
         

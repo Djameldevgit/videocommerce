@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
- 
+
 const Users = require('../models/userModel');
 const Comments = require('../models/commentModel');
 const Notifications = require('../models/notifyModel');
@@ -261,27 +261,27 @@ const userCtrl = {
   },
 
   // ==================== VIDEOS GUARDADOS Y LIKED ====================
-  
+
   toggleSaveVideo: async (req, res) => {
     try {
       const { videoId } = req.params;
       const userId = req.user._id;
-      
+
       // ✅ CORREGIDO: usar "Users"
       const user = await Users.findById(userId);
-      
+
       if (!user) {
         return res.status(404).json({ success: false, message: 'User does not exist.' });
       }
-      
+
       const isSaved = user.savedVideos.includes(videoId) || false;
-      
+
       if (isSaved) {
         await Users.findByIdAndUpdate(userId, { $pull: { savedVideos: videoId } });
       } else {
         await Users.findByIdAndUpdate(userId, { $addToSet: { savedVideos: videoId } });
       }
-      
+
       res.json({ success: true, isSaved: !isSaved });
     } catch (err) {
       console.error('❌ toggleSaveVideo error:', err);
@@ -302,17 +302,17 @@ const userCtrl = {
 
   getSavedVideos: async (req, res) => {
     try {
-     
+
 
       const userId = req.user._id;
       const { page = 1, limit = 12 } = req.query;
-      
+
       const pageNum = parseInt(page);
       const limitNum = parseInt(limit);
       const skip = (pageNum - 1) * limitNum;
-      
+
       console.log('📥 getSavedVideos - userId:', userId);
-      
+
       // ✅ CORREGIDO: usar "Users" en lugar de "User"
       const user = await Users.findById(userId)
         .select('savedVideos')
@@ -328,7 +328,7 @@ const userCtrl = {
             sort: { createdAt: -1 }
           }
         });
-      
+
       if (!user) {
         console.error('❌ Usuario no encontrado:', userId);
         return res.status(404).json({
@@ -336,12 +336,12 @@ const userCtrl = {
           message: 'User does not exist.'
         });
       }
-      
+
       const total = user.savedVideos.length || 0;
       const videos = user.savedVideos || [];
       const totalPages = Math.ceil(total / limitNum);
       const hasMore = pageNum < totalPages;
-      
+
       res.status(200).json({
         success: true,
         videos: videos,
@@ -359,13 +359,13 @@ const userCtrl = {
     try {
       const userId = req.user._id;
       const { page = 1, limit = 12 } = req.query;
-      
+
       const pageNum = parseInt(page);
       const limitNum = parseInt(limit);
       const skip = (pageNum - 1) * limitNum;
-      
+
       console.log('📥 getLikedVideos - userId:', userId);
-      
+
       // ✅ CORREGIDO: usar "Users" en lugar de "User"
       const user = await Users.findById(userId)
         .select('likedVideos')
@@ -381,7 +381,7 @@ const userCtrl = {
             sort: { createdAt: -1 }
           }
         });
-      
+
       if (!user) {
         console.error('❌ Usuario no encontrado:', userId);
         return res.status(404).json({
@@ -389,12 +389,12 @@ const userCtrl = {
           message: 'User does not exist.'
         });
       }
-      
+
       const total = user.likedVideos.length || 0;
       const videos = user.likedVideos || [];
       const totalPages = Math.ceil(total / limitNum);
       const hasMore = pageNum < totalPages;
-      
+
       res.status(200).json({
         success: true,
         videos: videos,
@@ -611,7 +611,205 @@ const userCtrl = {
       return res.status(500).json({ msg: err.message });
     }
   },
+  deleteUserProfile: async (req, res) => {
+    try {
+      const userId = req.user._id; // Usuario autenticado
+      const userToDelete = await Users.findById(userId);
 
+      if (!userToDelete) {
+        return res.status(404).json({
+          success: false,
+          msg: 'Utilisateur non trouvé'
+        });
+      }
+
+      console.log(`🗑️ Iniciando eliminación completa del usuario: ${userToDelete.email} (${userId})`);
+
+      // ============================================
+      // 1. OBTENER TODOS LOS CANALES DEL USUARIO
+      // ============================================
+      const channels = await Channel.find({ owner: userId });
+      const channelIds = channels.map(ch => ch._id);
+
+      console.log(`📊 Canales encontrados: ${channelIds.length}`);
+
+      // ============================================
+      // 2. OBTENER TODOS LOS VIDEOS DE ESOS CANALES
+      // ============================================
+      const videos = await Video.find({ channel: { $in: channelIds } });
+      const videoIds = videos.map(v => v._id);
+
+      console.log(`📊 Videos encontrados: ${videoIds.length}`);
+
+      // ============================================
+      // 3. ELIMINAR REFERENCIAS EN OTROS USUARIOS
+      // ============================================
+
+      // 3.1 Usuarios que siguen los canales de este usuario
+      await Users.updateMany(
+        { followingChannels: { $in: channelIds } },
+        { $pull: { followingChannels: { $in: channelIds } } }
+      );
+
+      // 3.2 Usuarios que siguen al usuario
+      await Users.updateMany(
+        { following: userId },
+        { $pull: { following: userId } }
+      );
+
+      // 3.3 Usuarios que tienen al usuario como seguidor
+      await Users.updateMany(
+        { followers: userId },
+        { $pull: { followers: userId } }
+      );
+
+      // 3.4 Usuarios que guardaron videos de este usuario
+      if (videoIds.length > 0) {
+        await Users.updateMany(
+          { savedVideos: { $in: videoIds } },
+          { $pull: { savedVideos: { $in: videoIds } } }
+        );
+
+        // 3.5 Usuarios que dieron like a videos de este usuario
+        await Users.updateMany(
+          { likedVideos: { $in: videoIds } },
+          { $pull: { likedVideos: { $in: videoIds } } }
+        );
+      }
+
+      // ============================================
+      // 4. ELIMINAR COMENTARIOS DEL USUARIO
+      // ============================================
+      if (mongoose.models.Comment) {
+        await mongoose.models.Comment.deleteMany({ user: userId });
+        console.log('✅ Comentarios eliminados');
+      }
+
+      // ============================================
+      // 5. ELIMINAR REPORTES RELACIONADOS
+      // ============================================
+      if (mongoose.models.Report) {
+        await mongoose.models.Report.deleteMany({
+          $or: [
+            { reportedBy: userId },
+            { reportedUserId: userId },
+            { channelId: { $in: channelIds } },
+            { videoId: { $in: videoIds } }
+          ]
+        });
+        console.log('✅ Reportes eliminados');
+      }
+
+      // ============================================
+      // 6. ELIMINAR NOTIFICACIONES DEL USUARIO
+      // ============================================
+      if (mongoose.models.Notification) {
+        await mongoose.models.Notification.deleteMany({
+          $or: [
+            { user: userId },
+            { sender: userId }
+          ]
+        });
+        console.log('✅ Notificaciones eliminadas');
+      }
+
+      // ============================================
+      // 7. ELIMINAR MENSAJES/CHATS (si existen)
+      // ============================================
+      if (mongoose.models.Message) {
+        await mongoose.models.Message.deleteMany({
+          $or: [
+            { sender: userId },
+            { receiver: userId }
+          ]
+        });
+        console.log('✅ Mensajes eliminados');
+      }
+
+      // ============================================
+      // 8. ELIMINAR TODOS LOS VIDEOS
+      // ============================================
+      if (videoIds.length > 0) {
+        await Video.deleteMany({ _id: { $in: videoIds } });
+        console.log(`✅ ${videoIds.length} videos eliminados`);
+      }
+
+      // ============================================
+      // 9. ELIMINAR TODOS LOS CANALES
+      // ============================================
+      if (channelIds.length > 0) {
+        await Channel.deleteMany({ _id: { $in: channelIds } });
+        console.log(`✅ ${channelIds.length} canales eliminados`);
+      }
+
+      // ============================================
+      // 10. ELIMINAR ARCHIVOS DE CLOUDINARY (opcional)
+      // ============================================
+      try {
+        // Eliminar avatar del usuario
+        if (userToDelete.avatar && typeof userToDelete.avatar === 'string') {
+          const publicId = userToDelete.avatar.split('/').pop().split('.')[0];
+          await cloudinary.uploader.destroy(`avatars/${publicId}`);
+        }
+
+        // Eliminar avatars y covers de canales
+        for (const channel of channels) {
+          if (channel.avatar && channel.avatar.length > 0) {
+            for (const avatar of channel.avatar) {
+              if (avatar.public_id) {
+                await cloudinary.uploader.destroy(avatar.public_id);
+              }
+            }
+          }
+          if (channel.cover && channel.cover.length > 0) {
+            for (const cover of channel.cover) {
+              if (cover.public_id) {
+                await cloudinary.uploader.destroy(cover.public_id);
+              }
+            }
+          }
+        }
+
+        // Eliminar thumbnails y videos de Cloudinary
+        for (const video of videos) {
+          if (video.videoPublicId) {
+            await cloudinary.uploader.destroy(video.videoPublicId, { resource_type: 'video' });
+          }
+          if (video.thumbnail && typeof video.thumbnail === 'string') {
+            const thumbId = video.thumbnail.split('/').pop().split('.')[0];
+            await cloudinary.uploader.destroy(`thumbnails/${thumbId}`);
+          }
+        }
+
+        console.log('✅ Archivos de Cloudinary eliminados');
+      } catch (cloudError) {
+        console.log('⚠️ Error eliminando archivos de Cloudinary:', cloudError.message);
+      }
+
+      // ============================================
+      // 11. ELIMINAR EL USUARIO
+      // ============================================
+      await Users.findByIdAndDelete(userId);
+      console.log(`✅ Usuario ${userId} eliminado completamente`);
+
+      res.status(200).json({
+        success: true,
+        msg: 'Compte et tout son contenu supprimés avec succès',
+        deletedData: {
+          userId: userId,
+          channelsDeleted: channelIds.length,
+          videosDeleted: videoIds.length
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Error al eliminar usuario completo:', error);
+      res.status(500).json({
+        success: false,
+        msg: error.message || 'Erreur lors de la suppression du compte'
+      });
+    }
+  },
   deleteUser: async (req, res) => {
     try {
       if (req.user.role !== 'admin') {
@@ -659,12 +857,14 @@ const userCtrl = {
         { $match: { user: new mongoose.Types.ObjectId(userId), pendiente: false, isActive: true } },
         { $group: { _id: null, totalVideos: { $sum: 1 }, totalLikes: { $sum: { $size: '$likes' } }, totalViews: { $sum: '$views' }, totalComments: { $sum: { $size: '$comments' } }, totalShares: { $sum: { $size: { $ifNull: ['$shares', []] } } } } }
       ]);
-      res.json({ success: true, profile: {
-        _id: user._id, username: user.username, avatar: user.avatar, bio: user.bio || '', fullname: user.fullname || user.username,
-        isPro: user.isPro || false, role: user.role, followersCount: followers.length || 0, followingCount: following.length || 0,
-        profileViewsCount: user.profileViewsCount || 0, isFollowing,
-        videoStats: videoStats[0] || { totalVideos: 0, totalLikes: 0, totalViews: 0, totalComments: 0, totalShares: 0 }
-      } });
+      res.json({
+        success: true, profile: {
+          _id: user._id, username: user.username, avatar: user.avatar, bio: user.bio || '', fullname: user.fullname || user.username,
+          isPro: user.isPro || false, role: user.role, followersCount: followers.length || 0, followingCount: following.length || 0,
+          profileViewsCount: user.profileViewsCount || 0, isFollowing,
+          videoStats: videoStats[0] || { totalVideos: 0, totalLikes: 0, totalViews: 0, totalComments: 0, totalShares: 0 }
+        }
+      });
     } catch (err) {
       console.error('Error getUserProfile:', err);
       res.status(500).json({ success: false, message: err.message });
@@ -1028,15 +1228,15 @@ const userCtrl = {
       const { page = 1, limit = 12, filter = 'all' } = req.query;
       const skip = (parseInt(page) - 1) * parseInt(limit);
       const limitNum = parseInt(limit);
-      
+
       let match = { user: new mongoose.Types.ObjectId(userId), isActive: true };
-      
+
       if (filter === 'pending') {
         match.pendiente = true;
       } else if (filter === 'approved') {
         match.pendiente = false;
       }
-      
+
       const videos = await Video.find(match)
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -1044,17 +1244,17 @@ const userCtrl = {
         .populate('user', 'username avatar')
         .populate('channel', 'name avatar')
         .lean();
-      
+
       const total = await Video.countDocuments(match);
       const pendingCount = await Video.countDocuments({ user: new mongoose.Types.ObjectId(userId), pendiente: true, isActive: true });
       const approvedCount = await Video.countDocuments({ user: new mongoose.Types.ObjectId(userId), pendiente: false, isActive: true });
-      
+
       const currentUserId = req.user._id;
       const videosWithStatus = videos.map(v => ({
         ...v,
         liked: v.likes.some(id => id.toString() === currentUserId.toString()) || false
       }));
-      
+
       res.json({
         success: true,
         videos: videosWithStatus,
@@ -1076,20 +1276,20 @@ const userCtrl = {
     try {
       const { id } = req.params;
       const currentUserId = req.user._id;
-      
+
       if (id === currentUserId.toString()) {
         return res.status(400).json({ success: false, message: "No puedes seguirte a ti mismo" });
       }
-      
+
       const userToFollow = await Users.findById(id);
       const currentUser = await Users.findById(currentUserId);
-      
+
       if (!userToFollow || !currentUser) {
         return res.status(404).json({ success: false, message: "Usuario no encontrado" });
       }
-      
+
       const isFollowing = currentUser.following.includes(id) || false;
-      
+
       if (isFollowing) {
         await Users.findByIdAndUpdate(currentUserId, { $pull: { following: id } });
         await Users.findByIdAndUpdate(id, { $pull: { followers: currentUserId } });
@@ -1097,10 +1297,10 @@ const userCtrl = {
         await Users.findByIdAndUpdate(currentUserId, { $addToSet: { following: id } });
         await Users.findByIdAndUpdate(id, { $addToSet: { followers: currentUserId } });
       }
-      
+
       const updatedUser = await Users.findById(id);
       const followersCount = updatedUser.followers.length || 0;
-      
+
       res.json({
         success: true,
         isFollowing: !isFollowing,
@@ -1117,144 +1317,350 @@ const userCtrl = {
     try {
       const { id } = req.params;
       const { role } = req.body;
-      
+
       if (req.user.role !== 'admin') {
         return res.status(403).json({ success: false, message: 'Accès non autorisé' });
       }
-      
+
       const validRoles = ['user', 'moderator', 'admin'];
       if (!validRoles.includes(role)) {
         return res.status(400).json({ success: false, message: 'Rôle invalide' });
       }
-      
+
       const user = await Users.findByIdAndUpdate(
         id,
         { role },
         { new: true }
       ).select('-password');
-      
+
       if (!user) {
         return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
       }
-      
+
       res.json({ success: true, user });
     } catch (err) {
       console.error('Error updateUserRole:', err);
       res.status(500).json({ success: false, message: err.message });
     }
   },
-  likeVideo : async (req, res) => {
-  try {
-    const { videoId } = req.params;
-    const userId = req.user._id;
-    
-    console.log(`📥 likeVideo - videoId: ${videoId}, userId: ${userId}`);
-    
-    // Buscar el video
-    const video = await Video.findById(videoId);
-    if (!video) {
-      return res.status(404).json({ success: false, msg: "Video no encontrado" });
-    }
-    
-    // Buscar el usuario (importar Users)
-    const Users = require('../models/userModel');
-    const user = await Users.findById(userId);
-    if (!user) {
-      return res.status(404).json({ success: false, msg: "Usuario no encontrado" });
-    }
-    
-    // Verificar si ya tiene like
-    const isLiked = video.likes.includes(userId);
-    
-    if (isLiked) {
-      // ========== UNLIKE (Quitar like) ==========
-      console.log('📥 Quitando like...');
-      
-      // 1. Quitar like del video
-      await Video.findByIdAndUpdate(videoId, { $pull: { likes: userId } });
-      
-      // 2. Quitar video de likedVideos del usuario
-      await Users.findByIdAndUpdate(userId, { $pull: { likedVideos: videoId } });
-      
-      console.log('✅ Like removido correctamente');
-      
-      res.json({
-        success: true,
-        isLiked: false,
-        likesCount: (video.likes.length - 1),
-        message: "Like removed"
-      });
-      
-    } else {
-      // ========== LIKE (Agregar like) ==========
-      console.log('📥 Agregando like...');
-      
-      // 1. Agregar like al video
-      await Video.findByIdAndUpdate(videoId, { $push: { likes: userId } });
-      
-      // 2. Agregar video a likedVideos del usuario
-      await Users.findByIdAndUpdate(userId, { $addToSet: { likedVideos: videoId } });
-      
-      console.log('✅ Like agregado correctamente');
-      
-      // 3. Crear notificación (solo si no es su propio video)
-      if (video.user.toString() !== userId.toString()) {
-        const Notifications = require('../models/notifyModel');
-        const notification = new Notifications({
-          recipients: [video.user],
-          sender: userId,
-          text: `❤️ ${user.username} a aimé votre vidéo`,
-          url: `/video/${videoId}`,
-          type: 'video',
-          content: video.title
-        });
-        await notification.save();
-        console.log('✅ Notificación enviada');
+  likeVideo: async (req, res) => {
+    try {
+      const { videoId } = req.params;
+      const userId = req.user._id;
+
+      console.log(`📥 likeVideo - videoId: ${videoId}, userId: ${userId}`);
+
+      // Buscar el video
+      const video = await Video.findById(videoId);
+      if (!video) {
+        return res.status(404).json({ success: false, msg: "Video no encontrado" });
       }
-      
-      res.json({
-        success: true,
-        isLiked: true,
-        likesCount: (video.likes.length + 1),
-        message: "Like added"
-      });
+
+      // Buscar el usuario (importar Users)
+      const Users = require('../models/userModel');
+      const user = await Users.findById(userId);
+      if (!user) {
+        return res.status(404).json({ success: false, msg: "Usuario no encontrado" });
+      }
+
+      // Verificar si ya tiene like
+      const isLiked = video.likes.includes(userId);
+
+      if (isLiked) {
+        // ========== UNLIKE (Quitar like) ==========
+        console.log('📥 Quitando like...');
+
+        // 1. Quitar like del video
+        await Video.findByIdAndUpdate(videoId, { $pull: { likes: userId } });
+
+        // 2. Quitar video de likedVideos del usuario
+        await Users.findByIdAndUpdate(userId, { $pull: { likedVideos: videoId } });
+
+        console.log('✅ Like removido correctamente');
+
+        res.json({
+          success: true,
+          isLiked: false,
+          likesCount: (video.likes.length - 1),
+          message: "Like removed"
+        });
+
+      } else {
+        // ========== LIKE (Agregar like) ==========
+        console.log('📥 Agregando like...');
+
+        // 1. Agregar like al video
+        await Video.findByIdAndUpdate(videoId, { $push: { likes: userId } });
+
+        // 2. Agregar video a likedVideos del usuario
+        await Users.findByIdAndUpdate(userId, { $addToSet: { likedVideos: videoId } });
+
+        console.log('✅ Like agregado correctamente');
+
+        // 3. Crear notificación (solo si no es su propio video)
+        if (video.user.toString() !== userId.toString()) {
+          const Notifications = require('../models/notifyModel');
+          const notification = new Notifications({
+            recipients: [video.user],
+            sender: userId,
+            text: `❤️ ${user.username} a aimé votre vidéo`,
+            url: `/video/${videoId}`,
+            type: 'video',
+            content: video.title
+          });
+          await notification.save();
+          console.log('✅ Notificación enviada');
+        }
+
+        res.json({
+          success: true,
+          isLiked: true,
+          likesCount: (video.likes.length + 1),
+          message: "Like added"
+        });
+      }
+
+    } catch (err) {
+      console.error('❌ Error en likeVideo:', err);
+      res.status(500).json({ success: false, msg: err.message });
     }
-    
-  } catch (err) {
-    console.error('❌ Error en likeVideo:', err);
-    res.status(500).json({ success: false, msg: err.message });
-  }
-},
+  },
   // ==================== VERIFICAR/DESVERIFICAR USUARIO ====================
   toggleVerification: async (req, res) => {
     try {
       const { userId } = req.params;
       const { isVerified } = req.body;
-      
+
       if (req.user.role !== 'admin') {
         return res.status(403).json({ success: false, message: 'Accès non autorisé' });
       }
-      
+
       const user = await Users.findByIdAndUpdate(
         userId,
         { isVerified },
         { new: true }
       ).select('-password');
-      
+
       if (!user) {
         return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
       }
-      
-      res.json({ 
-        success: true, 
+
+      res.json({
+        success: true,
         message: isVerified ? 'Utilisateur vérifié' : 'Vérification retirée',
-        isVerified: user.isVerified 
+        isVerified: user.isVerified
       });
     } catch (err) {
       console.error('Error toggleVerification:', err);
       res.status(500).json({ success: false, message: err.message });
     }
+  },
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  // backend/controllers/userController.js - AÑADIR ESTA FUNCIÓN
+
+  // ============================================
+  // 🗑️ DELETE USER ACCOUNT - ELIMINACIÓN COMPLETA
+  // ============================================
+  deleteUserAccount: async (req, res) => {
+    try {
+      const userId = req.user._id;
+      const user = await User.findById(userId);
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          msg: 'Utilisateur non trouvé'
+        });
+      }
+
+      console.log(`🗑️ Eliminando cuenta de usuario: ${user.email} (${userId})`);
+
+      // ============================================
+      // 1. OBTENER TODOS LOS CANALES DEL USUARIO
+      // ============================================
+      const channels = await Channel.find({ owner: userId });
+      const channelIds = channels.map(ch => ch._id);
+
+      console.log(`📺 Canales encontrados: ${channels.length}`);
+
+      // ============================================
+      // 2. ELIMINAR VIDEOS DE CLOUDINARY
+      // ============================================
+      const videos = await Video.find({ user: userId });
+      console.log(`📹 Videos encontrados: ${videos.length}`);
+
+      const deletionErrors = [];
+
+      for (const video of videos) {
+        // Eliminar video de Cloudinary
+        if (video.videoPublicId) {
+          try {
+            const result = await cloudinary.uploader.destroy(video.videoPublicId, { resource_type: 'video' });
+            if (result.result !== 'ok' && result.result !== 'not found') {
+              deletionErrors.push(`Video ${video._id}: ${result.result}`);
+            }
+          } catch (err) {
+            deletionErrors.push(`Video ${video._id}: ${err.message}`);
+          }
+        }
+
+        // Eliminar thumbnail de Cloudinary
+        if (video.thumbnail && video.thumbnail.includes('cloudinary.com')) {
+          try {
+            let publicId = video.thumbnail.split('/').pop().split('.')[0];
+            const match = video.thumbnail.match(/\/upload\/(?:v\d+\/)?(.+?)\.\w+$/);
+            if (match) publicId = match[1];
+            await cloudinary.uploader.destroy(publicId, { resource_type: 'image' });
+          } catch (err) {
+            // No es crítico si falla
+          }
+        }
+      }
+
+      // ============================================
+      // 3. ELIMINAR VIDEOS DE LA BD
+      // ============================================
+      await Video.deleteMany({ user: userId });
+
+      // ============================================
+      // 4. ELIMINAR CANALES DE LA BD
+      // ============================================
+      await Channel.deleteMany({ owner: userId });
+
+      // ============================================
+      // 5. ELIMINAR AVATAR DE CLOUDINARY
+      // ============================================
+      if (user.avatar && user.avatar.includes('cloudinary.com')) {
+        try {
+          let publicId = user.avatar.split('/').pop().split('.')[0];
+          const match = user.avatar.match(/\/upload\/(?:v\d+\/)?(.+?)\.\w+$/);
+          if (match) publicId = match[1];
+          await cloudinary.uploader.destroy(publicId, { resource_type: 'image' });
+        } catch (err) {
+          // No es crítico si falla
+        }
+      }
+
+      // ============================================
+      // 6. ELIMINAR REFERENCIAS EN OTROS USUARIOS
+      // ============================================
+      // Remover usuario de followers de otros
+      await User.updateMany(
+        { followers: userId },
+        { $pull: { followers: userId } }
+      );
+
+      // Remover usuario de following de otros
+      await User.updateMany(
+        { following: userId },
+        { $pull: { following: userId } }
+      );
+
+      // Remover usuario de followingChannels de otros
+      await User.updateMany(
+        { followingChannels: { $in: channelIds } },
+        { $pull: { followingChannels: { $in: channelIds } } }
+      );
+
+      // Remover likes de videos
+      await Video.updateMany(
+        { likes: userId },
+        { $pull: { likes: userId } }
+      );
+
+      // Remover savedVideos
+      await User.updateMany(
+        { savedVideos: { $in: videos.map(v => v._id) } },
+        { $pull: { savedVideos: { $in: videos.map(v => v._id) } } }
+      );
+
+      // ============================================
+      // 7. ELIMINAR NOTIFICACIONES DEL USUARIO
+      // ============================================
+      await Notify.deleteMany({
+        $or: [
+          { sender: userId },
+          { recipients: userId }
+        ]
+      });
+
+      // ============================================
+      // 8. ELIMINAR COMENTARIOS DEL USUARIO
+      // ============================================
+      await Comment.deleteMany({ user: userId });
+
+      // Remover comentarios de videos
+      await Video.updateMany(
+        { 'comments.user': userId },
+        { $pull: { comments: { user: userId } } }
+      );
+
+      // ============================================
+      // 9. ELIMINAR EL USUARIO
+      // ============================================
+      await User.findByIdAndDelete(userId);
+
+      console.log(`✅ Cuenta eliminada completamente: ${user.email}`);
+      console.log(`   - Canales: ${channels.length}`);
+      console.log(`   - Videos: ${videos.length}`);
+      if (deletionErrors.length) {
+        console.warn(`   - Errores en Cloudinary: ${deletionErrors.length}`);
+      }
+
+      res.json({
+        success: true,
+        msg: 'Compte supprimé avec succès',
+        deletedData: {
+          channels: channels.length,
+          videos: videos.length,
+          errors: deletionErrors
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Error deleteUserAccount:', error);
+      res.status(500).json({
+        success: false,
+        msg: error.message
+      });
+    }
   }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 };
 
 module.exports = userCtrl;
