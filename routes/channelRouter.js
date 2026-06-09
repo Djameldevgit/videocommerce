@@ -8,6 +8,7 @@ const channelCtrl = require('../controllers/channelCtrl');
  
  
 // ========== RUTAS PÚBLICAS (sin auth) ==========
+router.get('/public/approved', channelCtrl.getApprovedChannels);
 router.get('/channels/:channelId', channelCtrl.getChannelProfile);
 router.get('/channels/:channelId/videos', channelCtrl.getChannelVideos);
 router.get('/pending/:channelId', auth, channelCtrl.getPendingChannel);
@@ -20,7 +21,7 @@ router.patch('/channels/:channelId/follow', auth, channelCtrl.toggleFollowChanne
 router.patch('/channels/:channelId', auth, channelCtrl.updateChannel);
 router.delete('/channels/:id', auth, channelCtrl.deleteChannel);
 router.get('/channels/owner/:id', auth, channelCtrl.getChannelForOwner);
-router.get('/:id', auth, channelCtrl.getChannelById);
+
 
 // ========== NUEVAS RUTAS PARA DROPDOWN ==========
 router.post('/channels/:channelId/report', auth, channelCtrl.reportChannel);
@@ -35,4 +36,5 @@ router.patch('/admin/channels/:channelId/reject', auth, channelCtrl.rejectChanne
  
 // ✅ Ruta para que el dueño reenvíe un canal rechazado
 router.patch('/:channelId/resubmit', auth, channelCtrl.resubmitChannel);
+ router.get('/:id', auth, channelCtrl.getChannelById);
 module.exports = router;

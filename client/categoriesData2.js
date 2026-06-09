@@ -23,8 +23,7 @@ const mainCategories = [
   'tutorials',      // ← PRIMERA: Tutoriales para onboarding
   'channels',       // ← SEGUNDA: Canales destacados (Chaînes)
   
-  // ============ 🏪 CATEGORÍAS COMERCIALES ============
-  'agence',
+ 
   'immobilier',
   'vehicules',
   'pieces-detachees',
@@ -51,7 +50,7 @@ const categoryNames = {
   'channels': 'Chaînes',
   
   // Comerciales
-  'agence': 'Agence',
+   
   'immobilier': 'Immobilier',
   'vehicules': 'Automobiles & Véhicules',
   'pieces-detachees': 'Pièces détachées',
@@ -75,7 +74,7 @@ const categoryNames = {
 const categoryNamesFr = {
   'tutorials': 'Tutoriels',
   'channels': 'Chaînes',
-  'agence': 'Agence',
+   
   'immobilier': 'Immobilier',
   'vehicules': 'Automobiles & Véhicules',
   'pieces-detachees': 'Pièces détachées',
@@ -99,7 +98,7 @@ const categoryNamesFr = {
 const categoryNamesAr = {
   'tutorials': 'دروس تعليمية',
   'channels': 'قنوات',
-  'agence': 'وكالة',
+  
   'immobilier': 'عقارات',
   'vehicules': 'سيارات ومركبات',
   'pieces-detachees': 'قطع الغيار',
@@ -123,7 +122,7 @@ const categoryNamesAr = {
 const categoryIcons = {
   'tutorials': '🎓',
   'channels': '📺',
-  'agence': '🏢',
+  
   'immobilier': '🏠',
   'vehicules': '🚗',
   'pieces-detachees': '🔧',
@@ -150,7 +149,7 @@ const categoryColors = {
   'channels': '#8E44AD',       // Púrpura - destaca canales
   
   // Comerciales
-  'agence': '#4A90E2',
+  
   'immobilier': '#50B5A9',
   'vehicules': '#E67E22',
   'pieces-detachees': '#95A5A6',
@@ -174,7 +173,7 @@ const categoryColors = {
 const categoryPriority = {
   'tutorials': 'high',
   'channels': 'high',
-  'agence': 'normal',
+ 
   'immobilier': 'normal',
   'vehicules': 'normal',
   'pieces-detachees': 'normal',
@@ -198,7 +197,7 @@ const categoryPriority = {
 const categoryType = {
   'tutorials': 'special',
   'channels': 'special',
-  'agence': 'commercial',
+  
   'immobilier': 'commercial',
   'vehicules': 'commercial',
   'pieces-detachees': 'commercial',

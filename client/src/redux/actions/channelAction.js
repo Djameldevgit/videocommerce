@@ -1,7 +1,7 @@
 // redux/actions/channelAction.js
 import { GLOBALTYPES } from './globalTypes';
  import { imageUpload2 } from '../../utils/imageUpload2';
- 
+ import {  getPublicDataAPI } from '../../utils/fetchData';
 import { postDataAPI, getDataAPI, patchDataAPI, deleteDataAPI } from '../../utils/fetchData';
  
 
@@ -87,6 +87,11 @@ export const CHANNEL_TYPES = {
     
     UPDATE_CHANNEL_FOLLOW_STATUS: 'UPDATE_CHANNEL_FOLLOW_STATUS',
     SET_FOLLOWING_CHANNELS: 'SET_FOLLOWING_CHANNELS',
+    GET_APPROVED_CHANNELS_REQUEST: 'GET_APPROVED_CHANNELS_REQUEST',
+    GET_APPROVED_CHANNELS_SUCCESS: 'GET_APPROVED_CHANNELS_SUCCESS',
+    GET_APPROVED_CHANNELS_FAIL: 'GET_APPROVED_CHANNELS_FAIL',
+    CLEAR_APPROVED_CHANNELS: 'CLEAR_APPROVED_CHANNELS',
+
 };
 import { createNotify } from './notifyAction';
  
@@ -1203,3 +1208,36 @@ export const getPendingChannelOwner = (channelId, token) => async (dispatch) => 
         return { success: false, error: err.response?.data?.message };
     }
 };
+export const getApprovedChannels = (page = 1, limit = 12) => async (dispatch) => {
+    try {
+        dispatch({ type: CHANNEL_TYPES.GET_APPROVED_CHANNELS_REQUEST });
+        
+        // ✅ Llamada correcta: la URL no tiene /api al inicio, y los params van en config
+        const res = await getPublicDataAPI('public/approved', {
+            params: { page, limit }
+        });
+        
+        console.log('📡 Respuesta del servidor:', res.data);
+        
+        dispatch({
+            type: CHANNEL_TYPES.GET_APPROVED_CHANNELS_SUCCESS,
+            payload: {
+                channels: res.data.channels || [],
+                total: res.data.total || 0,
+                page: res.data.page || 1,
+                totalPages: res.data.totalPages || 1,
+                hasMore: res.data.hasMore || false
+            }
+        });
+    } catch (err) {
+        console.error('❌ Error getApprovedChannels:', err);
+        dispatch({
+            type: CHANNEL_TYPES.GET_APPROVED_CHANNELS_FAIL,
+            payload: err.response?.data?.message || 'Error al cargar canales'
+        });
+    }
+};
+
+export const clearApprovedChannels = () => ({
+    type: CHANNEL_TYPES.CLEAR_APPROVED_CHANNELS
+});

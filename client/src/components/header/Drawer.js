@@ -1,4 +1,4 @@
-// 📂 components/common/Drawer.js - VERSIÓN DEFINITIVA (con resourceUrl)
+// 📂 components/common/Drawer.js - VERSIÓN CON TUTORIALES Y CANALES INTERNOS
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useLocation, useHistory } from 'react-router-dom';
@@ -10,7 +10,7 @@ import axios from 'axios';
 import { BASE_URL } from '../../utils/config';
 
 // ============================================
-// CONSTANTES (idiomas, tutorial)
+// CONSTANTES (idiomas)
 // ============================================
 const SUPPORTED_LANGUAGES = [
   { code: 'ar', name: 'العربية', label: 'AR', flag: '🇸🇦', dir: 'rtl' },
@@ -18,10 +18,10 @@ const SUPPORTED_LANGUAGES = [
   { code: 'en', name: 'English', label: 'EN', flag: '🇬🇧', dir: 'ltr' }
 ];
 const DEFAULT_LANG = 'ar';
-const TUTORIAL_CHANNEL_URL = "https://www.youtube.com/channel/UC-dI7yrqBOSfL_g5-l01c4g";
+// ✅ ELIMINADO: TUTORIAL_CHANNEL_URL (ya no usamos YouTube externo)
 
 // ============================================
-// FUNCIONES DE IDIOMA
+// FUNCIONES DE IDIOMA (sin cambios)
 // ============================================
 const getStoredLanguage = () => {
   const cookies = document.cookie.split(';');
@@ -119,7 +119,7 @@ const Drawer = ({ show, onHide, width = 280, height = '100vh' }) => {
     return new Date(user.proExpiryDate) > new Date();
   }, [auth?.user]);
 
-  // Inicializar Google Translate
+  // Inicializar Google Translate (sin cambios)
   useEffect(() => {
     if (document.querySelector('#google-translate-script')) {
       setTranslateReady(true);
@@ -308,7 +308,8 @@ const Drawer = ({ show, onHide, width = 280, height = '100vh' }) => {
     message: '💬', shopping: '🛒', megaphone: '📢', gear: '⚙️',
     verified: '✅', warning: '⚠️', star: '⭐', heart: '❤️',
     annonce: '📢', commande: '📦', voyage: '✈️', pub: '🎯',
-    transaction: '💰', credit: '💳', video: '🎬', camera: '📹'
+    transaction: '💰', credit: '💳', video: '🎬', camera: '📹',
+    tutorial: '🎓', channels: '📺'  // ✅ Añadidos emojis para tutoriales y canales
   };
 
   const sectionColors = {
@@ -419,7 +420,7 @@ const Drawer = ({ show, onHide, width = 280, height = '100vh' }) => {
   };
 
   // --------------------------------------------------------------
-  // RENDER DE DROPDOWNS
+  // RENDER DE DROPDOWNS (sin cambios)
   // --------------------------------------------------------------
   const renderVideosDropdown = () => {
     if (!isProActive) return null;
@@ -470,7 +471,7 @@ const Drawer = ({ show, onHide, width = 280, height = '100vh' }) => {
   };
 
   // --------------------------------------------------------------
-  // CONTENIDO PRINCIPAL SEGÚN LA RUTA Y AUTENTICACIÓN
+  // CONTENIDO PRINCIPAL SEGÚN LA RUTA Y AUTENTICACIÓN (sin cambios excepto eliminación de Link externo)
   // --------------------------------------------------------------
   const renderDashboardContent = () => (
     <>
@@ -592,16 +593,22 @@ const Drawer = ({ show, onHide, width = 280, height = '100vh' }) => {
       <Offcanvas.Body style={{ overflowY: 'auto', padding: '10px 0', scrollbarWidth: 'thin' }}>
         {renderMainContent()}
         <div style={{ margin: '30px 0 15px 16px', fontSize: '0.9rem', fontWeight: '600', color: '#555' }}>🔗 Liens utiles</div>
-        <LinkItem emoji="🎬" name="📺 Tutoriels vidéo sur YouTube" path={TUTORIAL_CHANNEL_URL} external={true} color="#FF0000" />
+        
+        {/* ✅ NUEVOS ENLACES INTERNOS: Tutoriales y Canales */}
+        <LinkItem emoji="🎓" name="Tutoriels (Comment utiliser l'app)" path="/tutorials" color="#F1C40F" />
+        <LinkItem emoji="📺" name="Explorer les Chaînes" path="/channels" color="#8E44AD" />
+        
+        {/* Otros enlaces de ayuda (sin el antiguo YouTube) */}
         <LinkItem emoji="❓" name="Comment annoncer ?" path="/bloginfo" color="#6b7280" />
         <LinkItem emoji="✉️" name="Contactez-nous" path="/users/contactt" color="#6b7280" />
         <LinkItem emoji="🛡️" name="Politique de confidentialité" path="/bloginfo" color="#6b7280" />
+        
         <div style={{ marginTop: '30px', padding: '15px 16px', borderTop: '1px solid #e5e7eb', fontSize: '0.7rem', color: '#9ca3af', textAlign: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', marginBottom: '8px' }}>
             <span>🛡️</span>
             <span>Plateforme sécurisée</span>
           </div>
-          © {new Date().getFullYear()} MarketPlace Djamel Tous droits réservés.
+          © {new Date().getFullYear()} MarketPlace VideoCommerce MERN-Djamel/Ba Tous droits réservés.
         </div>
       </Offcanvas.Body>
     </Offcanvas>

@@ -63,6 +63,18 @@ const initialState = {
   error: null,
   pendingChannel: null,
   pendingLoading: false,
+  approvedChannels: {
+    channels: [],
+    total: 0,
+    page: 1,
+    totalPages: 1,
+    hasMore: false,
+    loading: false,
+    error: null
+},
+
+
+
 };
 
 // ✅ FUNCIÓN HELPER PARA EXTRAER URL DE IMAGEN
@@ -239,7 +251,7 @@ const channelReducer = (state = initialState, action) => {
     
     // ==================== FEED DEL CANAL ====================
     case CHANNEL_TYPES.GET_CHANNEL_FEED_VIDEOS:
-      const { page, videos, total, hasMore } = action.payload;
+      const { page, videos  } = action.payload;
       return {
         ...state,
         feedVideos: {
@@ -640,7 +652,57 @@ const channelReducer = (state = initialState, action) => {
         error: action.payload,
         loading: false
       };
-    
+    // ==================== CANALES APROBADOS (PÚBLICOS) ====================
+case CHANNEL_TYPES.GET_APPROVED_CHANNELS_REQUEST:
+  return {
+      ...state,
+      approvedChannels: {
+          ...state.approvedChannels,
+          loading: true,
+          error: null
+      }
+  };
+
+case CHANNEL_TYPES.GET_APPROVED_CHANNELS_SUCCESS:
+  const { channels, total, page: currentPage, totalPages, hasMore } = action.payload;
+  const existingChannels = state.approvedChannels.channels;
+  const newChannelsList = currentPage === 1 ? channels : [...existingChannels, ...channels];
+  return {
+      ...state,
+      approvedChannels: {
+          channels: newChannelsList,
+          total: total || 0,
+          page: currentPage || 1,
+          totalPages: totalPages || 1,
+          hasMore: hasMore || false,
+          loading: false,
+          error: null
+      }
+  };
+
+case CHANNEL_TYPES.GET_APPROVED_CHANNELS_FAIL:
+  return {
+      ...state,
+      approvedChannels: {
+          ...state.approvedChannels,
+          loading: false,
+          error: action.payload
+      }
+  };
+
+case CHANNEL_TYPES.CLEAR_APPROVED_CHANNELS:
+  return {
+      ...state,
+      approvedChannels: {
+          channels: [],
+          total: 0,
+          page: 1,
+          totalPages: 1,
+          hasMore: false,
+          loading: false,
+          error: null
+      }
+  };
     default:
       return state;
   }

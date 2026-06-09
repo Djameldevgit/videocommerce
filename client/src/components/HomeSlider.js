@@ -1,5 +1,9 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import './HomeSlider.css';
+
+// ✅ Categorías que NO deben aparecer en el slider
+const EXCLUDED_SLUGS = ['tutorials', 'channels'];
+
 const HomeSlider = ({
   categories = [],
   onCategoryClick,
@@ -8,8 +12,12 @@ const HomeSlider = ({
   const [internalActiveId, setInternalActiveId] = useState(null);
   const [failedImages, setFailedImages] = useState({});
 
-  const activeId =
-    activeCategoryId ?? internalActiveId;
+  const activeId = activeCategoryId ?? internalActiveId;
+
+  // ✅ Filtrar categorías: eliminar las excluidas
+  const filteredCategories = useMemo(() => {
+    return categories.filter(cat => !EXCLUDED_SLUGS.includes(cat.slug));
+  }, [categories]);
 
   // ===============================
   // IMAGE RESOLVER OPTIMIZADO
@@ -17,9 +25,7 @@ const HomeSlider = ({
   const getImageUrl = useCallback(
     (category) => {
       if (!category) return null;
-
       const slugUrl = `/categories/${category.slug}/${category.slug}.png`;
-
       return category.imageUrl || slugUrl;
     },
     []
@@ -50,11 +56,11 @@ const HomeSlider = ({
   );
 
   // ===============================
-  // MEMO CATEGORIES (CRÍTICO)
+  // MEMO CATEGORIES (CRÍTICO) - Usamos filteredCategories
   // ===============================
   const renderedCategories = useMemo(
     () =>
-      categories.map(cat => {
+      filteredCategories.map(cat => {
         const imageUrl = getImageUrl(cat);
         const isActive = activeId === cat._id;
         const initial = cat.name?.[0] || '?';
@@ -67,15 +73,12 @@ const HomeSlider = ({
           >
             <div className="catslider-ring">
               <div className="catslider-inner">
-
                 {imageUrl && !failedImages[cat._id] ? (
                   <img
                     src={imageUrl}
                     alt={cat.name}
                     loading="lazy"
-                    onError={() =>
-                      handleImageError(cat._id, imageUrl)
-                    }
+                    onError={() => handleImageError(cat._id, imageUrl)}
                   />
                 ) : (
                   <span className="catslider-initial">
@@ -83,10 +86,8 @@ const HomeSlider = ({
                   </span>
                 )}
               </div>
-
               <span className="catslider-dot" />
             </div>
-
             <span className="catslider-label">
               {cat.name}
             </span>
@@ -94,7 +95,7 @@ const HomeSlider = ({
         );
       }),
     [
-      categories,
+      filteredCategories,
       activeId,
       failedImages,
       handleClick,
@@ -103,7 +104,7 @@ const HomeSlider = ({
     ]
   );
 
-  if (!categories?.length) return null;
+  if (!filteredCategories?.length) return null;
 
   return (
     <div className="catslider-row">

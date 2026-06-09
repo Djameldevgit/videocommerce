@@ -39,12 +39,13 @@ import UserProInfoPlans from './pages/userProInfoPlans';
 import PaymentRequest from './pages/PaymentRequest';
 import planes from './pages/userProo/planes';
 import PaymentSuccess from './pages/userProo/PaymentSuccess';
-import DonationPage from './pages/donationPage'
+ 
 import { getDataAPI } from './utils/fetchData';
 import CreateChannelWizard from './pages/channel/createChannelWizard';
 import ChannelOwnerView from './pages/channel/ChannelOwnerView';
 import AdminChannelPreview from './pages/channel/AdminChannelPreview';
 import { loadFollowingFromStorage } from './redux/actions/channelAction';
+import ChannelsPage from './pages/ChannelsPage';
 
 let audioElement = null;
 let audioUnlocked = false;
@@ -308,7 +309,8 @@ function AppContent() {
       '/donation',
       '/planes',
       '/userproinfoplans',
-      '/channel/new'
+      '/channel/new',
+      '/channels'
 
     ];
 
@@ -385,7 +387,8 @@ function AppContent() {
         <Route exact path="/userpropayment" component={PaymentRequest} />
         <Route exact path="/userproinfoplans" component={UserProInfoPlans} />
         <Route path="/payment-success" component={PaymentSuccess} />
-        <Route path="/donation" component={DonationPage} />
+        
+        <Route exact path="/channels" component={ChannelsPage} />
         <Route exact path="/:slug/:page?" component={CategoryPage} />
         <Route exact path="/:slug/:subSlug/:page?" component={CategoryPage} />
         <Route exact path="/:slug/:subSlug/:articleSlug/:page?" component={CategoryPage} />

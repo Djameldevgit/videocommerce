@@ -1,47 +1,55 @@
-//  deleteCategories.js
+//node  deleteCategories.js
 require('dotenv').config();
 const mongoose = require('mongoose');
 const readline = require('readline');
 
-// ✅ Importa tu modelo de categoría (exportación por defecto)
-const Category = require('../models/categoryModel'); // ← Ruta correcta
+const Category = require('./models/categoryModel'); // Ajusta la ruta si es necesario
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/VideoCommerce';
-const mongooseOptions = {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-};
+const mongooseOptions = { useNewUrlParser: true, useUnifiedTopology: true };
 
-const confirmDelete = () => {
+const confirmDelete = async (slug) => {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   return new Promise((resolve) => {
-    rl.question('⚠️  ¿Eliminar TODAS las categorías? (escribe "SI"): ', (answer) => {
+    rl.question(`⚠️  ¿Eliminar la categoría "${slug}"? (escribe "SI"): `, (answer) => {
       rl.close();
       resolve(answer === 'SI');
     });
   });
 };
 
-const deleteAllCategories = async () => {
+const deleteCategoryBySlug = async () => {
   try {
     await mongoose.connect(MONGODB_URI, mongooseOptions);
     console.log('✅ Conectado a MongoDB');
 
-    const count = await Category.countDocuments();
-    if (count === 0) {
-      console.log('ℹ️  No hay categorías para eliminar.');
+    const slugToDelete = 'agence'; // ← Categoría a eliminar
+    const category = await Category.findOne({ slug: slugToDelete });
+
+    if (!category) {
+      console.log(`ℹ️  No existe la categoría con slug "${slugToDelete}". Nada que eliminar.`);
       process.exit(0);
     }
 
-    console.log(`📊 Se encontraron ${count} categorías.`);
-    const confirmed = await confirmDelete();
+    console.log(`📊 Categoría encontrada: ${category.name} (slug: ${category.slug})`);
+    const confirmed = await confirmDelete(slugToDelete);
     if (!confirmed) {
-      console.log('❌ Cancelado.');
+      console.log('❌ Eliminación cancelada.');
       process.exit(0);
     }
 
-    const result = await Category.deleteMany({});
-    console.log(`✅ Eliminadas ${result.deletedCount} categorías.`);
+    const result = await Category.deleteOne({ slug: slugToDelete });
+    if (result.deletedCount === 1) {
+      console.log(`✅ Eliminada la categoría "${slugToDelete}" correctamente.`);
+    } else {
+      console.log(`⚠️  No se eliminó ninguna categoría.`);
+    }
+
+    // Mostrar las categorías restantes
+    const remaining = await Category.find({}).sort({ order: 1 }).select('name slug order');
+    console.log('\n📋 Categorías restantes:');
+    remaining.forEach(cat => console.log(`   - ${cat.name} (${cat.slug}) orden: ${cat.order}`));
+
     process.exit(0);
   } catch (error) {
     console.error('❌ Error:', error);
@@ -51,4 +59,4 @@ const deleteAllCategories = async () => {
   }
 };
 
-deleteAllCategories();
+deleteCategoryBySlug();

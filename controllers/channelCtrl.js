@@ -962,6 +962,77 @@ const getChannelForOwner = async (req, res) => {
         });
     }
 };
+
+const getApprovedChannels = async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 12;
+        const skip = (page - 1) * limit;
+
+        const query = {
+            status: 'approved',
+            pendiente: false,
+            isActive: true
+        };
+
+        const [channels, total] = await Promise.all([
+            Channel.find(query)
+                .populate('owner', 'username avatar fullname')
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            Channel.countDocuments(query)
+        ]);
+
+        // FORMATEO SEGURO SIN OPTIONAL CHAINING
+        const formatted = channels.map(ch => {
+            // Avatar: si existe y es array, tomar el primer elemento.url
+            let avatarUrl = null;
+            if (ch.avatar && Array.isArray(ch.avatar) && ch.avatar.length > 0 && ch.avatar[0].url) {
+                avatarUrl = ch.avatar[0].url;
+            }
+
+            // Cover: igual
+            let coverUrl = null;
+            if (ch.cover && Array.isArray(ch.cover) && ch.cover.length > 0 && ch.cover[0].url) {
+                coverUrl = ch.cover[0].url;
+            }
+
+            // Owner
+            let ownerData = null;
+            if (ch.owner) {
+                ownerData = {
+                    _id: ch.owner._id.toString(),
+                    username: ch.owner.username,
+                    avatar: ch.owner.avatar,
+                    fullname: ch.owner.fullname
+                };
+            }
+
+            return {
+                ...ch,
+                _id: ch._id.toString(),
+                avatar: avatarUrl,
+                cover: coverUrl,
+                owner: ownerData
+            };
+        });
+
+        res.json({
+            success: true,
+            channels: formatted,
+            total: total,
+            page: page,
+            totalPages: Math.ceil(total / limit),
+            hasMore: page < Math.ceil(total / limit)
+        });
+    } catch (error) {
+        console.error('❌ Error getApprovedChannels:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 module.exports = {
     createChannel,
     updateChannel,
@@ -980,7 +1051,9 @@ module.exports = {
     registerShare,
     getContactInfo,
     resubmitChannel,
-    getChannelForOwner
+    getChannelForOwner,
+    getApprovedChannels
+
 
 
 };
