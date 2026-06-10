@@ -9,10 +9,12 @@ const cookieParser = require('cookie-parser')
 const morgan = require('morgan');
 const axios = require('axios');
 const path = require('path')
-const { startExpiryJob } = require('./cronjobs/expireTrials');
+ 
+const { startExpiryJob } = require('./cronJobs/ExpireTrial')
+ 
 // --- Cloudinary ---
 const cloudinary = require('cloudinary').v2;
-
+ 
 // ============================================
 // 1️⃣ INICIALIZAR APP
 // ============================================
