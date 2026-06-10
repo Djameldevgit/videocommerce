@@ -14,7 +14,11 @@ const userSchema = new mongoose.Schema({
         enum: ['user', 'moderator', 'userPro','admin'],  // ✅ userPro se maneja con isPro + channelPlan
         default: 'user'
     },
-
+// En userSchema agregar:
+trialStartDate: { type: Date, default: null },
+trialEndDate: { type: Date, default: null },
+trialUsed: { type: Boolean, default: false },
+isTrialExpired: { type: Boolean, default: false },
     // ============ PLANES DE CANAL (comercial) ============
     channelPlan: {
         type: String,
@@ -211,5 +215,43 @@ userSchema.methods.getBlockTimeRemaining = function() {
     const days = Math.ceil(remaining / (1000 * 60 * 60 * 24));
     return `${days} jour${days > 1 ? 's' : ''}`;
 };
+userSchema.methods.startTrial = async function() {
+    const trialEnd = new Date();
+    trialEnd.setDate(trialEnd.getDate() + 5); // 5 días
+    this.trialStartDate = new Date();
+    this.trialEndDate = trialEnd;
+    this.trialUsed = true;
+    this.isTrialExpired = false;
+    this.channelPlan = 'free'; // Plan base mientras está en prueba
+    await this.save();
+    return this;
+};
 
+// Verificar si el usuario puede crear un canal (trial o plan de pago)
+userSchema.methods.canCreateChannel = async function() {
+    // Si ya tiene un plan de pago activo, puede crear según límites (se validará en el controlador)
+    if (this.hasActivePlan() && this.channelPlan !== 'free') {
+        return true;
+    }
+    // Si no tiene plan de pago, solo puede tener un canal de prueba si no ha expirado
+    const Channel = mongoose.model('Channel');
+    const existingActiveChannel = await Channel.findOne({ 
+        owner: this._id, 
+        status: { $in: ['approved', 'pending'] },
+        isActive: true 
+    });
+    if (existingActiveChannel) return false; // Ya tiene un canal activo (trial)
+    
+    // Si nunca usó el trial o aún no ha expirado
+    if (!this.trialUsed) return true;
+    if (this.trialUsed && this.trialEndDate && new Date() < this.trialEndDate) return false; // Ya tiene un canal activo, no puede crear otro
+    return false; // Trial expirado y sin plan
+};
+
+// Obtener días restantes del trial (0 si no está en trial)
+userSchema.methods.getTrialDaysRemaining = function() {
+    if (!this.trialUsed || !this.trialEndDate) return 0;
+    const diff = new Date(this.trialEndDate) - new Date();
+    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+};
 module.exports = mongoose.model('user', userSchema);

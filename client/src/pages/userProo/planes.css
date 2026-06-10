@@ -18,6 +18,165 @@
     padding: 20px 30px;
     box-shadow: 0 10px 30px rgba(0,0,0,0.1);
   }
+
+  /* ============================================
+   MODAL CCP (INFORMATIVO)
+   ============================================ */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  backdrop-filter: blur(4px);
+}
+.modal-container {
+  background: white;
+  border-radius: 24px;
+  max-width: 500px;
+  width: 90%;
+  max-height: 85vh;
+  overflow: auto;
+  box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #e9ecef;
+  background: #f8f9fa;
+  border-radius: 24px 24px 0 0;
+}
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: #6c757d;
+  transition: color 0.2s;
+}
+.modal-close:hover { color: #dc3545; }
+.modal-body { padding: 1.5rem; }
+.bank-details {
+  background: #f1f3f5;
+  border-radius: 16px;
+  padding: 1rem;
+  margin: 1rem 0;
+}
+.bank-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid #dee2e6;
+  font-size: 0.9rem;
+}
+.bank-detail-row:last-child { border-bottom: none; }
+.copy-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #0d6efd;
+  transition: color 0.2s;
+}
+.copy-btn:hover { color: #0a58ca; }
+.ccp-notice {
+  background: #fff3cd;
+  border-left: 4px solid #ffc107;
+  padding: 0.75rem;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  margin-top: 1rem;
+}
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid #e9ecef;
+  background: #f8f9fa;
+  border-radius: 0 0 24px 24px;
+}
+.btn-secondary {
+  background: #6c757d;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 40px;
+  cursor: pointer;
+}
+.btn-primary {
+  background: #0d6efd;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 40px;
+  cursor: pointer;
+}
+
+/* Tarjeta de plan de prueba (informativo) */
+.free-trial-card {
+  border: 2px solid #10b981;
+  background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+  margin-bottom: 2rem;
+  cursor: default;
+}
+.trial-badge {
+  background: #10b981;
+  color: white;
+}
+.trial-info-message {
+  text-align: center;
+  font-size: 0.75rem;
+  color: #047857;
+  margin-top: 1rem;
+  padding: 0.5rem;
+  background: #d1fae5;
+  border-radius: 40px;
+}
+
+/* Botones de métodos de pago */
+.payment-methods-section {
+  margin: 2rem 0;
+}
+.payment-buttons {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin: 1rem 0;
+}
+.payment-method-btn {
+  flex: 1;
+  padding: 0.75rem;
+  border: none;
+  border-radius: 48px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.payment-method-btn.chargily {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+}
+.payment-method-btn.chargily:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px rgba(102,126,234,0.4);
+}
+.payment-method-btn.ccp {
+  background: #f59e0b;
+  color: white;
+}
+.payment-method-btn.ccp:hover {
+  background: #d97706;
+  transform: translateY(-2px);
+}
   
   .progress-steps {
     display: flex;

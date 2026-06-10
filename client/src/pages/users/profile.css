@@ -1192,3 +1192,372 @@
     opacity: 0.5;
     cursor: not-allowed;
   }
+
+  /* ============================================
+   ESTILOS PARA DROPDOWN DEL PERFIL (MEJORADO)
+   ============================================ */
+
+/* Contenedor del menú desplegable */
+.profile-actions-menu {
+  min-width: 280px;
+  border-radius: 16px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.02) !important;
+  border: none !important;
+  padding: 0.5rem 0 !important;
+}
+
+/* Items de información (plan y límites) - no clickeables */
+.profile-actions-menu .plan-info-item,
+.profile-actions-menu .plan-limits-item {
+  padding: 0.5rem 1rem;
+  cursor: default;
+  background-color: transparent;
+}
+
+.profile-actions-menu .plan-info-item:hover,
+.profile-actions-menu .plan-limits-item:hover {
+  background-color: transparent;
+}
+
+/* Fila de límites (canales, vídeos, duración) */
+.limit-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+  margin-bottom: 0.5rem;
+}
+
+.limit-row:last-child {
+  margin-bottom: 0;
+}
+
+.limit-row span:first-child {
+  font-weight: 500;
+  color: #4b5563;
+}
+
+.limit-row span:last-child {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+/* Badges dentro del dropdown */
+.profile-actions-menu .badge {
+  font-size: 0.65rem;
+  padding: 2px 6px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* Separadores del dropdown */
+.profile-actions-menu .dropdown-divider {
+  margin: 0.25rem 0;
+  background-color: #e9ecef;
+}
+
+/* Items de acción normales */
+.profile-actions-menu .dropdown-item {
+  font-size: 0.85rem;
+  padding: 0.5rem 1rem;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile-actions-menu .dropdown-item:hover {
+  background-color: #f8f9fa;
+  padding-left: 1.2rem;
+}
+
+/* Icono de tres puntos (ya existe, pero reforzamos para móvil) */
+.icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: white;
+  border: none;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-btn:hover {
+  background: #f0f2f5;
+  transform: scale(1.05);
+}
+
+/* ========== RESPONSIVE MÓVIL ========== */
+@media (max-width: 576px) {
+  .profile-actions-menu {
+    min-width: 260px;
+    max-width: 90vw;
+    right: 0 !important;
+    left: auto !important;
+    transform: translateX(0) !important;
+  }
+
+  .limit-row {
+    font-size: 0.7rem;
+  }
+
+  .profile-actions-menu .dropdown-item {
+    font-size: 0.8rem;
+    padding: 10px 12px;
+  }
+
+  .profile-actions-menu .dropdown-item svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .profile-actions-menu .badge {
+    font-size: 0.6rem;
+    padding: 2px 5px;
+  }
+
+  /* Aumentamos el área táctil del botón de tres puntos */
+  .icon-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .icon-btn svg {
+    width: 22px;
+    height: 22px;
+  }
+}
+/* ========== TARJETA INTELIGENTE DE ESTADO DEL CANAL ========== */
+.channel-status-container {
+  margin: 1rem 0;
+}
+
+.channel-status-card {
+  background: white;
+  border-radius: 1rem;
+  padding: 1rem;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  border: 1px solid #e9ecef;
+}
+
+.channel-status-card .status-icon {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.channel-status-card h5 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.channel-status-card p {
+  font-size: 0.85rem;
+  color: #6c757d;
+  margin-bottom: 1rem;
+}
+
+.trial-timer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #e67e22;
+  margin-bottom: 0.5rem;
+}
+
+.expiring-soon {
+  background: #fff8e7;
+  border-color: #ffc107;
+}
+
+.expired-card {
+  background: #f8d7da;
+  border-color: #f5c6cb;
+}
+
+.pending-card {
+  background: #fff3cd;
+  border-color: #ffeeba;
+}
+
+.trial-active-card {
+  background: #d1ecf1;
+  border-color: #bee5eb;
+}
+
+.paid-card {
+  background: #d4edda;
+  border-color: #c3e6cb;
+}
+
+.trial-card {
+  background: linear-gradient(135deg, #667eea10, #764ba210);
+  border-color: #667eea;
+}
+/* Ajuste para pantallas muy pequeñas (menos de 380px) */
+@media (max-width: 380px) {
+  .profile-actions-menu {
+    min-width: 220px;
+  }
+  .limit-row {
+    font-size: 0.65rem;
+  }
+  .profile-actions-menu .dropdown-item {
+    font-size: 0.75rem;
+    padding: 8px 10px;
+  }
+}
+
+/* Modal de método de pago */
+.payment-method-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(5px);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.payment-method-modal {
+  background: white;
+  border-radius: 20px;
+  max-width: 500px;
+  width: 90%;
+  padding: 25px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+}
+
+.payment-methods-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin: 20px 0;
+}
+
+.payment-method {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 15px;
+  border: 2px solid #e9ecef;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.payment-method:hover {
+  border-color: #667eea;
+  background: #f8f9fa;
+}
+
+.method-icon {
+  font-size: 28px;
+  color: #667eea;
+}
+
+.bank-modal {
+  max-width: 550px;
+}
+
+.bank-details {
+  background: #f8f9fa;
+  padding: 15px;
+  border-radius: 12px;
+  margin: 15px 0;
+  font-family: monospace;
+}
+
+.bank-instructions {
+  background: #fff3cd;
+  padding: 12px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  font-size: 0.9rem;
+}
+
+.modal-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.btn-confirm-offline {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 30px;
+  cursor: pointer;
+}
+
+.btn-cancel-modal {
+  background: #6c757d;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 30px;
+  cursor: pointer;
+}
+
+.close-modal-btn {
+  background: #dc3545;
+  color: white;
+  border: none;
+  padding: 8px 20px;
+  border-radius: 30px;
+  cursor: pointer;
+  width: 100%;
+  margin-top: 15px;
+}
+
+.trial-card-info {
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+  border-radius: 20px;
+  padding: 20px;
+  margin-bottom: 30px;
+  border: 2px dashed #6c757d;
+  position: relative;
+}
+
+.trial-badge {
+  position: absolute;
+  top: -12px;
+  left: 20px;
+  background: #28a745;
+  color: white;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: bold;
+}
+
+.trial-content ul {
+  list-style: none;
+  padding-left: 0;
+  margin-top: 10px;
+}
+.trial-content li {
+  padding: 4px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.trial-note {
+  background: #fff3cd;
+  padding: 10px;
+  border-radius: 12px;
+  margin-top: 15px;
+  font-size: 0.8rem;
+  text-align: center;
+}

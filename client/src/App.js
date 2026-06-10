@@ -45,8 +45,8 @@ import CreateChannelWizard from './pages/channel/createChannelWizard';
 import ChannelOwnerView from './pages/channel/ChannelOwnerView';
 import AdminChannelPreview from './pages/channel/AdminChannelPreview';
 import { loadFollowingFromStorage } from './redux/actions/channelAction';
-import ChannelsPage from './pages/ChannelsPage';
-
+import ChannelsPage from './pages/canales/ChannelsPage';
+ 
 let audioElement = null;
 let audioUnlocked = false;
 
@@ -382,6 +382,7 @@ function AppContent() {
         <Route exact path="/profile/settings" component={ProfileSettings} />
         <Route exact path="/users/dashboard" component={DashboardPage} />
         <Route exact path="/profile/:id" component={profile} />
+      
         <Route exact path="/users/roles" component={roles} />
         <Route exact path="/planes" component={planes} />
         <Route exact path="/userpropayment" component={PaymentRequest} />

@@ -9,7 +9,7 @@ const cookieParser = require('cookie-parser')
 const morgan = require('morgan');
 const axios = require('axios');
 const path = require('path')
-
+const { startExpiryJob } = require('./cronjobs/expireTrials');
 // --- Cloudinary ---
 const cloudinary = require('cloudinary').v2;
 
@@ -158,7 +158,7 @@ mongoose.connect(URI, {
 })
 
 // ============================================
-// 8️⃣ PRODUCCIÓN - SERVIR CLIENTE REACT
+startExpiryJob();
 // ============================================
 if(process.env.NODE_ENV === 'production'){
     app.use(express.static('client/build'))

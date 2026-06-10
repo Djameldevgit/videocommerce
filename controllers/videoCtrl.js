@@ -54,141 +54,160 @@ const validateAndGetCategory = async (categoryIdOrSlug) => {
 // ============================================
 const createVideo = async (req, res) => {
   try {
-    const {
-      titre, title: receivedTitle, description, category, videoUrl, videoPublicId,
-      thumbnail, duration, music, isCommercial, saleType, address, mapUrl, channelId
-    } = req.body;
+      const {
+          titre, title: receivedTitle, description, category, videoUrl, videoPublicId,
+          thumbnail, duration, music, isCommercial, saleType, address, mapUrl, channelId
+      } = req.body;
 
-    const userId = req.user._id;
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
-    }
+      const userId = req.user._id;
+      const user = await User.findById(userId);
+      if (!user) {
+          return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
+      }
 
-    const isAdmin = user.role === 'admin';
-    const MAX_VIDEO_DURATION = 60;
-    
-    if (duration && duration > MAX_VIDEO_DURATION) {
-      return res.status(400).json({
-        success: false,
-        message: `⏱️ La durée maximale est de ${MAX_VIDEO_DURATION} secondes`
+      const isAdmin = user.role === 'admin';
+      const MAX_VIDEO_DURATION = 60;
+      
+      if (duration && duration > MAX_VIDEO_DURATION) {
+          return res.status(400).json({
+              success: false,
+              message: `⏱️ La durée maximale est de ${MAX_VIDEO_DURATION} secondes`
+          });
+      }
+
+      const finalTitle = titre || receivedTitle;
+      if (!finalTitle || !finalTitle.trim()) {
+          return res.status(400).json({ success: false, message: 'Le titre est obligatoire' });
+      }
+
+      if (!category) {
+          return res.status(400).json({ success: false, message: 'La catégorie est obligatoire' });
+      }
+
+      const categoryDoc = await validateAndGetCategory(category);
+      if (!categoryDoc) {
+          return res.status(400).json({ success: false, message: `Catégorie invalide: ${category}` });
+      }
+
+      if (!videoUrl) {
+          return res.status(400).json({ success: false, message: 'La vidéo est obligatoire' });
+      }
+
+      // Obtener el canal
+      let channel;
+      if (channelId) {
+          channel = await Channel.findById(channelId);
+          if (!channel) {
+              return res.status(404).json({ success: false, message: 'Canal non trouvé' });
+          }
+          if (channel.owner.toString() !== userId.toString() && !isAdmin) {
+              return res.status(403).json({ success: false, message: 'Vous n\'êtes pas propriétaire de ce canal' });
+          }
+      } else {
+          channel = await Channel.findOne({ owner: userId });
+          if (!channel) {
+              return res.status(400).json({ success: false, message: 'Vous n\'avez pas de canal. Créez-en un d\'abord.' });
+          }
+      }
+
+      // ✅ LÍMITE PARA CANALES DE PRUEBA (TRIAL): solo 1 vídeo (independientemente del estado)
+      if (channel.trialChannel) {
+          const videoCount = await Video.countDocuments({ 
+              channel: channel._id, 
+              status: { $ne: 'deleted' } 
+          });
+          if (videoCount >= 1) {
+              return res.status(403).json({
+                  success: false,
+                  message: "Le canal d'essai ne permet qu'une seule vidéo. Souscrivez un plan pour ajouter plus de vidéos."
+              });
+          }
+      }
+
+      // Validaciones comerciales
+      if (isCommercial === true || isCommercial === 'true') {
+          if (!channel.wilaya || !channel.commune) {
+              return res.status(400).json({ success: false, message: 'Pour les vidéos commerciales, le canal doit avoir une wilaya et une commune' });
+          }
+          if (!channel.phone && !channel.email) {
+              return res.status(400).json({ success: false, message: 'Le canal doit avoir au moins un moyen de contact' });
+          }
+          if (!saleType || !['retail', 'wholesale', 'both'].includes(saleType)) {
+              return res.status(400).json({ success: false, message: 'Le type de vente est obligatoire' });
+          }
+      }
+
+      // Procesamiento de música (opcional)
+      let finalVideoUrl = videoUrl;
+      let finalThumbnail = thumbnail;
+      let musicData = null;
+
+      if (music && music.audioPublicId && videoPublicId) {
+          try {
+              const formattedAudioId = music.audioPublicId.replace(/\//g, ':');
+              const uploadIndex = videoUrl.indexOf('/upload/');
+              if (uploadIndex === -1) throw new Error('URL invalide');
+              const base = videoUrl.substring(0, uploadIndex + 8);
+              const pathAndFile = videoUrl.substring(uploadIndex + 8);
+              const transformation = `l_audio:${formattedAudioId},fl_layer_apply`;
+              finalVideoUrl = `${base}${transformation}/${pathAndFile}`;
+              finalThumbnail = finalVideoUrl.replace(/\.mp4$/, '.jpg');
+              musicData = {
+                  id: music.id, title: music.title, artist: music.artist,
+                  audioUrl: music.audioUrl, audioPublicId: music.audioPublicId,
+                  volume: music.volume || 70, processed: true
+              };
+          } catch (err) {
+              musicData = { ...music, processed: false, error: err.message };
+          }
+      } else if (music && music.audioUrl) {
+          musicData = { ...music, processed: false };
+      }
+
+      // Crear vídeo (siempre pendiente, excepto admin)
+      const newVideo = new Video({
+          title: finalTitle.trim(),
+          description: description || '',
+          shortDescription: description ? description.substring(0, 300) : '',
+          category: categoryDoc._id,
+          videoUrl: finalVideoUrl,
+          videoPublicId: videoPublicId,
+          thumbnail: finalThumbnail,
+          duration: duration || 0,
+          channel: channel._id,
+          user: userId,
+          music: musicData,
+          tags: req.body.tags || [],
+          isCommercial: isCommercial === true || isCommercial === 'true' ? true : false,
+          saleType: (isCommercial === true || isCommercial === 'true') ? saleType : null,
+          address: address || '',
+          mapUrl: mapUrl || '',
+          status: isAdmin ? 'approved' : 'pending'
       });
-    }
 
-    const finalTitle = titre || receivedTitle;
-    if (!finalTitle || !finalTitle.trim()) {
-      return res.status(400).json({ success: false, message: 'Le titre est obligatoire' });
-    }
+      await newVideo.save();
+      await Category.findByIdAndUpdate(categoryDoc._id, { $inc: { videoCount: 1 } });
+      
+      channel.totalVideos = await Video.countDocuments({ channel: channel._id, status: 'approved', isActive: true });
+      await channel.save();
 
-    if (!category) {
-      return res.status(400).json({ success: false, message: 'La catégorie est obligatoire' });
-    }
+      const populatedVideo = await Video.findById(newVideo._id)
+          .populate('channel', 'name avatar isVerified _id owner wilaya commune phone email')
+          .populate('category', 'name slug icon')
+          .populate('user', 'username avatar');
 
-    const categoryDoc = await validateAndGetCategory(category);
-    if (!categoryDoc) {
-      return res.status(400).json({ success: false, message: `Catégorie invalide: ${category}` });
-    }
-
-    if (!videoUrl) {
-      return res.status(400).json({ success: false, message: 'La vidéo est obligatoire' });
-    }
-
-    let channel;
-    if (channelId) {
-      channel = await Channel.findById(channelId);
-      if (!channel) {
-        return res.status(404).json({ success: false, message: 'Canal non trouvé' });
-      }
-      if (channel.owner.toString() !== userId.toString() && !isAdmin) {
-        return res.status(403).json({ success: false, message: 'Vous n\'êtes pas propriétaire de ce canal' });
-      }
-    } else {
-      channel = await Channel.findOne({ owner: userId });
-      if (!channel) {
-        return res.status(400).json({ success: false, message: 'Vous n\'avez pas de canal. Créez-en un d\'abord.' });
-      }
-    }
-
-    if (isCommercial === true || isCommercial === 'true') {
-      if (!channel.wilaya || !channel.commune) {
-        return res.status(400).json({ success: false, message: 'Pour les vidéos commerciales, le canal doit avoir une wilaya et une commune' });
-      }
-      if (!channel.phone && !channel.email) {
-        return res.status(400).json({ success: false, message: 'Le canal doit avoir au moins un moyen de contact' });
-      }
-      if (!saleType || !['retail', 'wholesale', 'both'].includes(saleType)) {
-        return res.status(400).json({ success: false, message: 'Le type de vente est obligatoire' });
-      }
-    }
-
-    let finalVideoUrl = videoUrl;
-    let finalThumbnail = thumbnail;
-    let musicData = null;
-
-    if (music && music.audioPublicId && videoPublicId) {
-      try {
-        const formattedAudioId = music.audioPublicId.replace(/\//g, ':');
-        const uploadIndex = videoUrl.indexOf('/upload/');
-        if (uploadIndex === -1) throw new Error('URL invalide');
-        const base = videoUrl.substring(0, uploadIndex + 8);
-        const pathAndFile = videoUrl.substring(uploadIndex + 8);
-        const transformation = `l_audio:${formattedAudioId},fl_layer_apply`;
-        finalVideoUrl = `${base}${transformation}/${pathAndFile}`;
-        finalThumbnail = finalVideoUrl.replace(/\.mp4$/, '.jpg');
-        musicData = {
-          id: music.id, title: music.title, artist: music.artist,
-          audioUrl: music.audioUrl, audioPublicId: music.audioPublicId,
-          volume: music.volume || 70, processed: true
-        };
-      } catch (err) {
-        musicData = { ...music, processed: false, error: err.message };
-      }
-    } else if (music && music.audioUrl) {
-      musicData = { ...music, processed: false };
-    }
-
-    const newVideo = new Video({
-      title: finalTitle.trim(),
-      description: description || '',
-      shortDescription: description ? description.substring(0, 300) : '',
-      category: categoryDoc._id,
-      videoUrl: finalVideoUrl,
-      videoPublicId: videoPublicId,
-      thumbnail: finalThumbnail,
-      duration: duration || 0,
-      channel: channel._id,
-      user: userId,
-      music: musicData,
-      tags: req.body.tags || [],
-      isCommercial: isCommercial === true || isCommercial === 'true' ? true : false,
-      saleType: (isCommercial === true || isCommercial === 'true') ? saleType : null,
-      address: address || '',
-      mapUrl: mapUrl || '',
-      status: isAdmin ? 'approved' : 'pending'
-    });
-
-    await newVideo.save();
-    await Category.findByIdAndUpdate(categoryDoc._id, { $inc: { videoCount: 1 } });
-    
-    channel.totalVideos = await Video.countDocuments({ channel: channel._id, status: 'approved', isActive: true });
-    await channel.save();
-
-    const populatedVideo = await Video.findById(newVideo._id)
-      .populate('channel', 'name avatar isVerified _id owner wilaya commune phone email')
-      .populate('category', 'name slug icon')
-      .populate('user', 'username avatar');
-
-    res.status(201).json({
-      success: true,
-      message: isAdmin ? 'Vidéo créée avec succès' : 'Vidéo en attente d\'approbation',
-      video: populatedVideo
-    });
+      res.status(201).json({
+          success: true,
+          message: isAdmin ? 'Vidéo créée avec succès' : 'Vidéo en attente d\'approbation',
+          video: populatedVideo
+      });
 
   } catch (error) {
-    console.error('❌ Error createVideo:', error);
-    res.status(500).json({ success: false, message: error.message });
+      console.error('❌ Error createVideo:', error);
+      res.status(500).json({ success: false, message: error.message });
   }
 };
+
 
 // ============================================
 // 📹 GET VIDEO BY ID (PÚBLICO)

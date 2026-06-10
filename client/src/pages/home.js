@@ -1,4 +1,3 @@
- 
 import React, {
   useEffect,
   useCallback,
@@ -36,24 +35,17 @@ const Home = () => {
     currentCategoriesPage = 1
   } = useSelector(state => state.category || {});
 
-  const [isInitialLoad, setIsInitialLoad] =
-    useState(true);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   // ===============================
   // CARGA INICIAL
   // ===============================
   useEffect(() => {
-    if (
-      sliderCategories.length === 0 &&
-      !sliderLoading
-    ) {
+    if (sliderCategories.length === 0 && !sliderLoading) {
       dispatch(getSliderCategories());
     }
 
-    if (
-      categoriesWithVideos.length === 0 &&
-      !loadingCategoriesWithVideos
-    ) {
+    if (categoriesWithVideos.length === 0 && !loadingCategoriesWithVideos) {
       dispatch(getCategoriesWithVideos(1, 3));
     }
   }, []);
@@ -75,6 +67,14 @@ const Home = () => {
     [categoriesWithVideos]
   );
 
+  // ✅ Filtrar categorías no deseadas (tutorials y channels) del feed principal
+  const filteredCategories = useMemo(
+    () => allCategories.filter(
+      cat => cat.slug !== 'tutorials' && cat.slug !== 'channels'
+    ),
+    [allCategories]
+  );
+
   const hasMore = hasMoreCategoriesWithVideos;
   const page = currentCategoriesPage;
 
@@ -82,42 +82,20 @@ const Home = () => {
   // LOAD MORE
   // ===============================
   const fetchMoreCategories = useCallback(() => {
-    if (
-      loadingCategoriesWithVideos ||
-      !hasMore
-    )
-      return;
-
-    dispatch(
-      getCategoriesWithVideos(page + 1, 3)
-    );
-  }, [
-    dispatch,
-    loadingCategoriesWithVideos,
-    hasMore,
-    page
-  ]);
+    if (loadingCategoriesWithVideos || !hasMore) return;
+    dispatch(getCategoriesWithVideos(page + 1, 3));
+  }, [dispatch, loadingCategoriesWithVideos, hasMore, page]);
 
   // ===============================
   // CLICK SLIDER
   // ===============================
   const handleCategoryClick = useCallback(
     category => {
-      const slug =
-        category?.slug || category;
-
+      const slug = category?.slug || category;
       if (!slug) return;
 
-      sessionStorage.setItem(
-        'returnToFeed',
-        'true'
-      );
-
-      sessionStorage.setItem(
-        'scrollPosition',
-        window.scrollY
-      );
-
+      sessionStorage.setItem('returnToFeed', 'true');
+      sessionStorage.setItem('scrollPosition', window.scrollY);
       history.push(`/${slug}/1`);
     },
     [history]
@@ -128,20 +106,9 @@ const Home = () => {
   // ===============================
   const handleViewMore = useCallback(
     (slug, categoryName) => {
-      sessionStorage.setItem(
-        'returnToFeed',
-        'true'
-      );
-
-      sessionStorage.setItem(
-        'scrollPosition',
-        window.scrollY
-      );
-
-      history.push(`/${slug}/1`, {
-        fromHome: true,
-        categoryName
-      });
+      sessionStorage.setItem('returnToFeed', 'true');
+      sessionStorage.setItem('scrollPosition', window.scrollY);
+      history.push(`/${slug}/1`, { fromHome: true, categoryName });
     },
     [history]
   );
@@ -150,45 +117,25 @@ const Home = () => {
   // RESTORE SCROLL
   // ===============================
   useEffect(() => {
-    const pos =
-      sessionStorage.getItem(
-        'scrollPosition'
-      );
-
+    const pos = sessionStorage.getItem('scrollPosition');
     if (!pos) return;
 
     requestAnimationFrame(() => {
-      window.scrollTo(
-        0,
-        parseInt(pos, 10)
-      );
-
-      sessionStorage.removeItem(
-        'scrollPosition'
-      );
+      window.scrollTo(0, parseInt(pos, 10));
+      sessionStorage.removeItem('scrollPosition');
     });
   }, []);
 
   // ===============================
   // LOADING FIRST
   // ===============================
-  const isLoading =
-    isInitialLoad &&
-    loadingCategoriesWithVideos &&
-    allCategories.length === 0;
+  const isLoading = isInitialLoad && loadingCategoriesWithVideos && allCategories.length === 0;
 
   if (isLoading) {
     return (
-      <div
-        className={`home-loading ${theme}`}
-      >
-        <Spinner
-          animation="border"
-          variant="primary"
-        />
-        <p>
-          Chargement des catégories...
-        </p>
+      <div className={`home-loading ${theme}`}>
+        <Spinner animation="border" variant="primary" />
+        <p>Chargement des catégories...</p>
       </div>
     );
   }
@@ -201,60 +148,36 @@ const Home = () => {
       <header className="home-header">
         <HomeSlider
           categories={sliderCategories}
-          onCategoryClick={
-            handleCategoryClick
-          }
+          onCategoryClick={handleCategoryClick}
         />
       </header>
 
       <InfiniteScroll
-        dataLength={
-          allCategories.length
-        }
+        dataLength={filteredCategories.length}
         next={fetchMoreCategories}
-        hasMore={
-          hasMore &&
-          !loadingCategoriesWithVideos
-        }
+        hasMore={hasMore && !loadingCategoriesWithVideos}
         loader={
           <div className="home-loader">
-            <Spinner
-              animation="border"
-              size="sm"
-            />
-            <span>
-              Chargement...
-            </span>
+            <Spinner animation="border" size="sm" />
+            <span>Chargement...</span>
           </div>
         }
         endMessage={
-          allCategories.length >
-            0 && (
+          filteredCategories.length > 0 && (
             <div className="home-end-msg">
-              <p>
-                ✨ Toutes les
-                catégories ont été
-                chargées ✨
-              </p>
+              <p>✨ Toutes les catégories ont été chargées ✨</p>
             </div>
           )
         }
       >
-        {allCategories.map(
-          category => (
-            <CategorySection
-              key={category._id}
-              category={category}
-              videos={
-                category.videos ||
-                []
-              }
-              onViewMore={
-                handleViewMore
-              }
-            />
-          )
-        )}
+        {filteredCategories.map(category => (
+          <CategorySection
+            key={category._id}
+            category={category}
+            videos={category.videos || []}
+            onViewMore={handleViewMore}
+          />
+        ))}
       </InfiniteScroll>
     </div>
   );

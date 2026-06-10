@@ -45,6 +45,10 @@ const channelSchema = new mongoose.Schema({
     totalVideos: { type: Number, default: 0 },
     totalViews: { type: Number, default: 0 },
     totalLikes: { type: Number, default: 0 },
+    trialChannel: { type: Boolean, default: false },
+    trialExpiresAt: { type: Date, default: null },    isExpired: { type: Boolean, default: false },     // Si el canal ha expirado (para ocultarlo)
+
+
     settings: {
         allowComments: { type: Boolean, default: true },
         allowSharing: { type: Boolean, default: true },
@@ -94,7 +98,19 @@ channelSchema.methods.toggleFollow = async function(userId) {
     await this.save();
     return { isFollowing, followersCount: this.followersCount };
 };
+channelSchema.methods.expireTrial = async function() {
+    if (this.trialChannel && !this.isExpired()) {
+        this.status = 'expired';
+        this.isActive = false;
+        await this.save();
+    }
+    return this;
+};
 
+// Método renombrado para evitar colisión con algún campo 'isExpired'
+channelSchema.methods.isTrialExpired = function() {
+    return this.status === 'expired' || (this.trialExpiresAt && new Date() > this.trialExpiresAt);
+};
 // ✅ CORREGIDO: Error de sintaxis en el aggregate
 channelSchema.methods.updateStats = async function() {
     const Video = mongoose.model('Video');

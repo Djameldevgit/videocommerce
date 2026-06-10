@@ -1,4 +1,4 @@
-// CreateVideoWizard.jsx - VERSIÓN CORREGIDA
+// CreateVideoWizard.jsx - VERSIÓN CON LÍMITE DE 1 VÍDEO PARA CANALES TRIAL
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useHistory } from 'react-router-dom';
@@ -12,6 +12,7 @@ import StepMusicSelection from './StepMusicSelection';
 import { createVideo } from '../../redux/actions/videoAction';
 import { getSliderCategories } from '../../redux/actions/categoryAction';
 import { getMyChannels } from '../../redux/actions/channelAction';
+import { getUserVideos } from '../../redux/actions/videoAction'; // ← NUEVO
 import { videoUpload } from '../../utils/imageUpload';
 import { GLOBALTYPES } from '../../redux/actions/globalTypes';
 import './CreateVideoWizard.css';
@@ -24,6 +25,7 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
 
   const { sliderCategories = [], sliderLoading = false } = useSelector((state) => state.category || {});
   const { userChannels = [], loading: channelsLoading } = useSelector((state) => state.channel || {});
+  const { userVideos } = useSelector((state) => state.video || { userVideos: { videos: [], loading: false } }); // ← NUEVO
 
   // Estados
   const [loading, setLoading] = useState(false);
@@ -39,9 +41,11 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
   // Refs para evitar bucles
   const hasLoadedChannelsRef = useRef(false);
   const hasLoadedCategoriesRef = useRef(false);
+  const hasLoadedUserVideosRef = useRef(false);
   
-  // ✅ Estado para canal pendiente - Inicializado correctamente
   const [isChannelPending, setIsChannelPending] = useState(false);
+  const [videoCountForSelectedChannel, setVideoCountForSelectedChannel] = useState(0); // ← NUEVO
+  const [isTrialLimitReached, setIsTrialLimitReached] = useState(false); // ← NUEVO
 
   // Estado principal
   const [wizardData, setWizardData] = useState({
@@ -67,41 +71,53 @@ const CreateVideoWizard = ({ onSuccess, onCancel }) => {
   const cameraInputRef = useRef(null);
   const maxDuration = 60;
 
-  // ✅ EFECTO PARA VERIFICAR CANAL PENDIENTE (se ejecuta inmediatamente cuando hay canal seleccionado)
- // ✅ EFECTO PARA VERIFICAR CANAL PENDIENTE (CON MÁS LOGS)
-useEffect(() => {
-  console.log('🔍========== DEBUG COMPLETO ==========');
-  console.log('🔍 userChannels:', userChannels);
-  console.log('🔍 selectedChannelId:', selectedChannelId);
-  console.log('🔍 selectedChannel:', selectedChannel);
-  
-  if (selectedChannel) {
-    console.log('🔍 CANAL SELECCIONADO:');
-    console.log('  - Nombre:', selectedChannel.name);
-    console.log('  - pendiente (con e):', selectedChannel.pendiente);
-    console.log('  - status:', selectedChannel.status);
-    console.log('  - isActive:', selectedChannel.isActive);
-    console.log('  - Todas las keys:', Object.keys(selectedChannel));
-    
-    const isPending = selectedChannel.pendiente === true;
-    console.log('  - isPending calculado:', isPending);
-    
-    setIsChannelPending(isPending);
-  } else if (userChannels.length > 0 && !selectedChannelId) {
-    const firstChannel = userChannels[0];
-    console.log('🔍 PRIMER CANAL (por defecto):');
-    console.log('  - Nombre:', firstChannel.name);
-    console.log('  - pendiente:', firstChannel.pendiente);
-    
-    setIsChannelPending(firstChannel.pendiente === true);
-  } else {
-    console.log('🔍 No hay canal seleccionado ni canales disponibles');
-  }
-  
-  console.log('🔍=====================================');
-}, [selectedChannel, userChannels, selectedChannelId]);
+  // ============================================
+  // CARGAR VIDEOS DEL USUARIO (si no están cargados)
+  // ============================================
+  useEffect(() => {
+    if (auth.token && !hasLoadedUserVideosRef.current && (!userVideos || userVideos.videos?.length === 0)) {
+      hasLoadedUserVideosRef.current = true;
+      dispatch(getUserVideos(auth.user?._id, 'all', 1, 100));
+    }
+  }, [auth.token, auth.user?._id, dispatch, userVideos]);
 
-  // Cargar categorías (SOLO UNA VEZ)
+  // ============================================
+  // CONTAR VIDEOS DEL CANAL SELECCIONADO
+  // ============================================
+  useEffect(() => {
+    if (!selectedChannelId || !userVideos?.videos) {
+      setVideoCountForSelectedChannel(0);
+      setIsTrialLimitReached(false);
+      return;
+    }
+
+    const videosOfChannel = userVideos.videos.filter(v => v.channel?._id === selectedChannelId || v.channel === selectedChannelId);
+    const count = videosOfChannel.length;
+    setVideoCountForSelectedChannel(count);
+
+    // Si el canal es de prueba y ya tiene al menos 1 video, alcanzó el límite
+    if (selectedChannel?.trialChannel === true && count >= 1) {
+      setIsTrialLimitReached(true);
+      if (!error) setError('⛔ Vous avez déjà une vidéo sur ce canal d\'essai. Pour ajouter plus de vidéos, souscrivez un plan payant.');
+    } else {
+      setIsTrialLimitReached(false);
+      if (error?.includes('canal d\'essai')) setError(null);
+    }
+  }, [selectedChannelId, userVideos, selectedChannel, error]);
+
+  // Efecto para canal pendiente (ya existente)
+  useEffect(() => {
+    if (selectedChannel) {
+      setIsChannelPending(selectedChannel.pendiente === true);
+    } else if (userChannels.length > 0 && !selectedChannelId) {
+      const firstChannel = userChannels[0];
+      setIsChannelPending(firstChannel.pendiente === true);
+    } else {
+      setIsChannelPending(false);
+    }
+  }, [selectedChannel, userChannels, selectedChannelId]);
+
+  // Cargar categorías (existente)
   useEffect(() => {
     if (sliderCategories.length === 0 && !sliderLoading && !hasLoadedCategoriesRef.current) {
       hasLoadedCategoriesRef.current = true;
@@ -109,7 +125,7 @@ useEffect(() => {
     }
   }, [dispatch, sliderCategories.length, sliderLoading]);
 
-  // Cargar canales del usuario (SOLO UNA VEZ)
+  // Cargar canales (existente)
   useEffect(() => {
     if (auth.token && userChannels.length === 0 && !channelsLoading && !hasLoadedChannelsRef.current) {
       hasLoadedChannelsRef.current = true;
@@ -117,14 +133,13 @@ useEffect(() => {
     }
   }, [auth.token, dispatch, userChannels.length, channelsLoading]);
 
-  // Auto-seleccionar categoría cuando cambia el canal seleccionado
+  // Auto-seleccionar categoría (existente)
   useEffect(() => {
     if (selectedChannelId && selectedChannel?.activity) {
       const matchedCategory = sliderCategories.find(cat => 
         cat.name.toLowerCase() === selectedChannel.activity.toLowerCase() ||
         cat.slug === selectedChannel.activity.toLowerCase()
       );
-      
       if (matchedCategory) {
         setWizardData(prev => ({ ...prev, category: matchedCategory._id }));
       } else {
@@ -133,36 +148,32 @@ useEffect(() => {
     }
   }, [selectedChannelId, selectedChannel, sliderCategories]);
 
-  // Seleccionar primer canal por defecto cuando se carguen
+  // Seleccionar primer canal por defecto (existente)
   useEffect(() => {
     if (userChannels.length > 0 && !selectedChannelId) {
       const firstChannel = userChannels[0];
       setSelectedChannelId(firstChannel._id);
-      // ✅ Actualizar estado de canal pendiente inmediatamente
-      setIsChannelPending(firstChannel.pending === true);
+      setIsChannelPending(firstChannel.pendiente === true);
     }
   }, [userChannels, selectedChannelId]);
 
-  // Limpiar refs al desmontar
+  // Limpieza
   useEffect(() => {
     return () => {
       hasLoadedChannelsRef.current = false;
       hasLoadedCategoriesRef.current = false;
+      hasLoadedUserVideosRef.current = false;
     };
   }, []);
 
-  // Limpiar preview al desmontar
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
       if (wizardData.videoPreview?.startsWith('blob:')) URL.revokeObjectURL(wizardData.videoPreview);
-      hasLoadedChannelsRef.current = false;
-      hasLoadedCategoriesRef.current = false;
     };
   }, [wizardData.videoPreview]);
 
-  // Parar audio al cambiar de paso
   useEffect(() => {
     const handleStopAudio = () => {
       document.querySelectorAll('audio').forEach(audio => {
@@ -178,32 +189,44 @@ useEffect(() => {
   const isStep1Valid = wizardData.videoSource && wizardData.videoUrl && wizardData.videoDuration <= maxDuration;
   const isStep3Valid = selectedChannelId && wizardData.titre.trim().length > 0 && wizardData.category.length > 0;
 
-  // Validar canal para comercial
   const validateChannelForCommercial = () => {
     const hasCommercialData = !!wizardData.saleType;
     if (!hasCommercialData) return true;
 
     if (!selectedChannel?.wilaya || !selectedChannel?.commune) {
-      setError(
-        '❌ Ce canal ne possède pas de wilaya et commune.\n\n' +
-        'Veuillez compléter ces informations avant de publier une vidéo commerciale.'
-      );
+      setError('❌ Ce canal ne possède pas de wilaya et commune.\n\nVeuillez compléter ces informations avant de publier une vidéo commerciale.');
       return false;
     }
     if (!selectedChannel?.phone && !selectedChannel?.email) {
-      setError(
-        '❌ Ce canal ne possède pas de téléphone ou email.\n\n' +
-        'Veuillez ajouter un moyen de contact.'
-      );
+      setError('❌ Ce canal ne possède pas de téléphone ou email.\n\nVeuillez ajouter un moyen de contact.');
       return false;
     }
     return true;
   };
 
-  const handleGallerySelect = () => fileInputRef.current?.click();
-  const handleCameraSelect = () => cameraInputRef.current?.click();
+  const handleGallerySelect = () => {
+    if (isTrialLimitReached) {
+      setError('⛔ Limite atteinte : votre canal d\'essai ne peut contenir qu\'une seule vidéo.');
+      return;
+    }
+    fileInputRef.current?.click();
+  };
+
+  const handleCameraSelect = () => {
+    if (isTrialLimitReached) {
+      setError('⛔ Limite atteinte : votre canal d\'essai ne peut contenir qu\'une seule vidéo.');
+      return;
+    }
+    cameraInputRef.current?.click();
+  };
 
   const handleFileChange = useCallback(async (e, isCamera = false) => {
+    // Verificar nuevamente el límite por si acaso
+    if (isTrialLimitReached) {
+      setError('⛔ Limite atteinte : votre canal d\'essai ne peut contenir qu\'une seule vidéo.');
+      return;
+    }
+
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith('video/')) {
@@ -250,7 +273,7 @@ useEffect(() => {
       setError('Erreur lors de la lecture de la vidéo');
     };
     tempVideo.src = URL.createObjectURL(file);
-  }, [maxDuration]);
+  }, [maxDuration, isTrialLimitReached]);
 
   const clearVideo = () => {
     if (wizardData.videoPreview?.startsWith('blob:')) URL.revokeObjectURL(wizardData.videoPreview);
@@ -269,9 +292,12 @@ useEffect(() => {
   };
 
   const nextStep = () => {
-    // ✅ Evitar avanzar si el canal está pendiente
     if (isChannelPending) {
       setError('⏳ Impossible de publier : votre chaîne est en attente d\'approbation.');
+      return;
+    }
+    if (isTrialLimitReached) {
+      setError('⛔ Vous ne pouvez pas ajouter plus d\'une vidéo sur ce canal d\'essai. Souscrivez un plan payant pour créer plus de vidéos.');
       return;
     }
     if (currentStep === 1 && !isStep1Valid) {
@@ -299,13 +325,14 @@ useEffect(() => {
 
   const handleSubmit = async () => {
     if (submitting) return;
-    
-    // ✅ Validar canal pendiente antes de enviar
     if (isChannelPending) {
       setError('⏳ Impossible de publier : votre chaîne est en attente d\'approbation.');
       return;
     }
-    
+    if (isTrialLimitReached) {
+      setError('⛔ Limite atteinte : vous ne pouvez pas publier plus d\'une vidéo sur ce canal d\'essai.');
+      return;
+    }
     if (!validateChannelForCommercial()) return;
 
     setSubmitting(true);
@@ -361,11 +388,11 @@ useEffect(() => {
     }
   };
 
-  // ✅ Render paso 1 - CON ADVERTENCIA VISIBLE
+  // Render paso 1 con advertencia adicional
   const renderStep1 = () => (
     <div className="step1-container" style={{ padding: '0 8px', minHeight: '60vh', display: 'flex', flexDirection: 'column' }}>
       
-      {/* ⚠️ ADVERTENCIA PARA CANAL PENDIENTE - AHORA SÍ SE MUESTRA */}
+      {/* Advertencia para canal pendiente */}
       {isChannelPending && (
         <div style={{
           backgroundColor: '#fef3c7',
@@ -383,34 +410,51 @@ useEffect(() => {
               Chaîne en attente d'approbation
             </h6>
             <p style={{ color: '#78350f', marginBottom: '8px', fontSize: '13px' }}>
-              Votre chaîne <strong>"{selectedChannel?.name || userChannels[0]?.name}"</strong> n'a pas encore été approuvée par notre équipe.
+              Votre chaîne <strong>"{selectedChannel?.name || userChannels[0]?.name}"</strong> n'a pas encore été approuvée.
             </p>
             <p style={{ color: '#78350f', marginBottom: '0', fontSize: '13px' }}>
-              ❌ <strong>Vous ne pouvez pas publier de vidéos tant que votre chaîne n'est pas validée.</strong>
+              ❌ Vous ne pouvez pas publier de vidéos tant qu'elle n'est pas validée.
             </p>
-            <div style={{
-              marginTop: '12px',
-              padding: '8px',
-              backgroundColor: '#fffbeb',
-              borderRadius: '8px',
-              fontSize: '12px',
-              color: '#92400e'
-            }}>
-              💡 <strong>Conseil :</strong> Rendez-vous dans votre profil et attendez que votre canal soit approuvé par l'administrateur avant de créer des vidéos.
-            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Advertencia para límite de videos en trial */}
+      {isTrialLimitReached && (
+        <div style={{
+          backgroundColor: '#fee2e2',
+          borderLeft: '4px solid #ef4444',
+          borderRadius: '12px',
+          padding: '16px',
+          marginBottom: '20px',
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: '12px'
+        }}>
+          <div style={{ fontSize: '24px' }}>⛔</div>
+          <div style={{ flex: 1 }}>
+            <h6 style={{ color: '#991b1b', marginBottom: '8px', fontWeight: 'bold' }}>
+              Limite d'essai atteinte
+            </h6>
+            <p style={{ color: '#7f1d1d', marginBottom: '8px', fontSize: '13px' }}>
+              Vous avez déjà publié <strong>1 vidéo</strong> sur ce canal d'essai.
+            </p>
+            <p style={{ color: '#7f1d1d', marginBottom: '0', fontSize: '13px' }}>
+              Pour ajouter plus de vidéos, veuillez <strong>souscrire à un plan payant</strong> depuis la page des offres.
+            </p>
           </div>
         </div>
       )}
       
-      {/* Botones de selección de video */}
+      {/* Botones de selección de video (deshabilitados si límite alcanzado) */}
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '40px', marginBottom: '20px', padding: '10px 0' }}>
         <div style={{ textAlign: 'center' }}>
           <button 
             type="button" 
             onClick={handleGallerySelect} 
-            disabled={isChannelPending}
+            disabled={isChannelPending || isTrialLimitReached}
             style={{ 
-              background: isChannelPending ? 'linear-gradient(135deg, #999, #666)' : 'linear-gradient(135deg, #667eea, #764ba2)', 
+              background: (isChannelPending || isTrialLimitReached) ? 'linear-gradient(135deg, #999, #666)' : 'linear-gradient(135deg, #667eea, #764ba2)', 
               border: 'none', 
               borderRadius: '60px', 
               width: '70px', 
@@ -418,8 +462,8 @@ useEffect(() => {
               display: 'flex', 
               alignItems: 'center', 
               justifyContent: 'center', 
-              cursor: isChannelPending ? 'not-allowed' : 'pointer',
-              opacity: isChannelPending ? 0.5 : 1,
+              cursor: (isChannelPending || isTrialLimitReached) ? 'not-allowed' : 'pointer',
+              opacity: (isChannelPending || isTrialLimitReached) ? 0.5 : 1,
               transition: 'all 0.3s ease'
             }}
           >
@@ -432,9 +476,9 @@ useEffect(() => {
           <button 
             type="button" 
             onClick={handleCameraSelect} 
-            disabled={isChannelPending}
+            disabled={isChannelPending || isTrialLimitReached}
             style={{ 
-              background: isChannelPending ? 'linear-gradient(135deg, #999, #666)' : 'linear-gradient(135deg, #f093fb, #f5576c)', 
+              background: (isChannelPending || isTrialLimitReached) ? 'linear-gradient(135deg, #999, #666)' : 'linear-gradient(135deg, #f093fb, #f5576c)', 
               border: 'none', 
               borderRadius: '60px', 
               width: '70px', 
@@ -442,8 +486,8 @@ useEffect(() => {
               display: 'flex', 
               alignItems: 'center', 
               justifyContent: 'center', 
-              cursor: isChannelPending ? 'not-allowed' : 'pointer',
-              opacity: isChannelPending ? 0.5 : 1,
+              cursor: (isChannelPending || isTrialLimitReached) ? 'not-allowed' : 'pointer',
+              opacity: (isChannelPending || isTrialLimitReached) ? 0.5 : 1,
               transition: 'all 0.3s ease'
             }}
           >
@@ -453,14 +497,14 @@ useEffect(() => {
         </div>
       </div>
       
-      {/* Inputs ocultos para archivos */}
+      {/* Inputs ocultos */}
       <input 
         type="file" 
         ref={fileInputRef} 
         accept="video/mp4,video/quicktime,video/webm" 
         style={{ display: 'none' }} 
         onChange={(e) => handleFileChange(e, false)} 
-        disabled={isChannelPending}
+        disabled={isChannelPending || isTrialLimitReached}
       />
       <input 
         type="file" 
@@ -469,10 +513,9 @@ useEffect(() => {
         capture="environment" 
         style={{ display: 'none' }} 
         onChange={(e) => handleFileChange(e, true)} 
-        disabled={isChannelPending}
+        disabled={isChannelPending || isTrialLimitReached}
       />
       
-      {/* Barra de progreso */}
       {loading && uploadProgress > 0 && (
         <ProgressBar 
           now={uploadProgress} 
@@ -484,7 +527,6 @@ useEffect(() => {
         />
       )}
       
-      {/* Preview del video */}
       {wizardData.videoPreview && (
         <div className="video-preview-full" style={{ marginTop: '15px', position: 'relative', borderRadius: '16px', overflow: 'hidden', background: '#000' }}>
           <video src={wizardData.videoPreview} controls style={{ width: '100%', maxHeight: '50vh', objectFit: 'contain' }} />
@@ -496,14 +538,13 @@ useEffect(() => {
             size="sm" 
             style={{ position: 'absolute', top: '8px', right: '8px', borderRadius: '60px' }} 
             onClick={clearVideo}
-            disabled={isChannelPending}
+            disabled={isChannelPending || isTrialLimitReached}
           >
             <X size={14} className="me-1" /> Changer
           </Button>
         </div>
       )}
       
-      {/* Placeholder cuando no hay video */}
       {!wizardData.videoPreview && !loading && (
         <div style={{ 
           flex: 1, 
@@ -527,7 +568,7 @@ useEffect(() => {
     </div>
   );
 
-  // Render paso 3 - Canal (solo nombre) → Categoría bloqueada
+  // Render paso 3 (sin cambios, solo se añade posible mensaje de límite)
   const renderStep3 = () => {
     const channelMissingWilaya = selectedChannel && (!selectedChannel.wilaya || !selectedChannel.commune);
     const channelMissingContact = selectedChannel && (!selectedChannel.phone && !selectedChannel.email);
@@ -537,9 +578,13 @@ useEffect(() => {
 
     return (
       <div className="step3-container" style={{ padding: '0' }}>
+        {isTrialLimitReached && (
+          <Alert variant="danger" className="mb-3">
+            ⛔ <strong>Limite d'essai atteinte</strong> – Vous avez déjà une vidéo sur ce canal. Souscrivez un plan pour en ajouter d'autres.
+          </Alert>
+        )}
         <h5 className="mb-4" style={{ color: 'white', fontWeight: 'bold' }}>📝 Détails de la vidéo</h5>
 
-        {/* PASO 1: Sélectionner le canal (solo el nombre) */}
         <div className="mb-4">
           <label className="form-label fw-bold" style={{ color: 'white' }}>
             <Building className="me-2" /> Canal *
@@ -548,13 +593,7 @@ useEffect(() => {
             className="form-select"
             value={selectedChannelId}
             onChange={(e) => setSelectedChannelId(e.target.value)}
-            style={{ 
-              background: 'rgba(255,255,255,0.1)', 
-              border: 'none', 
-              color: 'white', 
-              borderRadius: '12px', 
-              padding: '12px' 
-            }}
+            style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', borderRadius: '12px', padding: '12px' }}
             disabled={channelsLoading}
           >
             <option value="">-- Choisissez un canal --</option>
@@ -564,23 +603,15 @@ useEffect(() => {
               </option>
             ))}
           </select>
-          <small className="text-muted d-block mt-2">
-            ℹ️ Sélectionnez le canal qui publiera cette vidéo
-          </small>
+          <small className="text-muted d-block mt-2">ℹ️ Sélectionnez le canal qui publiera cette vidéo</small>
         </div>
 
-        {/* PASO 2: Catégorie (bloquée, se remplit automatiquement) */}
         {selectedChannel && (
           <div className="mb-4 p-3" style={{ background: 'rgba(102, 126, 234, 0.1)', borderRadius: '16px', borderLeft: '4px solid #667eea' }}>
             <label className="form-label fw-bold" style={{ color: '#667eea' }}>
               <Folder2 className="me-2" /> Catégorie du canal
             </label>
-            <div style={{ 
-              background: 'rgba(255,255,255,0.05)', 
-              padding: '12px', 
-              borderRadius: '12px',
-              border: '1px solid rgba(255,255,255,0.1)'
-            }}>
+            <div style={{ background: 'rgba(255,255,255,0.05)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ fontSize: '24px' }}>
                   {sliderCategories.find(cat => cat._id === wizardData.category)?.icon || '📁'}
@@ -589,9 +620,7 @@ useEffect(() => {
                   <div style={{ color: 'white', fontWeight: 'bold', fontSize: '1.1rem' }}>
                     {categoryName || 'Chargement...'}
                   </div>
-                  <small className="text-muted">
-                    Cette catégorie est définie par le canal et ne peut pas être modifiée
-                  </small>
+                  <small className="text-muted">Cette catégorie est définie par le canal et ne peut pas être modifiée</small>
                 </div>
               </div>
             </div>
@@ -614,7 +643,6 @@ useEffect(() => {
           <small className="text-muted">{wizardData.titre.length}/100</small>
         </div>
 
-        {/* Descripción */}
         <div className="mb-3">
           <label className="form-label" style={{ color: 'white' }}>Description (optionnelle)</label>
           <textarea
@@ -623,28 +651,16 @@ useEffect(() => {
             placeholder="Décrivez votre vidéo..."
             value={wizardData.description}
             onChange={(e) => updateWizardData({ description: e.target.value })}
-            style={{ 
-              background: 'rgba(255,255,255,0.1)', 
-              border: 'none', 
-              color: 'white', 
-              borderRadius: '12px', 
-              resize: 'vertical' 
-            }}
+            style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', borderRadius: '12px', resize: 'vertical' }}
           />
         </div>
 
-        {/* Sección commerciale (optionnel) */}
         <div className="mt-4">
           <Button
             variant="outline-light"
             onClick={() => setShowCommercial(!showCommercial)}
             className="w-100 d-flex justify-content-between align-items-center"
-            style={{ 
-              borderRadius: '40px', 
-              padding: '8px 16px', 
-              background: 'rgba(255,255,255,0.05)', 
-              borderColor: 'rgba(255,255,255,0.2)' 
-            }}
+            style={{ borderRadius: '40px', padding: '8px 16px', background: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.2)' }}
           >
             <span><Tag className="me-2" /> Informations commerciales (optionnel)</span>
             {showCommercial ? <ChevronUp /> : <ChevronDown />}
@@ -659,9 +675,7 @@ useEffect(() => {
                     {channelMissingWilaya && <li>• Wilaya et commune manquants</li>}
                     {channelMissingContact && <li>• Téléphone ou email manquant</li>}
                   </ul>
-                  <small className="d-block mt-2">
-                    ℹ️ Veuillez mettre à jour votre canal dans les paramètres pour utiliser les fonctionnalités commerciales.
-                  </small>
+                  <small className="d-block mt-2">ℹ️ Veuillez mettre à jour votre canal dans les paramètres pour utiliser les fonctionnalités commerciales.</small>
                 </Alert>
               )}
 
@@ -695,14 +709,11 @@ useEffect(() => {
           )}
         </div>
 
-        {/* Preview vidéo */}
         {wizardData.videoPreview && (
           <div className="mt-4 p-3" style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '12px' }}>
             <label className="form-label" style={{ color: 'white', fontWeight: 500 }}>Aperçu vidéo</label>
             <video src={wizardData.videoPreview} controls style={{ width: '100%', maxHeight: '180px', borderRadius: '8px' }} />
-            <div className="mt-2 text-muted small">
-              Durée: {Math.floor(wizardData.videoDuration / 60)}:{Math.floor(wizardData.videoDuration % 60).toString().padStart(2, '0')}
-            </div>
+            <div className="mt-2 text-muted small">Durée: {Math.floor(wizardData.videoDuration / 60)}:{Math.floor(wizardData.videoDuration % 60).toString().padStart(2, '0')}</div>
           </div>
         )}
       </div>
@@ -768,8 +779,8 @@ useEffect(() => {
               <Button 
                 variant="primary" 
                 onClick={nextStep} 
-                disabled={loading || isChannelPending || (currentStep === 1 && !isStep1Valid)} 
-                style={{ borderRadius: '40px', padding: '8px 20px', background: isChannelPending ? '#6c757d' : 'linear-gradient(135deg, #667eea, #764ba2)', border: 'none', fontWeight: 'bold' }}
+                disabled={loading || isChannelPending || isTrialLimitReached || (currentStep === 1 && !isStep1Valid)} 
+                style={{ borderRadius: '40px', padding: '8px 20px', background: (isChannelPending || isTrialLimitReached) ? '#6c757d' : 'linear-gradient(135deg, #667eea, #764ba2)', border: 'none', fontWeight: 'bold' }}
               >
                 Suivant <ArrowRight className="ms-2" />
               </Button>
@@ -777,8 +788,8 @@ useEffect(() => {
               <Button 
                 variant="success" 
                 onClick={handleSubmit} 
-                disabled={submitting || !isStep3Valid || isChannelPending} 
-                style={{ borderRadius: '40px', padding: '8px 20px', background: isChannelPending ? '#6c757d' : 'linear-gradient(135deg, #28a745, #20c997)', border: 'none', fontWeight: 'bold' }}
+                disabled={submitting || !isStep3Valid || isChannelPending || isTrialLimitReached} 
+                style={{ borderRadius: '40px', padding: '8px 20px', background: (isChannelPending || isTrialLimitReached) ? '#6c757d' : 'linear-gradient(135deg, #28a745, #20c997)', border: 'none', fontWeight: 'bold' }}
               >
                 {submitting ? <><Spinner size="sm" className="me-2" /> Publication...</> : <><CloudUpload className="me-2" /> Publier</>}
               </Button>

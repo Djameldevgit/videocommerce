@@ -5,56 +5,81 @@ const useUserPlan = () => {
   const { auth } = useSelector(state => state);
   const user = auth?.user;
   
-  // Obtener el plan actual del usuario
+  // Determinar si el usuario tiene un plan de pago activo (basic, pro, business)
+  const isPaidUser = user?.role === 'userpro' && user?.channelPlan && user?.channelPlan !== 'free';
+  const hasPaidPlanActive = isPaidUser && (!user?.channelPlanExpiresAt || new Date(user.channelPlanExpiresAt) > new Date());
+  
+  // Determinar si está en período de prueba (trial)
+  const isTrialActive = user?.trialUsed === true && user?.trialEndDate && new Date(user.trialEndDate) > new Date();
+  
+  // El plan actual: 'free' (trial), 'basic', 'pro', 'business'
   const getCurrentPlan = () => {
     if (!user) return 'free';
-    if (user.role !== 'userpro') return 'free';
-    return user.channelPlan || 'free';
+    if (hasPaidPlanActive) return user.channelPlan; // basic, pro, business
+    if (isTrialActive) return 'free';
+    // Si no tiene trial activo ni plan de pago, se considera sin plan (no puede crear canales)
+    return 'none';
   };
   
-  // Obtener nombre del plan
+  // Nombre del plan
   const getPlanName = () => {
     const plan = getCurrentPlan();
     const names = {
-      'free': 'Gratuit',
+      'none': 'Aucun plan',
+      'free': 'Essai 5 jours',
       'basic': 'Basic',
       'pro': 'Pro',
       'business': 'Business'
     };
-    return names[plan] || 'Gratuit';
+    return names[plan] || 'Essai 5 jours';
   };
   
-  // Obtener color del plan
+  // Color del plan
   const getPlanColor = () => {
     const plan = getCurrentPlan();
     const colors = {
-      'free': '#6c757d',
+      'none': '#6c757d',
+      'free': '#10b981',
       'basic': '#667eea',
       'pro': '#f093fb',
       'business': '#f6b93b'
     };
-    return colors[plan] || '#6c757d';
+    return colors[plan] || '#10b981';
   };
   
-  // Obtener ícono del plan
+  // Icono del plan
   const getPlanIcon = () => {
     const plan = getCurrentPlan();
     const icons = {
-      'free': '🆓',
+      'none': '❌',
+      'free': '🎁',
       'basic': '⭐',
       'pro': '🚀',
       'business': '👑'
     };
-    return icons[plan] || '🆓';
+    return icons[plan] || '🎁';
   };
   
-  // Obtener límites según el plan
+  // Límites según el plan (trial o de pago)
   const getPlanLimits = () => {
     const plan = getCurrentPlan();
     const limits = {
-      free: {
+      none: {
+        maxChannels: 0,
+        maxVideos: 0,
+        maxDuration: 0,
+        maxStorage: 0,
+        canUpload: false,
+        canComment: false,
+        canLike: false,
+        canShare: false,
+        canAddMusic: false,
+        canAccessAnalytics: false,
+        canDownload: false
+      },
+      free: { // plan de prueba (trial)
         maxChannels: 1,
-        maxVideos: 5,
+        maxVideos: 1,
         maxDuration: 20,
         maxStorage: 10,
         canUpload: true,
@@ -112,32 +137,38 @@ const useUserPlan = () => {
     return limits[plan] || limits.free;
   };
   
-  // Verificar si es UserPro
-  const isUserPro = user?.role === 'userpro';
+  // Es usuario con plan de pago (no trial)
+  const isUserPro = hasPaidPlanActive;
   
-  // Verificar si el plan está activo
+  // Verificar si el plan de pago está activo (para mostrar caducidad)
   const hasActivePlan = () => {
     if (!isUserPro) return false;
     if (!user?.channelPlanExpiresAt) return true;
     return new Date(user.channelPlanExpiresAt) > new Date();
   };
   
-  // Verificar si el plan ha expirado
+  // Verificar si el plan de pago ha expirado
   const isExpired = () => {
     if (!isUserPro) return false;
     if (!user?.channelPlanExpiresAt) return false;
     return new Date(user.channelPlanExpiresAt) < new Date();
   };
   
-  // ✅ FUNCIÓN para obtener días restantes
+  // Días restantes (para plan de pago o trial)
   const getDaysRemaining = () => {
-    if (!isUserPro || !user?.channelPlanExpiresAt) return 0;
-    const diff = new Date(user.channelPlanExpiresAt) - new Date();
-    const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-    return days > 0 ? days : 0;
+    const plan = getCurrentPlan();
+    if (plan === 'free' && isTrialActive && user?.trialEndDate) {
+      const diff = new Date(user.trialEndDate) - new Date();
+      return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+    }
+    if (isUserPro && user?.channelPlanExpiresAt) {
+      const diff = new Date(user.channelPlanExpiresAt) - new Date();
+      return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+    }
+    return 0;
   };
   
-  // Verificar si puede crear un nuevo canal
+  // Verificar si puede crear un nuevo canal (según límites y si está en trial o plan de pago)
   const canCreateChannel = (currentChannelCount) => {
     const limits = getPlanLimits();
     if (limits.maxChannels === 'unlimited') return true;
@@ -151,7 +182,7 @@ const useUserPlan = () => {
     return currentVideoCount < limits.maxVideos;
   };
   
-  // Verificar si el video cumple con la duración máxima
+  // Verificar si el video cumple duración máxima
   const isValidDuration = (durationInSeconds) => {
     const limits = getPlanLimits();
     return durationInSeconds <= limits.maxDuration;
@@ -170,14 +201,15 @@ const useUserPlan = () => {
     planIcon: getPlanIcon(),
     planLimits: getPlanLimits(),
     isUserPro,
-    hasActivePlan: hasActivePlan(),     // ✅ Valor booleano
-    isExpired: isExpired(),              // ✅ Valor booleano
-    getDaysRemaining,                    // ✅ AHORA ES UNA FUNCIÓN (sin paréntesis)
+    hasActivePlan: hasActivePlan(),
+    isExpired: isExpired(),
+    getDaysRemaining,
     canCreateChannel,
     canUploadVideo,
     isValidDuration,
     hasAction,
-    user
+    user,
+    isTrialActive // adicional por si se necesita
   };
 };
 

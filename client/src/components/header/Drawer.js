@@ -1,4 +1,4 @@
-// 📂 components/common/Drawer.js - VERSIÓN CON TUTORIALES Y CANALES INTERNOS
+// 📂 components/common/Drawer.js - VERSIÓN CON ENLACE CONDICIONAL "CREAR CANAL" E ICONOS PNG
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useLocation, useHistory } from 'react-router-dom';
@@ -8,6 +8,8 @@ import { Link } from 'react-router-dom';
 import { FaChevronDown } from 'react-icons/fa';
 import axios from 'axios';
 import { BASE_URL } from '../../utils/config';
+// ✅ Importar acción para obtener los canales del usuario
+import { getMyChannels } from '../../redux/actions/channelAction';
 
 // ============================================
 // CONSTANTES (idiomas)
@@ -18,7 +20,6 @@ const SUPPORTED_LANGUAGES = [
   { code: 'en', name: 'English', label: 'EN', flag: '🇬🇧', dir: 'ltr' }
 ];
 const DEFAULT_LANG = 'ar';
-// ✅ ELIMINADO: TUTORIAL_CHANNEL_URL (ya no usamos YouTube externo)
 
 // ============================================
 // FUNCIONES DE IDIOMA (sin cambios)
@@ -75,6 +76,8 @@ const Drawer = ({ show, onHide, width = 280, height = '100vh' }) => {
   const location = useLocation();
   const history = useHistory();
   const { auth } = useSelector(state => state);
+  // ✅ Obtener los canales del usuario desde Redux
+  const { userChannels = [], loading: channelsLoading } = useSelector(state => state.channel || {});
 
   // Estados
   const [darkMode, setDarkMode] = useState(false);
@@ -91,7 +94,9 @@ const Drawer = ({ show, onHide, width = 280, height = '100vh' }) => {
   const [localCategories, setLocalCategories] = useState([]);
   const [loadingLocal, setLoadingLocal] = useState(false);
 
-  // Cargar categorías directamente desde la API al abrir el drawer
+  // ============================================
+  // CARGAR CATEGORÍAS PARA EL DRAWER
+  // ============================================
   const loadCategoriesDirectly = useCallback(async () => {
     if (loadingLocal) return;
     setLoadingLocal(true);
@@ -112,6 +117,15 @@ const Drawer = ({ show, onHide, width = 280, height = '100vh' }) => {
     }
   }, [show, localCategories.length, loadingLocal, loadCategoriesDirectly]);
 
+  // ============================================
+  // CARGAR CANALES DEL USUARIO (para saber si tiene canal)
+  // ============================================
+  useEffect(() => {
+    if (show && auth?.user && userChannels.length === 0 && !channelsLoading) {
+      dispatch(getMyChannels(auth.token));
+    }
+  }, [show, auth, userChannels.length, channelsLoading, dispatch]);
+
   const isProActive = useMemo(() => {
     const user = auth?.user;
     if (!user?.isPro) return false;
@@ -119,7 +133,9 @@ const Drawer = ({ show, onHide, width = 280, height = '100vh' }) => {
     return new Date(user.proExpiryDate) > new Date();
   }, [auth?.user]);
 
-  // Inicializar Google Translate (sin cambios)
+  // ============================================
+  // GOOGLE TRANSLATE (sin cambios)
+  // ============================================
   useEffect(() => {
     if (document.querySelector('#google-translate-script')) {
       setTranslateReady(true);
@@ -175,7 +191,6 @@ const Drawer = ({ show, onHide, width = 280, height = '100vh' }) => {
     };
   }, []);
 
-  // Ocultar elementos de Google Translate
   useEffect(() => {
     const hideGoogleElements = () => {
       const elements = document.querySelectorAll(
@@ -230,7 +245,7 @@ const Drawer = ({ show, onHide, width = 280, height = '100vh' }) => {
     const langInfo = SUPPORTED_LANGUAGES.find(l => l.code === langCode);
     if (langInfo) {
       document.documentElement.dir = langInfo.dir;
-      document.documentElement.lang = langCode;
+      document.documentElement.lang = langInfo.code;
     }
     translatePage(langCode);
     setTimeout(() => {
@@ -239,7 +254,9 @@ const Drawer = ({ show, onHide, width = 280, height = '100vh' }) => {
     }, 300);
   };
 
-  // Iconos por defecto para las categorías
+  // ============================================
+  // MEJORA: ICONOS DE CATEGORÍAS (priorizar imagen PNG)
+  // ============================================
   const defaultCategoryIcons = useMemo(() => ({
     'vehicules': '🚗', 'immobilier': '🏠', 'electromenager': '🔌',
     'electronique': '📱', 'mode': '👕', 'maison': '🛋️',
@@ -255,21 +272,36 @@ const Drawer = ({ show, onHide, width = 280, height = '100vh' }) => {
     return `${baseUrl}${iconPath.startsWith('/') ? iconPath : `/categories/${iconPath}`}`;
   }, []);
 
+  // ✅ Función mejorada: prioriza imageUrl, luego icon (si es URL), luego emoji por defecto
   const getCategoryIcon = useCallback((category) => {
-    const hasError = imageErrors[category.slug];
-    if (hasError) return { type: 'emoji', value: defaultCategoryIcons[category.slug] || '📦' };
-    if (category.icon) {
+    // Si ya hubo error con esta categoría, mostrar emoji
+    if (imageErrors[category.slug]) {
+      return { type: 'emoji', value: defaultCategoryIcons[category.slug] || '📦' };
+    }
+
+    // 1. Intentar usar imageUrl (ruta a PNG)
+    if (category.imageUrl) {
+      const fullUrl = getFullImageUrl(category.imageUrl);
+      if (fullUrl) return { type: 'image', value: fullUrl, alt: category.name };
+    }
+
+    // 2. Si no hay imageUrl, pero category.icon es una URL (posible legacy)
+    if (category.icon && (category.icon.startsWith('http') || category.icon.startsWith('/'))) {
       const fullUrl = getFullImageUrl(category.icon);
       if (fullUrl) return { type: 'image', value: fullUrl, alt: category.name };
     }
-    return { type: 'emoji', value: defaultCategoryIcons[category.slug] || '📦' };
+
+    // 3. Por defecto, usar emoji (category.icon suele ser el emoji)
+    return { type: 'emoji', value: category.icon || defaultCategoryIcons[category.slug] || '📦' };
   }, [imageErrors, getFullImageUrl, defaultCategoryIcons]);
 
   const handleImageError = useCallback((slug) => {
     setImageErrors(prev => ({ ...prev, [slug]: true }));
   }, []);
 
-  // Manejo del clic en categoría: usa resourceUrl si existe, sino la ruta interna
+  // ============================================
+  // MANEJADORES (sin cambios)
+  // ============================================
   const handleCategoryClick = useCallback((category) => {
     onHide();
     if (category.resourceUrl && category.resourceUrl.trim() !== '') {
@@ -309,7 +341,7 @@ const Drawer = ({ show, onHide, width = 280, height = '100vh' }) => {
     verified: '✅', warning: '⚠️', star: '⭐', heart: '❤️',
     annonce: '📢', commande: '📦', voyage: '✈️', pub: '🎯',
     transaction: '💰', credit: '💳', video: '🎬', camera: '📹',
-    tutorial: '🎓', channels: '📺'  // ✅ Añadidos emojis para tutoriales y canales
+    tutorial: '🎓', channels: '📺'
   };
 
   const sectionColors = {
@@ -320,9 +352,9 @@ const Drawer = ({ show, onHide, width = 280, height = '100vh' }) => {
     videos: { primary: '#DC2626', light: '#FEF2F2' }
   };
 
-  // --------------------------------------------------------------
-  // COMPONENTES INTERNOS (LinkItem, CategoryIcon, DropdownItem, DropdownHeader)
-  // --------------------------------------------------------------
+  // ============================================
+  // COMPONENTES INTERNOS (LinkItem, CategoryIcon, etc.)
+  // ============================================
   const LinkItem = ({ emoji, icon, name, path, onClick, color = '#8b5cf6', badge = null, isDashboardLink = false, external = false }) => {
     const isActive = !external && (location.pathname === path || (isDashboardLink && location.pathname.startsWith('/dashboard')));
     const finalColor = color;
@@ -419,9 +451,9 @@ const Drawer = ({ show, onHide, width = 280, height = '100vh' }) => {
     );
   };
 
-  // --------------------------------------------------------------
-  // RENDER DE DROPDOWNS (sin cambios)
-  // --------------------------------------------------------------
+  // ============================================
+  // RENDER DE DROPDOWNS
+  // ============================================
   const renderVideosDropdown = () => {
     if (!isProActive) return null;
     return (
@@ -470,9 +502,9 @@ const Drawer = ({ show, onHide, width = 280, height = '100vh' }) => {
     );
   };
 
-  // --------------------------------------------------------------
-  // CONTENIDO PRINCIPAL SEGÚN LA RUTA Y AUTENTICACIÓN (sin cambios excepto eliminación de Link externo)
-  // --------------------------------------------------------------
+  // ============================================
+  // CONTENIDO PRINCIPAL (con enlace condicional)
+  // ============================================
   const renderDashboardContent = () => (
     <>
       <div style={{
@@ -531,6 +563,12 @@ const Drawer = ({ show, onHide, width = 280, height = '100vh' }) => {
       <LinkItem emoji={darkMode ? emojis.sun : emojis.moon} name={darkMode ? 'Mode Clair' : 'Mode Sombre'} onClick={toggleDarkMode} color={darkMode ? '#f59e0b' : '#4b5563'} />
       <LinkItem emoji={emojis.dashboard} name="Mon Tableau de bord" path="/users/dashboard" color="#8b5cf6" isDashboardLink={true} />
       <LinkItem emoji="👤" name="Mon profil" path={`/profile/${auth.user?._id}`} color="#8b5cf6" isDashboardLink={true} />
+      
+      {/* ✅ Enlace condicional: mostrar solo si el usuario NO tiene ningún canal */}
+      {userChannels.length === 0 && (
+        <LinkItem emoji="📢" name="Créer une chaîne" path="/channel/new" color="#10b981" />
+      )}
+      
       {renderCategoriesDropdown()}
     </>
   );
@@ -594,11 +632,9 @@ const Drawer = ({ show, onHide, width = 280, height = '100vh' }) => {
         {renderMainContent()}
         <div style={{ margin: '30px 0 15px 16px', fontSize: '0.9rem', fontWeight: '600', color: '#555' }}>🔗 Liens utiles</div>
         
-        {/* ✅ NUEVOS ENLACES INTERNOS: Tutoriales y Canales */}
         <LinkItem emoji="🎓" name="Tutoriels (Comment utiliser l'app)" path="/tutorials" color="#F1C40F" />
         <LinkItem emoji="📺" name="Explorer les Chaînes" path="/channels" color="#8E44AD" />
         
-        {/* Otros enlaces de ayuda (sin el antiguo YouTube) */}
         <LinkItem emoji="❓" name="Comment annoncer ?" path="/bloginfo" color="#6b7280" />
         <LinkItem emoji="✉️" name="Contactez-nous" path="/users/contactt" color="#6b7280" />
         <LinkItem emoji="🛡️" name="Politique de confidentialité" path="/bloginfo" color="#6b7280" />

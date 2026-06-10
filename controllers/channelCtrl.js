@@ -5,8 +5,15 @@ const Video = require('../models/videoModel');
 const User = require('../models/userModel');
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
-
-// ==================== CREAR CANAL ====================
+const getPlanLimits = (plan) => {
+    const limits = {
+        free: { maxChannels: 1, maxVideos: 5 },      // Ya no se usará "free" como plan gratuito, solo como base
+        basic: { maxChannels: 3, maxVideos: 50 },
+        pro: { maxChannels: 7, maxVideos: 200 },
+        business: { maxChannels: 15, maxVideos: 'unlimited' }
+    };
+    return limits[plan] || limits.free;
+};
 const createChannel = async (req, res) => {
     try {
         const { 
@@ -26,11 +33,58 @@ const createChannel = async (req, res) => {
             return res.status(400).json({ success: false, msg: "Champs requis manquants" });
         }
 
-        const existingChannel = await Channel.findOne({ owner: req.user._id, name });
+        const user = await User.findById(req.user._id);
+        if (!user) {
+            return res.status(404).json({ success: false, msg: "Utilisateur non trouvé" });
+        }
+
+        // Contar canales activos (pending o approved) del usuario
+        const activeChannelsCount = await Channel.countDocuments({
+            owner: user._id,
+            status: { $in: ['pending', 'approved'] },
+            isActive: true
+        });
+
+        // Verificar si el usuario tiene un plan de pago activo
+        const hasActivePaidPlan = user.hasActivePlan && user.hasActivePlan() && user.channelPlan !== 'free';
+        let isTrialChannel = false;
+
+        if (hasActivePaidPlan) {
+            // Plan de pago: respetar límite de canales según el plan
+            const limits = getPlanLimits(user.channelPlan);
+            if (limits.maxChannels !== 'unlimited' && activeChannelsCount >= limits.maxChannels) {
+                return res.status(403).json({
+                    success: false,
+                    msg: `Vous avez atteint la limite de ${limits.maxChannels} canaux pour votre plan ${user.channelPlan}.`
+                });
+            }
+            isTrialChannel = false;
+        } else {
+            // Sin plan de pago: solo puede tener UN canal trial (pendiente o aprobado)
+            if (activeChannelsCount >= 1) {
+                return res.status(403).json({
+                    success: false,
+                    msg: "Vous ne pouvez avoir qu'un seul canal en période d'essai."
+                });
+            }
+            // Verificar si puede iniciar un nuevo período de prueba (no haber usado el trial antes o que haya expirado y pasado más de 5 días)
+            if (user.trialUsed && user.trialEndDate && new Date() > user.trialEndDate) {
+                // Ha expirado su trial anterior, no puede crear otro a menos que pague
+                return res.status(403).json({
+                    success: false,
+                    msg: "Votre période d'essai a expiré. Veuillez souscrire un plan pour créer un canal."
+                });
+            }
+            isTrialChannel = true;
+        }
+
+        // Evitar duplicado de nombre (opcional)
+        const existingChannel = await Channel.findOne({ owner: user._id, name });
         if (existingChannel) {
             return res.status(400).json({ success: false, msg: "Vous avez déjà un canal avec ce nom" });
         }
 
+        // Slug único
         const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
         let finalSlug = slug;
         let counter = 1;
@@ -38,7 +92,7 @@ const createChannel = async (req, res) => {
             finalSlug = `${slug}-${counter++}`;
         }
 
-        // Normalizar avatar
+        // Normalización de avatar y cover (igual que antes)
         let normalizedAvatar = [];
         if (avatar) {
             if (Array.isArray(avatar)) {
@@ -53,7 +107,6 @@ const createChannel = async (req, res) => {
             }
         }
 
-        // Normalizar cover
         let normalizedCover = [];
         if (cover) {
             if (Array.isArray(cover)) {
@@ -68,6 +121,7 @@ const createChannel = async (req, res) => {
             }
         }
 
+        // Crear el canal con estado pendiente (tanto trial como pago)
         const newChannel = new Channel({
             name,
             slug: finalSlug,
@@ -80,7 +134,9 @@ const createChannel = async (req, res) => {
             website: website || '',
             wilaya,
             commune,
-            owner: req.user._id,
+            owner: user._id,
+            trialChannel: isTrialChannel,
+            trialExpiresAt: null,          // Se asignará al aprobar
             status: 'pending',
             pendiente: true,
             isActive: true,
@@ -92,6 +148,13 @@ const createChannel = async (req, res) => {
         });
 
         await newChannel.save();
+
+        // Si es trial y nunca usó el trial, marcamos que ya lo usó (aunque aún no aprobado)
+        if (isTrialChannel && !user.trialUsed) {
+            user.trialUsed = true;
+            // No asignamos trialEndDate todavía, se hará al aprobar
+            await user.save();
+        }
 
         const populatedChannel = await Channel.findById(newChannel._id)
             .populate('owner', 'username avatar fullname')
@@ -110,7 +173,9 @@ const createChannel = async (req, res) => {
 
         res.json({
             success: true,
-            msg: 'Canal créé avec succès!',
+            msg: isTrialChannel 
+                ? "Canal d'essai créé, en attente d'approbation. Une fois approuvé, vous disposerez de 5 jours pour tester." 
+                : "Canal créé avec succès, en attente d'approbation.",
             channel: formattedChannel
         });
 
@@ -119,7 +184,41 @@ const createChannel = async (req, res) => {
         return res.status(500).json({ success: false, msg: err.message });
     }
 };
+const approveChannel = async (req, res) => {
+    try {
+        const { channelId } = req.params;
+        
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({ success: false, message: 'Accès non autorisé' });
+        }
+        
+        const channel = await Channel.findById(channelId);
+        if (!channel) {
+            return res.status(404).json({ success: false, message: 'Canal non trouvé' });
+        }
 
+        // Si es canal de prueba, establecer fecha de expiración a 5 días desde ahora
+        if (channel.trialChannel) {
+            const expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + 5);
+            channel.trialExpiresAt = expiresAt;
+            // Actualizar usuario con la fecha de expiración del trial
+            await User.findByIdAndUpdate(channel.owner, {
+                trialEndDate: expiresAt,
+                isTrialExpired: false
+            });
+        }
+
+        // Aprobar el canal usando el método del mixin
+        await channel.approve(req.user._id);
+        
+        res.json({ success: true, message: 'Canal approuvé avec succès', channel });
+        
+    } catch (error) {
+        console.error('❌ Error approveChannel:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
 // ==================== OBTENER MIS CANALES ====================
 const getMyChannels = async (req, res) => {
     try {
@@ -501,29 +600,7 @@ const toggleFollowChannel = async (req, res) => {
 };
 
 // ==================== APROBAR CANAL ====================
-const approveChannel = async (req, res) => {
-    try {
-        const { channelId } = req.params;
-        
-        if (req.user.role !== 'admin') {
-            return res.status(403).json({ success: false, message: 'Accès non autorisé' });
-        }
-        
-        const channel = await Channel.findById(channelId);
-        if (!channel) {
-            return res.status(404).json({ success: false, message: 'Canal no encontrado' });
-        }
-        
-        await channel.approve(req.user._id);
-        
-        res.json({ success: true, message: 'Canal approuvé avec succès', channel });
-        
-    } catch (error) {
-        console.error('❌ Error approveChannel:', error);
-        res.status(500).json({ success: false, message: error.message });
-    }
-};
-
+ 
 // ==================== RECHAZAR CANAL ====================
 const rejectChannel = async (req, res) => {
     try {

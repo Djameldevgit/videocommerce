@@ -19,7 +19,7 @@ const reviewableFields = {
     // ============ ESTADOS DEL CONTENIDO ============
     status: {
         type: String,
-        enum: ['pending', 'approved', 'rejected', 'deleted', 'draft'],
+        enum: ['pending', 'approved', 'rejected', 'deleted', 'draft', 'expired'],
         default: 'pending',
         index: true
     },
@@ -231,7 +231,8 @@ const reviewableMethods = {
             'approved': 'Approuvé',
             'rejected': 'Rejeté',
             'deleted': 'Supprimé',
-            'draft': 'Brouillon'
+            'draft': 'Brouillon',
+            'expired': 'dark'   // ← añadido
         };
         return statusMap[this.status] || 'Inconnu';
     },
@@ -243,7 +244,8 @@ const reviewableMethods = {
             'approved': 'success',
             'rejected': 'danger',
             'deleted': 'secondary',
-            'draft': 'secondary'
+            'draft': 'secondary',
+            'expired': 'Essai expiré'   // ← añadido
         };
         return colorMap[this.status] || 'secondary';
     },

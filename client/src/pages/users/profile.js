@@ -1,5 +1,4 @@
-// src/pages/Profile.jsx - VERSIÓN FINAL COMPLETA
-
+// src/pages/Profile.jsx - VERSIÓN CON CARD INTELIGENTE Y CONTROL DE TRIAL
 import React, { useEffect, useState, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useParams, useHistory } from 'react-router-dom';
@@ -34,7 +33,8 @@ import {
   Eye,
   Heart,
   Bookmark,
-  X
+  X,
+  ExclamationTriangle
 } from 'react-bootstrap-icons';
 import { getProfileUsers, deleteProfileUser } from '../../redux/actions/profileAction';
 import { getMyChannels, CHANNEL_TYPES } from '../../redux/actions/channelAction';
@@ -82,12 +82,122 @@ const CustomModal = ({ show, onClose, title, children, onConfirm, confirmText, c
 };
 
 // ============================================
+// COMPONENTE: TARJETA INTELIGENTE DE ESTADO DEL CANAL
+// ============================================
+const ChannelStatusCard = ({ 
+  channel, 
+  hasPending, 
+  hasApproved, 
+  trialDaysLeft, 
+  onViewChannel, 
+  onEditChannel, 
+  onUpgradePlan 
+}) => {
+  // Caso 1: No hay ningún canal
+  if (!channel && !hasPending) {
+    return (
+      <div className="channel-status-card trial-card">
+        <div className="status-icon">🎬</div>
+        <h5>Commencez votre essai gratuit</h5>
+        <p>Créez votre canal et publiez votre première vidéo. 5 jours d'essai, sans engagement.</p>
+        <Button 
+          variant="primary" 
+          className="rounded-pill px-4"
+          onClick={() => window.location.href = '/channel/new'}
+        >
+          Créer mon canal d'essai
+        </Button>
+      </div>
+    );
+  }
+
+  // Caso 2: Canal pendiente de aprobación
+  if (hasPending && channel?.pendiente === true) {
+    return (
+      <div className="channel-status-card pending-card">
+        <div className="status-icon">⏳</div>
+        <h5>Canal en attente d'approbation</h5>
+        <p>Votre canal "{channel?.name}" est en cours de vérification par notre équipe.</p>
+        <p className="text-muted small">Vous serez notifié dès son activation.</p>
+        <Button variant="outline-secondary" size="sm" disabled>
+          En attente...
+        </Button>
+      </div>
+    );
+  }
+
+  // Caso 3: Canal trial aprobado y activo
+  if (hasApproved && channel && channel.trialChannel === true && channel.status === 'approved') {
+    const isExpiringSoon = trialDaysLeft <= 2 && trialDaysLeft > 0;
+    return (
+      <div className={`channel-status-card trial-active-card ${isExpiringSoon ? 'expiring-soon' : ''}`}>
+        <div className="status-icon">✅</div>
+        <h5>Votre essai est actif</h5>
+        <p><strong>{channel.name}</strong> – {channel.activity}</p>
+        <div className="trial-timer">
+          <Clock size={16} className="me-1" />
+          <span>{trialDaysLeft} jour{trialDaysLeft > 1 ? 's' : ''} restant{trialDaysLeft > 1 ? 's' : ''}</span>
+          {isExpiringSoon && <Badge bg="warning" className="ms-2">⚠️ Bientôt expiré</Badge>}
+        </div>
+        <div className="mt-2 d-flex gap-2 justify-content-center">
+          <Button size="sm" variant="outline-primary" onClick={() => onViewChannel(channel._id, false)}>
+            Voir mon canal
+          </Button>
+          <Button size="sm" variant="outline-secondary" onClick={() => onEditChannel(channel._id, false, channel.name)}>
+            Modifier
+          </Button>
+        </div>
+        {isExpiringSoon && (
+          <div className="alert alert-warning mt-2 mb-0 py-1 px-2 small">
+            <ExclamationTriangle size={12} className="me-1" />
+            Votre essai expire bientôt. Souscrivez un plan pour continuer.
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Caso 4: Canal expirado (trial terminado)
+  if (hasApproved && channel && channel.status === 'expired') {
+    return (
+      <div className="channel-status-card expired-card">
+        <div className="status-icon">⏰</div>
+        <h5>Essai expiré</h5>
+        <p>Votre période d'essai de 5 jours est terminée.</p>
+        <Button variant="danger" className="rounded-pill px-4" onClick={onUpgradePlan}>
+          Choisir un plan de paiement
+        </Button>
+      </div>
+    );
+  }
+
+  // Caso 5: Canal aprobado con plan de pago
+  if (hasApproved && channel && channel.trialChannel !== true) {
+    return (
+      <div className="channel-status-card paid-card">
+        <div className="status-icon">🏆</div>
+        <h5>Canal actif</h5>
+        <p><strong>{channel.name}</strong> – {channel.activity}</p>
+        <div className="mt-2 d-flex gap-2 justify-content-center">
+          <Button size="sm" variant="outline-primary" onClick={() => onViewChannel(channel._id, false)}>
+            Gérer mon canal
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+};
+
+// ============================================
 // COMPONENTE: CHANNEL CARD
 // ============================================
 const ChannelCard = ({ channel, onView, onEdit, onDelete, userRole, isOwner }) => {
   const isPending = channel.pendiente === true;
   const isApproved = channel.pendiente === false && channel.status === 'approved';
   const isRejected = channel.status === 'rejected';
+  const isExpired = channel.status === 'expired';
   const canEdit = userRole === 'admin' || isOwner;
   
   const getAvatarUrl = () => {
@@ -104,6 +214,7 @@ const ChannelCard = ({ channel, onView, onEdit, onDelete, userRole, isOwner }) =
     if (isPending) return { bg: '#f59e0b', text: '#92400e', label: '⏳ En attente' };
     if (isApproved) return { bg: '#10b981', text: '#064e3b', label: '✅ Approuvé' };
     if (isRejected) return { bg: '#ef4444', text: '#7f1d1d', label: '❌ Rejeté' };
+    if (isExpired) return { bg: '#6c757d', text: '#1f2937', label: '⏰ Essai expiré' };
     return { bg: '#6b7280', text: '#1f2937', label: '📝 Statut inconnu' };
   };
   
@@ -114,6 +225,7 @@ const ChannelCard = ({ channel, onView, onEdit, onDelete, userRole, isOwner }) =
       <div className="card-header-gradient" style={{ 
         background: isPending ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 
                   isApproved ? 'linear-gradient(135deg, #10b981, #059669)' :
+                  isExpired ? 'linear-gradient(135deg, #6c757d, #495057)' :
                   'linear-gradient(135deg, #ef4444, #dc2626)'
       }}>
         <div className="card-avatar-wrapper">
@@ -141,7 +253,7 @@ const ChannelCard = ({ channel, onView, onEdit, onDelete, userRole, isOwner }) =
           </Badge>
         </div>
         
-        {canEdit && (
+        {canEdit && !isExpired && (
           <Dropdown className="card-actions-dropdown">
             <Dropdown.Toggle variant="light" size="sm" className="rounded-circle">
               <ThreeDotsVertical size={14} />
@@ -152,9 +264,11 @@ const ChannelCard = ({ channel, onView, onEdit, onDelete, userRole, isOwner }) =
                 <Eye size={12} className="me-2" /> Voir la chaîne
               </Dropdown.Item>
               
-              <Dropdown.Item onClick={() => onEdit(channel._id, isPending, channel.name)}>
-                <Pencil size={12} className="me-2" /> Modifier
-              </Dropdown.Item>
+              {!isExpired && (
+                <Dropdown.Item onClick={() => onEdit(channel._id, isPending, channel.name)}>
+                  <Pencil size={12} className="me-2" /> Modifier
+                </Dropdown.Item>
+              )}
               
               <Dropdown.Divider />
               
@@ -219,11 +333,13 @@ const ChannelsTab = ({ channels = [], loading, onViewChannel, onEditChannel, onD
   const [filter, setFilter] = useState('all');
   
   const pendingChannels = channels.filter(ch => ch.pendiente === true);
-  const approvedChannels = channels.filter(ch => ch.pendiente === false);
+  const approvedChannels = channels.filter(ch => ch.pendiente === false && ch.status !== 'expired');
+  const expiredChannels = channels.filter(ch => ch.status === 'expired');
   
   const getFilteredChannels = () => {
     if (filter === 'pending') return pendingChannels;
     if (filter === 'approved') return approvedChannels;
+    if (filter === 'expired') return expiredChannels;
     return channels;
   };
   
@@ -272,11 +388,21 @@ const ChannelsTab = ({ channels = [], loading, onViewChannel, onEditChannel, onD
         <Button 
           variant={filter === 'approved' ? 'success' : 'outline-secondary'}
           size="sm"
-          className="rounded-pill"
+          className="me-2 rounded-pill"
           onClick={() => setFilter('approved')}
         >
           Approuvées ({approvedChannels.length})
         </Button>
+        {expiredChannels.length > 0 && (
+          <Button 
+            variant={filter === 'expired' ? 'secondary' : 'outline-secondary'}
+            size="sm"
+            className="rounded-pill"
+            onClick={() => setFilter('expired')}
+          >
+            Expirées ({expiredChannels.length})
+          </Button>
+        )}
       </div>
       
       <div className="cards-grid">
@@ -621,33 +747,6 @@ const LikedVideosTab = ({ token }) => {
 };
 
 // ============================================
-// COMPONENTE: PLAN INFO TAB
-// ============================================
-const PlanInfoTab = ({ planData }) => {
-  const { planName, planLimits, isUserPro, hasActivePlan, getDaysRemaining } = planData;
-  
-  return (
-    <div className="plan-info-tab">
-      <Card className="border-0 shadow-sm">
-        <Card.Body>
-          <h5>Plan {planName || 'Gratuit'}</h5>
-          {isUserPro && hasActivePlan && getDaysRemaining() > 0 && (
-            <Badge bg="info" className="rounded-pill">
-              <Clock size={10} className="me-1" />
-              {getDaysRemaining()} jours restants
-            </Badge>
-          )}
-          <hr />
-          <div>Canaux max: {planLimits?.maxChannels === 'unlimited' ? 'Illimité' : planLimits?.maxChannels}</div>
-          <div>Vidéos max: {planLimits?.maxVideos === 'unlimited' ? 'Illimité' : planLimits?.maxVideos}</div>
-          <div>Durée max: {planLimits?.maxDuration || 20} secondes</div>
-        </Card.Body>
-      </Card>
-    </div>
-  );
-};
-
-// ============================================
 // COMPONENTE: DELETE CHANNEL MODAL
 // ============================================
 const DeleteChannelModal = ({ show, onClose, channel, onConfirm, deleting }) => {
@@ -773,7 +872,7 @@ const InfoModal = ({ show, onClose, user }) => {
 };
 
 // ============================================
-// COMPONENTE PRINCIPAL: PROFILE (VERSIÓN FINAL)
+// COMPONENTE PRINCIPAL: PROFILE (VERSIÓN CON CARD INTELIGENTE)
 // ============================================
 const Profile = () => {
   const dispatch = useDispatch();
@@ -825,40 +924,50 @@ const Profile = () => {
   const isOwnProfile = auth.user?._id === id;
   const currentUser = isOwnProfile ? auth.user : profile.users?.find(u => u._id === id);
   
-  // ✅ Calcular canales APROBADOS (pendiente === false)
-  const approvedChannels = userChannels.filter(ch => ch.pendiente === false);
+  // ============================================
+  // LÓGICA PARA EL CARD INTELIGENTE
+  // ============================================
+  const mainChannel = userChannels.length > 0 ? userChannels[0] : null;
+  const hasPendingChannel = userChannels.some(ch => ch.pendiente === true);
+  const hasApprovedChannel = userChannels.some(ch => ch.pendiente === false && ch.status === 'approved');
+  const hasExpiredChannel = userChannels.some(ch => ch.status === 'expired');
+  
+  // Calcular días restantes del trial (solo para el canal principal si es trial)
+  const getTrialDaysRemaining = () => {
+    if (!mainChannel?.trialExpiresAt) return 0;
+    const diff = new Date(mainChannel.trialExpiresAt) - new Date();
+    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+  };
+  
+  // ✅ Determinar si puede crear un nuevo canal (para el dropdown)
+  const canCreateNewChannelDropdown = () => {
+    // Si tiene plan de pago activo, respetar límites
+    if (hasActivePlan && currentPlan !== 'free') {
+      const maxChannelsPlan = planLimits.maxChannels === 'unlimited' ? Infinity : planLimits.maxChannels;
+      return userChannels.length < maxChannelsPlan;
+    }
+    // Sin plan de pago: solo puede tener 1 canal (pendiente, aprobado o expirado)
+    // Si ya tiene algún canal (pendiente, aprobado o expirado), no puede crear otro
+    return userChannels.length === 0;
+  };
+  
+  // ✅ Calcular canales APROBADOS (pendiente === false) para límites
+  const approvedChannels = userChannels.filter(ch => ch.pendiente === false && ch.status !== 'expired');
   const currentChannelCount = approvedChannels.length;
   const pendingChannelsCount = userChannels.filter(ch => ch.pendiente === true).length;
   
-  // ✅ Calcular videos APROBADOS (pendiente === false)
+  // ✅ Calcular videos APROBADOS
   const approvedVideos = userVideos?.videos?.filter(v => v.pendiente === false) || [];
   const currentVideoCount = approvedVideos.length;
   const pendingVideosCount = userVideos?.videos?.filter(v => v.pendiente === true).length || 0;
   
   const maxChannels = planLimits.maxChannels === 'unlimited' ? Infinity : planLimits.maxChannels;
   const remainingChannels = maxChannels === Infinity ? '∞' : Math.max(0, maxChannels - currentChannelCount);
-  const canCreateNewChannel = canCreateChannel(currentChannelCount);
   
   const maxVideos = planLimits.maxVideos === 'unlimited' ? Infinity : planLimits.maxVideos;
   const remainingVideos = maxVideos === Infinity ? '∞' : Math.max(0, maxVideos - currentVideoCount);
   
-  // ✅ Cargar videos del usuario
-  useEffect(() => {
-    if (!auth.token || !id || !isOwnProfile) return;
-    if (hasLoadedVideosRef.current) return;
-    
-    const loadUserVideos = async () => {
-      try {
-        hasLoadedVideosRef.current = true;
-        await dispatch(getUserVideos(id, 'all', 1, 100));
-      } catch (err) {
-        console.error('Error loading user videos:', err);
-      }
-    };
-    
-    loadUserVideos();
-  }, [id, auth.token, dispatch, isOwnProfile]);
-  
+  // Cargar datos
   useEffect(() => {
     if (!auth.token || !id) return;
     
@@ -887,6 +996,24 @@ const Profile = () => {
     loadData();
   }, [id, auth, dispatch, profile.ids, isOwnProfile]);
   
+  // Cargar vídeos si es el perfil propio
+  useEffect(() => {
+    if (!auth.token || !id || !isOwnProfile) return;
+    if (hasLoadedVideosRef.current) return;
+    
+    const loadUserVideos = async () => {
+      try {
+        hasLoadedVideosRef.current = true;
+        await dispatch(getUserVideos(id, 'all', 1, 100));
+      } catch (err) {
+        console.error('Error loading user videos:', err);
+      }
+    };
+    
+    loadUserVideos();
+  }, [id, auth.token, dispatch, isOwnProfile]);
+  
+  // Handlers
   const handleViewChannel = (channelId, isPending) => {
     if (isPending) {
       history.push(`/channel/${channelId}/owner`);
@@ -974,7 +1101,7 @@ const Profile = () => {
   const handleShowInfo = () => setShowInfoModal(true);
   
   const handleCreateNewChannel = () => {
-    if (canCreateNewChannel) {
+    if (canCreateNewChannelDropdown()) {
       history.push('/channel/new');
     } else {
       setShowPlanLimitModal(true);
@@ -1021,7 +1148,7 @@ const Profile = () => {
   return (
     <div className="profile-page">
       <Container className="py-4">
-        {/* ✅ Alerta de plan expirado o próximo a expirar */}
+        {/* Alertas de plan */}
         {isOwnProfile && !hasActivePlan && isUserPro && (
           <Alert variant="danger" className="mb-3 text-center" style={{ borderRadius: '12px' }}>
             <strong>⚠️ Votre plan a expiré !</strong> Veuillez renouveler pour continuer à utiliser les fonctionnalités premium.
@@ -1040,6 +1167,7 @@ const Profile = () => {
           </Alert>
         )}
         
+        {/* Header con avatar y dropdown */}
         <div className="profile-header">
           <div className="avatar-section">
             <div className="avatar-container">
@@ -1056,87 +1184,77 @@ const Profile = () => {
               <Dropdown.Toggle variant="light" className="icon-btn">
                 <ThreeDotsVertical size={20} />
               </Dropdown.Toggle>
-              <Dropdown.Menu align="end">
-                {/* INFORMACIÓN DEL PLAN */}
+              
+              <Dropdown.Menu align="end" className="profile-actions-menu">
+                {/* Información del plan (cabecera) */}
                 <Dropdown.ItemText className="plan-info-item">
                   <div className="d-flex align-items-center gap-2">
-                    <span style={{ fontSize: '16px' }}>{planIcon}</span>
+                    <span style={{ fontSize: '18px' }}>{planIcon}</span>
                     <div>
                       <small className="text-muted d-block">Plan actuel</small>
                       <strong style={{ color: planColor }}>{planName}</strong>
+                      {isUserPro && hasActivePlan && getDaysRemaining() > 0 && (
+                        <Badge bg="info" className="ms-2" style={{ fontSize: '10px' }}>
+                          {getDaysRemaining()} jours restants
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 </Dropdown.ItemText>
                 
                 <Dropdown.Divider />
                 
-                {/* LÍMITES DEL PLAN - CON DATOS CORRECTOS (solo aprobados) */}
+                {/* Límites del plan */}
                 <Dropdown.ItemText className="plan-limits-item">
-                  <div className="d-flex justify-content-between align-items-center">
-                    <small className="text-muted">📺 Canaux (approuvés)</small>
-                    <small>
+                  <div className="limit-row">
+                    <span>📺 Canaux (approuvés)</span>
+                    <span>
                       <strong>{currentChannelCount}</strong> / {maxChannels === Infinity ? '∞' : maxChannels}
                       {pendingChannelsCount > 0 && (
-                        <Badge bg="warning" className="ms-1" style={{ fontSize: '9px' }}>
-                          +{pendingChannelsCount} en attente
-                        </Badge>
+                        <Badge bg="warning" className="ms-1">+{pendingChannelsCount}</Badge>
                       )}
-                    </small>
+                    </span>
                   </div>
-                  <div className="d-flex justify-content-between align-items-center mt-1">
-                    <small className="text-muted">🎬 Vidéos (publiées)</small>
-                    <small>
+                  <div className="limit-row mt-1">
+                    <span>🎬 Vidéos (publiées)</span>
+                    <span>
                       <strong>{currentVideoCount}</strong> / {maxVideos === Infinity ? '∞' : maxVideos}
                       {pendingVideosCount > 0 && (
-                        <Badge bg="warning" className="ms-1" style={{ fontSize: '9px' }}>
-                          +{pendingVideosCount} en attente
-                        </Badge>
+                        <Badge bg="warning" className="ms-1">+{pendingVideosCount}</Badge>
                       )}
-                    </small>
+                    </span>
                   </div>
-                  <div className="d-flex justify-content-between align-items-center mt-1">
-                    <small className="text-muted">⏱️ Durée max</small>
-                    <small><strong>{planLimits.maxDuration}</strong> sec</small>
+                  <div className="limit-row mt-1">
+                    <span>⏱️ Durée max</span>
+                    <span><strong>{planLimits.maxDuration}</strong> sec</span>
                   </div>
                 </Dropdown.ItemText>
                 
                 <Dropdown.Divider />
                 
-                {/* BOTÓN CREAR NUEVO CANAL */}
-                {canCreateNewChannel ? (
-                  <Dropdown.Item onClick={handleCreateNewChannel} className="text-success">
-                    <Tv size={14} className="me-2" /> 
-                    Créer un nouveau canal
-                    {remainingChannels !== '∞' && (
-                      <Badge bg="success" className="ms-2" style={{ fontSize: '10px' }}>
-                        +{remainingChannels} restant{remainingChannels > 1 ? 's' : ''}
-                      </Badge>
-                    )}
-                  </Dropdown.Item>
-                ) : (
-                  <Dropdown.Item onClick={handleCreateNewChannel} className="text-muted">
-                    <Tv size={14} className="me-2" /> 
-                    Créer un nouveau canal
-                    <Badge bg="secondary" className="ms-2" style={{ fontSize: '10px' }}>
-                      Limite atteinte
-                    </Badge>
-                  </Dropdown.Item>
+                {/* Botón crear canal - SÓLO SI PUEDE CREAR NUEVO CANAL */}
+                {canCreateNewChannelDropdown() && (
+                  <>
+                    <Dropdown.Item onClick={handleCreateNewChannel} className="text-success">
+                      <Tv size={14} className="me-2" /> Créer un nouveau canal
+                      {remainingChannels !== '∞' && (
+                        <Badge bg="success" className="ms-2">+{remainingChannels}</Badge>
+                      )}
+                    </Dropdown.Item>
+                    <Dropdown.Divider />
+                  </>
                 )}
                 
-                <Dropdown.Divider />
-                
-                {/* BOTÓN UPGRADE (si no es business) */}
+                {/* Upgrade plan */}
                 {currentPlan !== 'business' && (
                   <Dropdown.Item onClick={handleUpgradeToPro} className="text-primary">
-                    <Star size={14} className="me-2" /> 
-                    {isUserPro ? 'Améliorer mon plan' : 'Passer à UserPro'}
+                    <Star size={14} className="me-2" /> {isUserPro ? 'Améliorer mon plan' : 'Passer à UserPro'}
                   </Dropdown.Item>
                 )}
                 
                 <Dropdown.Divider />
                 
                 <Dropdown.Item onClick={handleShowInfo}><InfoCircle size={14} className="me-2" /> Informations</Dropdown.Item>
-                <Dropdown.Divider />
                 <Dropdown.Item onClick={handleEditProfile}><Pencil size={14} className="me-2" /> Modifier le profil</Dropdown.Item>
                 <Dropdown.Divider />
                 <Dropdown.Item onClick={handleDeleteProfile} className="text-danger"><Trash3 size={14} className="me-2" /> Supprimer le profil</Dropdown.Item>
@@ -1149,6 +1267,19 @@ const Profile = () => {
           <h2>{currentUser.fullname || currentUser.username}</h2>
           <p><Envelope size={14} className="me-1" />{currentUser.email}</p>
           {isUserPro && <Badge bg="primary" className="mt-2 rounded-pill"><Star size={10} className="me-1" /> UserPro</Badge>}
+        </div>
+        
+        {/* ========== TARJETA INTELIGENTE DE ESTADO DEL CANAL ========== */}
+        <div className="channel-status-container">
+          <ChannelStatusCard 
+            channel={mainChannel}
+            hasPending={hasPendingChannel}
+            hasApproved={hasApprovedChannel}
+            trialDaysLeft={getTrialDaysRemaining()}
+            onViewChannel={handleViewChannel}
+            onEditChannel={handleEditChannel}
+            onUpgradePlan={handleUpgradeToPro}
+          />
         </div>
         
         <div className="profile-tabs mt-4">
@@ -1181,11 +1312,33 @@ const Profile = () => {
             )}
             
             <Tab eventKey="plan" title={<span><CreditCard size={16} className="me-2" />Plan</span>}>
-              <PlanInfoTab planData={planData} />
+              <div className="plan-info-tab">
+                <Card className="border-0 shadow-sm">
+                  <Card.Body>
+                    <h5>Plan {planName || 'Gratuit'}</h5>
+                    {isUserPro && hasActivePlan && getDaysRemaining() > 0 && (
+                      <Badge bg="info" className="rounded-pill">
+                        <Clock size={10} className="me-1" />
+                        {getDaysRemaining()} jours restants
+                      </Badge>
+                    )}
+                    <hr />
+                    <div>Canaux max: {planLimits?.maxChannels === 'unlimited' ? 'Illimité' : planLimits?.maxChannels}</div>
+                    <div>Vidéos max: {planLimits?.maxVideos === 'unlimited' ? 'Illimité' : planLimits?.maxVideos}</div>
+                    <div>Durée max: {planLimits?.maxDuration || 20} secondes</div>
+                    {currentPlan !== 'business' && (
+                      <Button variant="primary" size="sm" onClick={handleUpgradeToPro} className="mt-3">
+                        {isUserPro ? 'Améliorer mon plan' : 'Passer à UserPro'}
+                      </Button>
+                    )}
+                  </Card.Body>
+                </Card>
+              </div>
             </Tab>
           </Tabs>
         </div>
         
+        {/* Modales */}
         <DeleteChannelModal 
           show={showDeleteConfirm}
           onClose={handleCloseModal}
@@ -1200,7 +1353,7 @@ const Profile = () => {
           user={currentUser} 
         />
         
-        {/* MODAL PARA CANAL PENDIENTE */}
+        {/* Modal canal pendiente */}
         <CustomModal
           show={showPendingModal}
           onClose={() => setShowPendingModal(false)}
@@ -1214,14 +1367,7 @@ const Profile = () => {
             <div style={{ fontSize: '50px' }}>⏳</div>
             <h5 className="mt-2 text-warning" style={{ color: '#f59e0b' }}>Canal en attente d'approbation</h5>
           </div>
-          
-          <div style={{ 
-            backgroundColor: '#fef3c7', 
-            borderLeft: '4px solid #f59e0b', 
-            padding: '16px', 
-            borderRadius: '8px',
-            marginBottom: '16px'
-          }}>
+          <div style={{ backgroundColor: '#fef3c7', borderLeft: '4px solid #f59e0b', padding: '16px', borderRadius: '8px', marginBottom: '16px' }}>
             <p style={{ color: '#78350f', marginBottom: '10px' }}>
               <strong>❌ Vous ne pouvez pas modifier ce canal pour le moment.</strong>
             </p>
@@ -1232,19 +1378,12 @@ const Profile = () => {
               Une fois approuvé, vous pourrez modifier ses informations et publier des vidéos.
             </p>
           </div>
-          
-          <div style={{ 
-            backgroundColor: '#e7f3ff', 
-            padding: '12px', 
-            borderRadius: '8px', 
-            fontSize: '13px',
-            color: '#004085'
-          }}>
+          <div style={{ backgroundColor: '#e7f3ff', padding: '12px', borderRadius: '8px', fontSize: '13px', color: '#004085' }}>
             <strong>💡 Information :</strong> La vérification prend généralement 24 à 48 heures. Vous serez notifié par email dès que votre chaîne sera approuvée.
           </div>
         </CustomModal>
         
-        {/* MODAL PARA ELIMINAR CUENTA */}
+        {/* Modal eliminar cuenta */}
         <CustomModal
           show={showDeleteAccountModal}
           onClose={() => setShowDeleteAccountModal(false)}
@@ -1258,7 +1397,6 @@ const Profile = () => {
             <div style={{ fontSize: '40px' }}>⚠️</div>
             <h5 className="mt-1 text-danger">Action IRRÉVERSIBLE</h5>
           </div>
-          
           <div className="alert alert-warning" style={{ padding: '12px', fontSize: '13px' }}>
             <strong>🗑️ Ce qui sera supprimé définitivement :</strong>
             <ul className="mt-1 mb-0" style={{ paddingLeft: '20px' }}>
@@ -1270,7 +1408,6 @@ const Profile = () => {
               <li>Vos <strong>informations personnelles</strong></li>
             </ul>
           </div>
-          
           <div className="mb-3">
             <label className="form-label" style={{ fontSize: '13px', fontWeight: 'bold' }}>Confirmez votre email</label>
             <input
@@ -1282,7 +1419,6 @@ const Profile = () => {
               onChange={(e) => setConfirmEmail(e.target.value)}
             />
           </div>
-          
           <div className="mb-2">
             <label className="form-label" style={{ fontSize: '13px', fontWeight: 'bold' }}>
               Tapez <strong className="text-danger">SUPPRIMER</strong> pour confirmer
@@ -1298,7 +1434,7 @@ const Profile = () => {
           </div>
         </CustomModal>
         
-        {/* MODAL: LÍMITE DE PLAN ALCANZADO */}
+        {/* Modal límite de plan alcanzado */}
         <CustomModal
           show={showPlanLimitModal}
           onClose={() => setShowPlanLimitModal(false)}
@@ -1312,14 +1448,7 @@ const Profile = () => {
             <div style={{ fontSize: '50px' }}>📊</div>
             <h5 className="mt-2 text-warning" style={{ color: '#f59e0b' }}>Limite de canaux atteinte</h5>
           </div>
-          
-          <div style={{ 
-            backgroundColor: '#fef3c7', 
-            borderLeft: '4px solid #f59e0b', 
-            padding: '16px', 
-            borderRadius: '8px',
-            marginBottom: '16px'
-          }}>
+          <div style={{ backgroundColor: '#fef3c7', borderLeft: '4px solid #f59e0b', padding: '16px', borderRadius: '8px', marginBottom: '16px' }}>
             <p style={{ color: '#78350f', marginBottom: '10px' }}>
               <strong>❌ Vous avez atteint la limite de canaux autorisés pour votre plan {planName}.</strong>
             </p>
@@ -1327,7 +1456,6 @@ const Profile = () => {
               Pour créer plus de canaux, veuillez passer à un plan supérieur.
             </p>
           </div>
-          
           <div className="d-flex gap-2 justify-content-center mt-3">
             <Button variant="outline-secondary" size="sm" onClick={() => setShowPlanLimitModal(false)}>
               Plus tard

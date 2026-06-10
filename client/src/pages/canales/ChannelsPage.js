@@ -3,7 +3,7 @@ import React, { useEffect,  useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Container, Row, Col, Spinner, Button} from 'react-bootstrap';
 import { Link } from 'react-router-dom';
-import { getApprovedChannels, clearApprovedChannels } from '../redux/actions/channelAction';
+import { getApprovedChannels, clearApprovedChannels } from '../../redux/actions/channelAction';
  
 import './ChannelsPage.css';  // ✅ Importamos los estilos personalizados
 const ChannelsPage = () => {
